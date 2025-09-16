@@ -9,7 +9,7 @@ public class UiLayoutBudgetTests
     public void TopBar_Should_Fit_Within_Window_Width()
     {
         // These values mirror XAML constants in MainWindow.xaml
-        double windowWidth = 246;       // Window Width
+        double windowWidth = 234;       // Window Width
         double borderPadding = 6 * 2;   // left+right padding of outer Border
         double handleMin = 60;          // drag handle min width
         double layerBtn = 24;           // each button width (menu + layers)
