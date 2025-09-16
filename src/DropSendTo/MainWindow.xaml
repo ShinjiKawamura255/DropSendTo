@@ -11,13 +11,6 @@
         PreviewMouseWheel="OnMouseWheel">
     <Window.ContextMenu>
         <ContextMenu>
-            <MenuItem Header="Layer">
-                <MenuItem Header="1" Click="OnLayer1"/>
-                <MenuItem Header="2" Click="OnLayer2"/>
-                <MenuItem Header="3" Click="OnLayer3"/>
-                <MenuItem Header="4" Click="OnLayer4"/>
-            </MenuItem>
-            <Separator/>
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
             <Separator/>
             <MenuItem Header="Exit" Click="OnExit"/>
