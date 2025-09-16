@@ -1,7 +1,7 @@
 <Window x:Class="DropSendTo.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="DropSendTo" Height="160" Width="220"
+        Title="DropSendTo" Height="160" Width="246"
         Topmost="True"
         AllowsTransparency="True"
         Background="Transparent"
@@ -64,13 +64,13 @@
         <!-- Top bar with menu button and layer buttons -->
         <DockPanel Grid.Row="0" LastChildFill="False">
             <!-- Drag handle area to move window -->
-            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="90" MouseLeftButtonDown="OnDragMove"/>
+            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="60" MouseLeftButtonDown="OnDragMove"/>
             <Button Content="≡" DockPanel.Dock="Left" Width="28" Height="24" Margin="2,2,14,2" Click="OnOpenMenu"/>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button x:Name="LayerBtn1" Content="1" Width="28" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn2" Content="2" Width="28" Height="24" Margin="2" AllowDrop="True" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn3" Content="3" Width="28" Height="24" Margin="2" AllowDrop="True" Click="OnLayer3" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn4" Content="4" Width="28" Height="24" Margin="2" AllowDrop="True" Click="OnLayer4" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn2" Content="2" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn3" Content="3" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer3" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn4" Content="4" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer4" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
             </StackPanel>
         </DockPanel>
 
