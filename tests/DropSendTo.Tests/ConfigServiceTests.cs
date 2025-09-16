@@ -11,7 +11,9 @@ public class ConfigServiceTests
     [Fact]
     public void LoadOrCreate_Should_Create_Default_Config_When_Missing()
     {
-        var svc = new ConfigService();
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var svc = new ConfigService(temp);
         var cfg = svc.LoadOrCreate();
         cfg.Layers.Count.Should().Be(4);
         foreach (var layer in cfg.Layers)
@@ -20,4 +22,3 @@ public class ConfigServiceTests
         }
     }
 }
-

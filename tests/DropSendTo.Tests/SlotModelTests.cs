@@ -10,7 +10,9 @@ public class SlotModelTests
     [Fact]
     public void ClickEnabled_Defaults_To_True_And_Persists()
     {
-        var cfgSvc = new ConfigService();
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var cfgSvc = new ConfigService(temp);
         var cfg = cfgSvc.LoadOrCreate();
         var slot = cfg.Layers[0].Slots[0];
         slot.ClickEnabled.Should().BeTrue();
@@ -21,4 +23,3 @@ public class SlotModelTests
         cfg2.Layers[0].Slots[0].ClickEnabled.Should().BeFalse();
     }
 }
-

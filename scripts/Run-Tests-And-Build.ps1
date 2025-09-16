@@ -1,23 +1,32 @@
 param(
-    [switch]$Release
+    [switch]$Release,
+    [switch]$KillRunning,
+    [switch]$NoRestore
 )
 
-Write-Host "== Restore =="
-dotnet restore .\DropSendTo.sln
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$ErrorActionPreference = 'Stop'
 
-Write-Host "== Build (Debug) =="
-dotnet build .\DropSendTo.sln -c Debug
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+function Invoke-Step($name, $scriptBlock) {
+  Write-Host "== $name =="
+  & $scriptBlock
+}
 
-Write-Host "== Test (Debug) =="
-dotnet test .\DropSendTo.sln -c Debug -l "trx;LogFileName=test_results.trx"
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if ($KillRunning) {
+  Write-Host "== Kill running DropSendTo.exe if any =="
+  Get-Process DropSendTo -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 500
+}
+
+if (-not $NoRestore) {
+  Invoke-Step "Restore" { dotnet restore .\DropSendTo.sln }
+}
+
+Invoke-Step "Build (Debug)" { dotnet build .\DropSendTo.sln -c Debug -v minimal }
+
+Invoke-Step "Test (Debug)" { dotnet test .\DropSendTo.sln -c Debug -l "trx;LogFileName=test_results.trx" --nologo }
 
 if ($Release) {
-  Write-Host "== Build (Release) =="
-  dotnet build .\DropSendTo.sln -c Release
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  Invoke-Step "Build (Release)" { dotnet build .\DropSendTo.sln -c Release -v minimal }
 }
 
 Write-Host "Done."

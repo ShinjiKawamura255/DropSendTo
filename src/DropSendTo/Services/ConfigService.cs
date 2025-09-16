@@ -7,7 +7,12 @@ namespace DropSendTo.Services;
 
 public class ConfigService
 {
-    private string ConfigDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DropSendTo");
+    private readonly string _baseDir;
+    public ConfigService(string? baseDir = null)
+    {
+        _baseDir = baseDir ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+    }
+    private string ConfigDir => Path.Combine(_baseDir, "DropSendTo");
     private string ConfigPath => Path.Combine(ConfigDir, "config.json");
     public string GetConfigPath() => ConfigPath;
     private string BackupPath => Path.Combine(ConfigDir, "config.json.bak");
