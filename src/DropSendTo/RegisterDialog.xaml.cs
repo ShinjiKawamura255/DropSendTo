@@ -47,4 +47,12 @@ public partial class RegisterDialog : Window
             }
         }
     }
+
+    private void OnInsertNewline(object sender, RoutedEventArgs e)
+    {
+        var idx = TitleBox.CaretIndex;
+        TitleBox.Text = TitleBox.Text.Insert(idx, System.Environment.NewLine);
+        TitleBox.CaretIndex = idx + System.Environment.NewLine.Length;
+        TitleBox.Focus();
+    }
 }

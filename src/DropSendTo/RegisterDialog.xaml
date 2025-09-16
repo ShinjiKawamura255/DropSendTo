@@ -17,7 +17,8 @@
         </Grid.ColumnDefinitions>
 
         <TextBlock Text="Title" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="TitleBox" Grid.Row="0" Grid.Column="1" Margin="6,2"/>
+        <TextBox x:Name="TitleBox" Grid.Row="0" Grid.Column="1" Margin="6,2" AcceptsReturn="True" TextWrapping="Wrap" ToolTip="Shift+Enter で改行 / ↵ ボタンで挿入"/>
+        <Button Content="↵" Grid.Row="0" Grid.Column="2" Margin="6,2" Width="28" Click="OnInsertNewline"/>
 
         <TextBlock Text="Command" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
         <TextBox x:Name="CommandBox" Grid.Row="1" Grid.Column="1" Margin="6,2"/>

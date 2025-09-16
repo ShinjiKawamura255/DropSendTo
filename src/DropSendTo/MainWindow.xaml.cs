@@ -233,6 +233,21 @@ public partial class MainWindow : Window
             else if (sender == LayerBtn4) _hoverTargetLayer = 3;
             _layerHoverTimer.Stop();
             _layerHoverTimer.Start();
+            e.Handled = true;
+        }
+    }
+
+    private void OnLayerDragOver(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (sender == LayerBtn1) _hoverTargetLayer = 0;
+            else if (sender == LayerBtn2) _hoverTargetLayer = 1;
+            else if (sender == LayerBtn3) _hoverTargetLayer = 2;
+            else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+            if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
+            e.Effects = DragDropEffects.Link;
+            e.Handled = true;
         }
     }
 
