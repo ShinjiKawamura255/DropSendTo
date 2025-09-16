@@ -19,6 +19,7 @@
 - TC-060 WindowPos: 再起動で位置復元、画面外は可視範囲に補正。
 - TC-070 SlotStates: hover/drag で視覚状態が変化。
 - TC-080 ClickExec: クリック実行が有効時のみ起動し、無効設定は保持。
+- TC-090 Menu: メニューから config.json が開ける。
 
 ## Execution
 - Unit: `dotnet test tests/DropSendTo.Tests -c Release`。
@@ -31,6 +32,7 @@
   6) ウィンドウ位置を移動→再起動後に復元、画面外移動は補正される。
   7) スロット hover/drag の視覚変化確認。
   8) クリック実行の有効/無効トグルを確認。
+  9) メニューから設定ファイルを開けることを確認。
 
 ## Environment & Data
 - OS: Windows 10 22H2+ / 11、.NET SDK 8.x。

@@ -36,7 +36,7 @@ public partial class RegisterDialog : Window
     {
         var dlg = new OpenFileDialog
         {
-            Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*"
+            Filter = "All files (*.*)|*.*"
         };
         if (dlg.ShowDialog(this) == true)
         {
@@ -48,4 +48,3 @@ public partial class RegisterDialog : Window
         }
     }
 }
-

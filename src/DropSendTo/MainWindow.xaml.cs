@@ -15,6 +15,8 @@ public partial class MainWindow : Window
     private readonly ConfigService _configService;
     private readonly LauncherService _launcher;
     private readonly WindowPlacementService _placement = new();
+    private readonly System.Windows.Threading.DispatcherTimer _layerHoverTimer;
+    private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
 
@@ -43,6 +45,19 @@ public partial class MainWindow : Window
             _config.WindowTop = t;
             _config.CurrentLayer = _currentLayer;
             _configService.Save(_config);
+        };
+
+        _layerHoverTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = System.TimeSpan.FromSeconds(1)
+        };
+        _layerHoverTimer.Tick += (_, _) =>
+        {
+            if (_hoverTargetLayer >= 0)
+            {
+                SetLayer(_hoverTargetLayer);
+            }
+            _layerHoverTimer.Stop();
         };
     }
 
@@ -99,14 +114,20 @@ public partial class MainWindow : Window
     private void RegisterSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
-        var dlg = new RegisterDialog();
-        if (dlg.ShowDialog() == true)
+        var ofd = new Microsoft.Win32.OpenFileDialog
         {
+            Filter = "All files (*.*)|*.*"
+        };
+        if (ofd.ShowDialog(this) == true)
+        {
+            var file = ofd.FileName;
+            var name = System.IO.Path.GetFileNameWithoutExtension(file);
             _config.Layers[_currentLayer].Slots[idx] = new SlotModel
             {
-                Title = dlg.AppTitle,
-                Command = dlg.CommandPath,
-                ArgumentsTemplate = dlg.ArgumentsTemplate
+                Title = name,
+                Command = file,
+                ArgumentsTemplate = "{args}",
+                ClickEnabled = true
             };
             _configService.Save(_config);
             RefreshUi();
@@ -171,6 +192,24 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnOpenConfig(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = _configService.GetConfigPath();
+            var psi = new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
         if (e.Delta > 0) SetLayer((_currentLayer + 3) % 4); else SetLayer((_currentLayer + 1) % 4);
@@ -184,6 +223,25 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnLayerDragEnter(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            if (sender == LayerBtn1) _hoverTargetLayer = 0;
+            else if (sender == LayerBtn2) _hoverTargetLayer = 1;
+            else if (sender == LayerBtn3) _hoverTargetLayer = 2;
+            else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+            _layerHoverTimer.Stop();
+            _layerHoverTimer.Start();
+        }
+    }
+
+    private void OnLayerDragLeave(object sender, DragEventArgs e)
+    {
+        _hoverTargetLayer = -1;
+        _layerHoverTimer.Stop();
+    }
+
     private void OnSlotMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray); }
@@ -192,6 +250,11 @@ public partial class MainWindow : Window
     {
         if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)); }
     }
+    private void OnSlotMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(200, 200, 200)); }
+    }
+
     private void OnSlotDragEnter(object sender, DragEventArgs e)
     {
         if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White); }

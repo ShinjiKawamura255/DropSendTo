@@ -3,14 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DropSendTo" Height="260" Width="260"
         Topmost="True"
-        Opacity="0.88"
-        Background="#FF000000"
+        AllowsTransparency="True"
+        Background="Transparent"
         Foreground="#FFFFFFFF"
         WindowStyle="None"
         ResizeMode="NoResize"
-        AllowsTransparency="False"
-        PreviewMouseWheel="OnMouseWheel"
-        MouseLeftButtonDown="OnDragMove">
+        PreviewMouseWheel="OnMouseWheel">
     <Window.ContextMenu>
         <ContextMenu>
             <MenuItem Header="Layer">
@@ -20,23 +18,26 @@
                 <MenuItem Header="4" Click="OnLayer4"/>
             </MenuItem>
             <Separator/>
+            <MenuItem Header="Open Config" Click="OnOpenConfig"/>
+            <Separator/>
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
-    <Grid Margin="8">
+    <Border CornerRadius="12" Background="#CC000000" Padding="6">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <!-- Top bar with menu button and layer buttons -->
-        <DockPanel Grid.Row="0" LastChildFill="False">
+        <DockPanel Grid.Row="0" LastChildFill="False" MouseLeftButtonDown="OnDragMove">
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-                <Button x:Name="LayerBtn1" Content="1" Width="24" Height="20" Margin="2" Click="OnLayer1"/>
-                <Button x:Name="LayerBtn2" Content="2" Width="24" Height="20" Margin="2" Click="OnLayer2"/>
-                <Button x:Name="LayerBtn3" Content="3" Width="24" Height="20" Margin="2" Click="OnLayer3"/>
-                <Button x:Name="LayerBtn4" Content="4" Width="24" Height="20" Margin="2" Click="OnLayer4"/>
+                <Button x:Name="LayerBtn1" Content="1" Width="28" Height="24" Margin="2" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn2" Content="2" Width="28" Height="24" Margin="2" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn3" Content="3" Width="28" Height="24" Margin="2" Click="OnLayer3" DragEnter="OnLayerDragEnter" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn4" Content="4" Width="28" Height="24" Margin="2" Click="OnLayer4" DragEnter="OnLayerDragEnter" DragLeave="OnLayerDragLeave"/>
             </StackPanel>
-            <Button Content="≡" Width="24" Height="20" Margin="2" Click="OnOpenMenu"/>
+            <Button Content="≡" Width="28" Height="24" Margin="2" Click="OnOpenMenu"/>
         </DockPanel>
 
         <Grid Grid.Row="1">
@@ -49,18 +50,19 @@
                 <ColumnDefinition/>
             </Grid.ColumnDefinitions>
             
-            <Border Grid.Row="0" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonUp="OnSlotClick">
+            <Border Grid.Row="0" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
                 <TextBlock x:Name="Slot1Text" Text="Slot 1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
-            <Border Grid.Row="0" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonUp="OnSlotClick">
+            <Border Grid.Row="0" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
                 <TextBlock x:Name="Slot2Text" Text="Slot 2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
-            <Border Grid.Row="1" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonUp="OnSlotClick">
+            <Border Grid.Row="1" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
                 <TextBlock x:Name="Slot3Text" Text="Slot 3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
-            <Border Grid.Row="1" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonUp="OnSlotClick">
+            <Border Grid.Row="1" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
                 <TextBlock x:Name="Slot4Text" Text="Slot 4" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
         </Grid>
     </Grid>
+    </Border>
 </Window>
