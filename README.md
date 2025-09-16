@@ -15,7 +15,8 @@ A lightweight, always-on-top Windows launcher built with .NET 8. Drag and drop f
 
 ## Build & Run
 - Build: `dotnet build`
-- Run: `dotnet run --project src/DropSendTo`
+- Run (UI): `dotnet run --project src/DropSendTo`
+- Run (CLI launch): `src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\\path\\to\\file.txt"`
 - Test: `dotnet test`
 
 ## SendTo Integration (optional)

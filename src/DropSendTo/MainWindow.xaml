@@ -32,16 +32,16 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Row="0" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu">
-            <TextBlock Text="Slot 1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Slot1Text" Text="Slot 1" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
         <Border Grid.Row="0" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu">
-            <TextBlock Text="Slot 2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Slot2Text" Text="Slot 2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
         <Border Grid.Row="1" Grid.Column="0" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu">
-            <TextBlock Text="Slot 3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Slot3Text" Text="Slot 3" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
         <Border Grid.Row="1" Grid.Column="1" Margin="4" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Background="#111" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu">
-            <TextBlock Text="Slot 4" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <TextBlock x:Name="Slot4Text" Text="Slot 4" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
     </Grid>
 </Window>

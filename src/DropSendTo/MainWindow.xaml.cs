@@ -25,6 +25,7 @@ public partial class MainWindow : Window
         _config = _configService.LoadOrCreate();
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+        RefreshUi();
     }
 
     private void OnExit(object sender, RoutedEventArgs e)
@@ -43,6 +44,7 @@ public partial class MainWindow : Window
     {
         _currentLayer = index;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+        RefreshUi();
     }
 
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -83,6 +85,7 @@ public partial class MainWindow : Window
                 ArgumentsTemplate = dlg.ArgumentsTemplate
             };
             _configService.Save(_config);
+            RefreshUi();
         }
     }
 
@@ -97,6 +100,7 @@ public partial class MainWindow : Window
             slot.Command = dlg.CommandPath;
             slot.ArgumentsTemplate = dlg.ArgumentsTemplate;
             _configService.Save(_config);
+            RefreshUi();
         }
     }
 
@@ -105,6 +109,7 @@ public partial class MainWindow : Window
         int idx = GetSlotIndex(fe);
         _config.Layers[_currentLayer].Slots[idx] = new SlotModel();
         _configService.Save(_config);
+        RefreshUi();
     }
 
     private void OnSlotDrop(object sender, DragEventArgs e)
@@ -132,5 +137,13 @@ public partial class MainWindow : Window
             MessageBox.Show(ex.Message, "Drop Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
-}
 
+    private void RefreshUi()
+    {
+        var layer = _config.Layers[_currentLayer];
+        Slot1Text.Text = string.IsNullOrWhiteSpace(layer.Slots[0].Title) ? "Slot 1" : layer.Slots[0].Title;
+        Slot2Text.Text = string.IsNullOrWhiteSpace(layer.Slots[1].Title) ? "Slot 2" : layer.Slots[1].Title;
+        Slot3Text.Text = string.IsNullOrWhiteSpace(layer.Slots[2].Title) ? "Slot 3" : layer.Slots[2].Title;
+        Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? "Slot 4" : layer.Slots[3].Title;
+    }
+}
