@@ -6,10 +6,11 @@
 
 ## DES-002 Components
 - AppHost: 起動/終了、単一インスタンス制御、例外ハンドラ。
-- MainWindow (AlwaysOnTop): 黒基調、20–40% 透過、テキスト不透明。右クリックメニュー提供。
-- SlotGrid: 2x2 表示、LayerManager と連動。
-- LayerManager: 現在レイヤー管理、切替 API。
-- SlotModel: `Id`, `Title`, `Command`, `ArgumentsTemplate`, `IconPath`。
+- MainWindow (AlwaysOnTop): 黒基調、20–40% 透過、テキスト不透明。タイトルバー無し。右上メニューボタン＋右クリックメニュー。
+- SlotGrid: 2x2 表示、LayerManager と連動。ホイールでレイヤー切替。
+- LayerManager: 現在レイヤー管理、切替 API（Next/Prev/Set、循環）。
+- WindowPlacementService: Left/Top の保存・復元、可視領域のクランプ（仮想スクリーン）。
+- SlotModel: `Id`, `Title`, `Command`, `ArgumentsTemplate`, `IconPath`, `ClickEnabled`。
 - ConfigService: 読み書き/検証/マイグレーション/バックアップ。
 - LauncherService: `Launch(SlotModel slot, string[] paths)` を提供。`ProcessStartInfo` で起動、失敗を分類。
 - DragDropService: ドロップ検証、複数パス対応、重複排除。
@@ -17,11 +18,12 @@
 - Logging: `logs\app.log` にローテーション出力（サイズ上限）。
 
 ## DES-003 UI Flows
-1) 起動: ConfigService が JSON をロード→検証→MainWindow 表示（最前面）。
-2) ドロップ: SlotGrid がパス配列を受け取り DragDropService 検証→LauncherService に渡す。
+1) 起動: ConfigService が JSON をロード→WindowPlacementService で位置補正→MainWindow 表示（最前面）。
+2) ドロップ: SlotGrid がパス配列を受け取り DragDropService 検証→LauncherService に渡す。hover/dragover でスタイル変化。
 3) 登録: スロット右クリック→登録ダイアログ→保存→UI 更新。
-4) レイヤー切替: メニュー/ホットキー→LayerManager 更新→SlotGrid 再描画。
-5) 終了: 右クリック→終了。未保存変更があれば保存。
+4) レイヤー切替: 上部ボタン/ホイール/メニュー→LayerManager 更新→SlotGrid/ボタン強調更新。
+5) クリック実行: スロットクリック→クリック実行が有効なら LauncherService 起動。
+6) 終了: メニューから終了→WindowPlacementService が位置保存→終了。
 
 ## DES-004 API Contracts (examples)
 - LauncherService
@@ -30,6 +32,10 @@
 - ConfigService
   - `Load()`: 設定とバージョン; 破損時は `.bak` 復元または既定値生成。
   - `Save()`: バリデーション後に原子的書き換え。
+- LayerManager
+  - `Current`, `Set(i)`, `Next()`, `Prev()`（1..4 を循環）。
+- WindowPlacementService
+  - `Clamp(left, top, bounds)` → 可視範囲内の座標を返す。
 
 ## DES-005 Errors/Timeout/Telemetry
 - Errors: パス不正、実行不可、タイムアウト（既定 15s）を分類。ユーザーには簡潔文面＋詳細はログ。

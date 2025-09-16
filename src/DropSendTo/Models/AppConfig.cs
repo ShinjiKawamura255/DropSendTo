@@ -7,6 +7,8 @@ public class AppConfig
 {
     public int Version { get; set; } = 1;
     public int CurrentLayer { get; set; } = 0; // 0..3
+    public double? WindowLeft { get; set; }
+    public double? WindowTop { get; set; }
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()
@@ -20,4 +22,3 @@ public class Layer
         new SlotModel(), new SlotModel(), new SlotModel(), new SlotModel()
     };
 }
-
