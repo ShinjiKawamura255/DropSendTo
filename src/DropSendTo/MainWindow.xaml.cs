@@ -309,17 +309,20 @@ public partial class MainWindow : Window
         {
             if (active)
             {
+                // Black-based emphasis: brighter gray background and strong border
                 b.Opacity = 1.0;
-                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2A, 0x7F, 0xFF));
+                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x22, 0x22, 0x22));
                 b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
                 b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                b.FontWeight = System.Windows.FontWeights.SemiBold;
             }
             else
             {
-                b.Opacity = 0.85;
+                b.Opacity = 0.9;
                 b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11));
-                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
+                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0x44, 0x44));
                 b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                b.FontWeight = System.Windows.FontWeights.Normal;
             }
         }
         SetState(LayerBtn1, _currentLayer == 0);

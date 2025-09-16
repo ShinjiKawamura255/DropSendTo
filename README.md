@@ -19,6 +19,13 @@ A lightweight, always-on-top Windows launcher built with .NET 8. Drag and drop f
 - Run (CLI launch): `src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\\path\\to\\file.txt"`
 - Test: `dotnet test`
 
+## Release Build
+- Debug/Tests/Build (with kill):
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1 -KillRunning`
+- Publish artifacts (zip in `dist/`):
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1`
+  - Options: `-Rid win-x64` (default), `-SelfContained` (include runtime), `-Version v0.1.0`
+
 ## SendTo Integration (optional)
 Create a shortcut to the built EXE and place it in `%AppData%\Microsoft\Windows\SendTo`. Then you can right-click a file → Send to → DropSendTo to forward paths as arguments.
 
