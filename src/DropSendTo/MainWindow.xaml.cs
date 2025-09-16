@@ -279,10 +279,11 @@ public partial class MainWindow : Window
     private void RefreshUi()
     {
         var layer = _config.Layers[_currentLayer];
-        Slot1Text.Text = string.IsNullOrWhiteSpace(layer.Slots[0].Title) ? "Slot 1" : layer.Slots[0].Title;
-        Slot2Text.Text = string.IsNullOrWhiteSpace(layer.Slots[1].Title) ? "Slot 2" : layer.Slots[1].Title;
-        Slot3Text.Text = string.IsNullOrWhiteSpace(layer.Slots[2].Title) ? "Slot 3" : layer.Slots[2].Title;
-        Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? "Slot 4" : layer.Slots[3].Title;
+        int baseNo = _currentLayer * 4;
+        Slot1Text.Text = string.IsNullOrWhiteSpace(layer.Slots[0].Title) ? $"Slot {baseNo + 1}" : layer.Slots[0].Title;
+        Slot2Text.Text = string.IsNullOrWhiteSpace(layer.Slots[1].Title) ? $"Slot {baseNo + 2}" : layer.Slots[1].Title;
+        Slot3Text.Text = string.IsNullOrWhiteSpace(layer.Slots[2].Title) ? $"Slot {baseNo + 3}" : layer.Slots[2].Title;
+        Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? $"Slot {baseNo + 4}" : layer.Slots[3].Title;
         // Layer button highlight
         LayerBtn1.Opacity = _currentLayer == 0 ? 1.0 : 0.6;
         LayerBtn2.Opacity = _currentLayer == 1 ? 1.0 : 0.6;
