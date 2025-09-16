@@ -12,16 +12,13 @@ public class UiLayoutBudgetTests
         double windowWidth = 246;       // Window Width
         double borderPadding = 6 * 2;   // left+right padding of outer Border
         double handleMin = 60;          // drag handle min width
-        double menuBtn = 28;            // menu button width
-        double menuMargins = 2 + 14 + 2; // left + right (14) + vertical ignored
-        double layerBtn = 24;           // each layer button width
+        double layerBtn = 24;           // each button width (menu + layers)
         double layerMargin = 2 * 2;     // left+right margin around button
-        int layerCount = 4;
+        int buttonCount = 5;            // menu + 4 layers
 
         double contentWidth = windowWidth - borderPadding;
-        double needed = handleMin + menuBtn + menuMargins + (layerBtn + layerMargin) * layerCount;
+        double needed = handleMin + (layerBtn + layerMargin) * buttonCount;
 
         needed.Should().BeLessOrEqualTo(contentWidth);
     }
 }
-

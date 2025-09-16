@@ -49,7 +49,7 @@ public partial class MainWindow : Window
 
         _layerHoverTimer = new System.Windows.Threading.DispatcherTimer
         {
-            Interval = System.TimeSpan.FromSeconds(1)
+            Interval = System.TimeSpan.FromMilliseconds(800)
         };
         _layerHoverTimer.Tick += (_, _) =>
         {
@@ -299,10 +299,32 @@ public partial class MainWindow : Window
         Slot2Text.Text = string.IsNullOrWhiteSpace(layer.Slots[1].Title) ? $"Slot {baseNo + 2}" : layer.Slots[1].Title;
         Slot3Text.Text = string.IsNullOrWhiteSpace(layer.Slots[2].Title) ? $"Slot {baseNo + 3}" : layer.Slots[2].Title;
         Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? $"Slot {baseNo + 4}" : layer.Slots[3].Title;
-        // Layer button highlight
-        LayerBtn1.Opacity = _currentLayer == 0 ? 1.0 : 0.6;
-        LayerBtn2.Opacity = _currentLayer == 1 ? 1.0 : 0.6;
-        LayerBtn3.Opacity = _currentLayer == 2 ? 1.0 : 0.6;
-        LayerBtn4.Opacity = _currentLayer == 3 ? 1.0 : 0.6;
+        // Layer button highlight with stronger contrast
+        UpdateLayerButtonVisuals();
+    }
+
+    private void UpdateLayerButtonVisuals()
+    {
+        void SetState(Button b, bool active)
+        {
+            if (active)
+            {
+                b.Opacity = 1.0;
+                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2A, 0x7F, 0xFF));
+                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+            }
+            else
+            {
+                b.Opacity = 0.85;
+                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11));
+                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
+                b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+            }
+        }
+        SetState(LayerBtn1, _currentLayer == 0);
+        SetState(LayerBtn2, _currentLayer == 1);
+        SetState(LayerBtn3, _currentLayer == 2);
+        SetState(LayerBtn4, _currentLayer == 3);
     }
 }

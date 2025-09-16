@@ -61,12 +61,12 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <!-- Top bar with menu button and layer buttons -->
+        <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
         <DockPanel Grid.Row="0" LastChildFill="False">
             <!-- Drag handle area to move window -->
             <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="60" MouseLeftButtonDown="OnDragMove"/>
-            <Button Content="≡" DockPanel.Dock="Left" Width="28" Height="24" Margin="2,2,14,2" Click="OnOpenMenu"/>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button x:Name="MenuBtn" Content="≡" Width="24" Height="24" Margin="2" Click="OnOpenMenu"/>
                 <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
                 <Button x:Name="LayerBtn2" Content="2" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
                 <Button x:Name="LayerBtn3" Content="3" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer3" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
