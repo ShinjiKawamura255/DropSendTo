@@ -1,63 +1,69 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<TestRun id="6c7ae832-b92d-45e2-8cf9-adf7dcac61c8" name="Kshee@LOSGATOS 2025-09-16 23:59:32" runUser="LOSGATOS\Kshee" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
-  <Times creation="2025-09-16T23:59:32.3120388+09:00" queuing="2025-09-16T23:59:32.3120389+09:00" start="2025-09-16T23:59:31.7362116+09:00" finish="2025-09-16T23:59:32.3167015+09:00" />
-  <TestSettings name="default" id="4a30a473-ee4e-4087-a42d-c11908693606">
-    <Deployment runDeploymentRoot="Kshee_LOSGATOS_2025-09-16_23_59_32" />
+<TestRun id="c7251bb3-70c0-4f23-a160-976cc556d15e" name="Kshee@LOSGATOS 2025-09-17 23:03:26" runUser="LOSGATOS\Kshee" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2025-09-17T23:03:26.2846371+09:00" queuing="2025-09-17T23:03:26.2846371+09:00" start="2025-09-17T23:03:25.7961742+09:00" finish="2025-09-17T23:03:26.2899651+09:00" />
+  <TestSettings name="default" id="db6eb93a-b54b-411a-808c-9dfa26922a7a">
+    <Deployment runDeploymentRoot="Kshee_LOSGATOS_2025-09-17_23_03_26" />
   </TestSettings>
   <Results>
-    <UnitTestResult executionId="078f9c37-c65b-4f85-adac-21cd80b7a8a5" testId="58ab0f97-792d-dc1b-5d3c-d57f729508c2" testName="DropSendTo.Tests.LayerManagerTests.Set_Should_Clamp_To_Range" computerName="LOSGATOS" duration="00:00:00.0676191" startTime="2025-09-16T23:59:32.2176794+09:00" endTime="2025-09-16T23:59:32.2176795+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="078f9c37-c65b-4f85-adac-21cd80b7a8a5" />
-    <UnitTestResult executionId="27c100d8-b57d-4c8c-b014-dc1140f2bd52" testId="f370a183-2074-ce2a-c92d-2c229bbfbbd2" testName="DropSendTo.Tests.PlacementServiceTests.Clamp_Should_Keep_Window_Inside_Bounds" computerName="LOSGATOS" duration="00:00:00.0676591" startTime="2025-09-16T23:59:32.2162309+09:00" endTime="2025-09-16T23:59:32.2162442+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="27c100d8-b57d-4c8c-b014-dc1140f2bd52" />
-    <UnitTestResult executionId="ca2b30d3-749c-40e1-bb61-650029f675bb" testId="317790fd-8200-3fb7-f916-359935f7302b" testName="DropSendTo.Tests.LayerManagerTests.NextPrev_Should_Cycle_0_3" computerName="LOSGATOS" duration="00:00:00.0002293" startTime="2025-09-16T23:59:32.2183791+09:00" endTime="2025-09-16T23:59:32.2183791+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ca2b30d3-749c-40e1-bb61-650029f675bb" />
-    <UnitTestResult executionId="5ca293e2-5b09-408a-b94f-d71279c6bfbb" testId="f3512a49-a26c-7c0a-5fbc-9ea94d35ff6d" testName="DropSendTo.Tests.UiLayoutBudgetTests.TopBar_Should_Fit_Within_Window_Width" computerName="LOSGATOS" duration="00:00:00.0676387" startTime="2025-09-16T23:59:32.2178473+09:00" endTime="2025-09-16T23:59:32.2178473+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5ca293e2-5b09-408a-b94f-d71279c6bfbb" />
-    <UnitTestResult executionId="b05eae28-3dca-4d76-aa97-94b02d1fd91d" testId="d727b901-866d-3075-1c2d-b1b9465700bf" testName="DropSendTo.Tests.SlotModelTests.ClickEnabled_Defaults_To_True_And_Persists" computerName="LOSGATOS" duration="00:00:00.0965520" startTime="2025-09-16T23:59:32.2428420+09:00" endTime="2025-09-16T23:59:32.2428422+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b05eae28-3dca-4d76-aa97-94b02d1fd91d" />
-    <UnitTestResult executionId="4bd279f0-df99-4306-bb50-de026b52b0ef" testId="f4af36c6-dc3e-1510-7606-a8577ae0ad6f" testName="DropSendTo.Tests.ConfigServiceTests.LoadOrCreate_Should_Create_Default_Config_When_Missing" computerName="LOSGATOS" duration="00:00:00.0901782" startTime="2025-09-16T23:59:32.2364979+09:00" endTime="2025-09-16T23:59:32.2364980+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4bd279f0-df99-4306-bb50-de026b52b0ef" />
+    <UnitTestResult executionId="bc385f2e-f1be-40b4-b90f-db4123302a9f" testId="58ab0f97-792d-dc1b-5d3c-d57f729508c2" testName="DropSendTo.Tests.LayerManagerTests.Set_Should_Clamp_To_Range" computerName="LOSGATOS" duration="00:00:00.0070208" startTime="2025-09-17T23:03:26.1850193+09:00" endTime="2025-09-17T23:03:26.1850193+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="bc385f2e-f1be-40b4-b90f-db4123302a9f" />
+    <UnitTestResult executionId="964b082e-57f0-41d0-9a46-2e13815b3da8" testId="f370a183-2074-ce2a-c92d-2c229bbfbbd2" testName="DropSendTo.Tests.PlacementServiceTests.Clamp_Should_Keep_Window_Inside_Bounds" computerName="LOSGATOS" duration="00:00:00.0073874" startTime="2025-09-17T23:03:26.1848568+09:00" endTime="2025-09-17T23:03:26.1848568+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="964b082e-57f0-41d0-9a46-2e13815b3da8" />
+    <UnitTestResult executionId="ab4621c2-dcef-4add-b508-c8189663e553" testId="317790fd-8200-3fb7-f916-359935f7302b" testName="DropSendTo.Tests.LayerManagerTests.NextPrev_Should_Cycle_0_3" computerName="LOSGATOS" duration="00:00:00.0002688" startTime="2025-09-17T23:03:26.1855753+09:00" endTime="2025-09-17T23:03:26.1855754+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ab4621c2-dcef-4add-b508-c8189663e553" />
+    <UnitTestResult executionId="2aecdd33-024d-4f73-b31f-50d06eed5c03" testId="f4af36c6-dc3e-1510-7606-a8577ae0ad6f" testName="DropSendTo.Tests.ConfigServiceTests.LoadOrCreate_Should_Create_Default_Config_When_Missing" computerName="LOSGATOS" duration="00:00:00.0012259" startTime="2025-09-17T23:03:26.2121900+09:00" endTime="2025-09-17T23:03:26.2121900+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2aecdd33-024d-4f73-b31f-50d06eed5c03" />
+    <UnitTestResult executionId="a792a364-941f-4ae7-8079-7b2268b3a379" testId="f3512a49-a26c-7c0a-5fbc-9ea94d35ff6d" testName="DropSendTo.Tests.UiLayoutBudgetTests.TopBar_Should_Fit_Within_Window_Width" computerName="LOSGATOS" duration="00:00:00.0073773" startTime="2025-09-17T23:03:26.1833442+09:00" endTime="2025-09-17T23:03:26.1833611+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a792a364-941f-4ae7-8079-7b2268b3a379" />
+    <UnitTestResult executionId="3b3bd853-41fd-4f32-83bd-c5498d03f432" testId="d727b901-866d-3075-1c2d-b1b9465700bf" testName="DropSendTo.Tests.SlotModelTests.ClickEnabled_Defaults_To_True_And_Persists" computerName="LOSGATOS" duration="00:00:00.0368363" startTime="2025-09-17T23:03:26.2111905+09:00" endTime="2025-09-17T23:03:26.2111905+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3b3bd853-41fd-4f32-83bd-c5498d03f432" />
+    <UnitTestResult executionId="8403ccca-b2fa-459e-81bf-40d06161d69e" testId="c96a6896-6c7c-0324-62eb-14d702a363cc" testName="DropSendTo.Tests.ConfigServiceTests.Save_Should_Persist_AlwaysOnTop_Flag" computerName="LOSGATOS" duration="00:00:00.0364954" startTime="2025-09-17T23:03:26.2109221+09:00" endTime="2025-09-17T23:03:26.2109222+09:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8403ccca-b2fa-459e-81bf-40d06161d69e" />
   </Results>
   <TestDefinitions>
     <UnitTest name="DropSendTo.Tests.PlacementServiceTests.Clamp_Should_Keep_Window_Inside_Bounds" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="f370a183-2074-ce2a-c92d-2c229bbfbbd2">
-      <Execution id="27c100d8-b57d-4c8c-b014-dc1140f2bd52" />
+      <Execution id="964b082e-57f0-41d0-9a46-2e13815b3da8" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.PlacementServiceTests" name="Clamp_Should_Keep_Window_Inside_Bounds" />
     </UnitTest>
     <UnitTest name="DropSendTo.Tests.LayerManagerTests.NextPrev_Should_Cycle_0_3" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="317790fd-8200-3fb7-f916-359935f7302b">
-      <Execution id="ca2b30d3-749c-40e1-bb61-650029f675bb" />
+      <Execution id="ab4621c2-dcef-4add-b508-c8189663e553" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.LayerManagerTests" name="NextPrev_Should_Cycle_0_3" />
     </UnitTest>
     <UnitTest name="DropSendTo.Tests.ConfigServiceTests.LoadOrCreate_Should_Create_Default_Config_When_Missing" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="f4af36c6-dc3e-1510-7606-a8577ae0ad6f">
-      <Execution id="4bd279f0-df99-4306-bb50-de026b52b0ef" />
+      <Execution id="2aecdd33-024d-4f73-b31f-50d06eed5c03" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.ConfigServiceTests" name="LoadOrCreate_Should_Create_Default_Config_When_Missing" />
     </UnitTest>
     <UnitTest name="DropSendTo.Tests.UiLayoutBudgetTests.TopBar_Should_Fit_Within_Window_Width" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="f3512a49-a26c-7c0a-5fbc-9ea94d35ff6d">
-      <Execution id="5ca293e2-5b09-408a-b94f-d71279c6bfbb" />
+      <Execution id="a792a364-941f-4ae7-8079-7b2268b3a379" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.UiLayoutBudgetTests" name="TopBar_Should_Fit_Within_Window_Width" />
     </UnitTest>
     <UnitTest name="DropSendTo.Tests.LayerManagerTests.Set_Should_Clamp_To_Range" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="58ab0f97-792d-dc1b-5d3c-d57f729508c2">
-      <Execution id="078f9c37-c65b-4f85-adac-21cd80b7a8a5" />
+      <Execution id="bc385f2e-f1be-40b4-b90f-db4123302a9f" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.LayerManagerTests" name="Set_Should_Clamp_To_Range" />
     </UnitTest>
     <UnitTest name="DropSendTo.Tests.SlotModelTests.ClickEnabled_Defaults_To_True_And_Persists" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="d727b901-866d-3075-1c2d-b1b9465700bf">
-      <Execution id="b05eae28-3dca-4d76-aa97-94b02d1fd91d" />
+      <Execution id="3b3bd853-41fd-4f32-83bd-c5498d03f432" />
       <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.SlotModelTests" name="ClickEnabled_Defaults_To_True_And_Persists" />
+    </UnitTest>
+    <UnitTest name="DropSendTo.Tests.ConfigServiceTests.Save_Should_Persist_AlwaysOnTop_Flag" storage="c:\users\kshee\onedrive\tools\dropsendto\tests\dropsendto.tests\bin\debug\net8.0-windows\dropsendto.tests.dll" id="c96a6896-6c7c-0324-62eb-14d702a363cc">
+      <Execution id="8403ccca-b2fa-459e-81bf-40d06161d69e" />
+      <TestMethod codeBase="C:\Users\Kshee\OneDrive\Tools\DropSendTo\tests\DropSendTo.Tests\bin\Debug\net8.0-windows\DropSendTo.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="DropSendTo.Tests.ConfigServiceTests" name="Save_Should_Persist_AlwaysOnTop_Flag" />
     </UnitTest>
   </TestDefinitions>
   <TestEntries>
-    <TestEntry testId="58ab0f97-792d-dc1b-5d3c-d57f729508c2" executionId="078f9c37-c65b-4f85-adac-21cd80b7a8a5" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
-    <TestEntry testId="f370a183-2074-ce2a-c92d-2c229bbfbbd2" executionId="27c100d8-b57d-4c8c-b014-dc1140f2bd52" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
-    <TestEntry testId="317790fd-8200-3fb7-f916-359935f7302b" executionId="ca2b30d3-749c-40e1-bb61-650029f675bb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
-    <TestEntry testId="f3512a49-a26c-7c0a-5fbc-9ea94d35ff6d" executionId="5ca293e2-5b09-408a-b94f-d71279c6bfbb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
-    <TestEntry testId="d727b901-866d-3075-1c2d-b1b9465700bf" executionId="b05eae28-3dca-4d76-aa97-94b02d1fd91d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
-    <TestEntry testId="f4af36c6-dc3e-1510-7606-a8577ae0ad6f" executionId="4bd279f0-df99-4306-bb50-de026b52b0ef" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="58ab0f97-792d-dc1b-5d3c-d57f729508c2" executionId="bc385f2e-f1be-40b4-b90f-db4123302a9f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f370a183-2074-ce2a-c92d-2c229bbfbbd2" executionId="964b082e-57f0-41d0-9a46-2e13815b3da8" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="317790fd-8200-3fb7-f916-359935f7302b" executionId="ab4621c2-dcef-4add-b508-c8189663e553" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f4af36c6-dc3e-1510-7606-a8577ae0ad6f" executionId="2aecdd33-024d-4f73-b31f-50d06eed5c03" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f3512a49-a26c-7c0a-5fbc-9ea94d35ff6d" executionId="a792a364-941f-4ae7-8079-7b2268b3a379" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d727b901-866d-3075-1c2d-b1b9465700bf" executionId="3b3bd853-41fd-4f32-83bd-c5498d03f432" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="c96a6896-6c7c-0324-62eb-14d702a363cc" executionId="8403ccca-b2fa-459e-81bf-40d06161d69e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
   </TestEntries>
   <TestLists>
     <TestList name="一覧に存在しない結果" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
     <TestList name="読み込まれたすべての結果" id="19431567-8539-422a-85d7-44ee4e166bda" />
   </TestLists>
   <ResultSummary outcome="Completed">
-    <Counters total="6" executed="6" passed="6" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Counters total="7" executed="7" passed="7" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
     <Output>
       <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v2.8.2+699d445a1a (64-bit .NET 8.0.20)&#xD;
-[xUnit.net 00:00:00.05]   Discovering: DropSendTo.Tests&#xD;
+[xUnit.net 00:00:00.04]   Discovering: DropSendTo.Tests&#xD;
 [xUnit.net 00:00:00.07]   Discovered:  DropSendTo.Tests&#xD;
 [xUnit.net 00:00:00.07]   Starting:    DropSendTo.Tests&#xD;
-[xUnit.net 00:00:00.20]   Finished:    DropSendTo.Tests&#xD;
+[xUnit.net 00:00:00.14]   Finished:    DropSendTo.Tests&#xD;
 </StdOut>
     </Output>
   </ResultSummary>

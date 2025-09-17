@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         _configService = new ConfigService();
         _launcher = new LauncherService();
         _config = _configService.LoadOrCreate();
+        Topmost = _config.AlwaysOnTop;
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
 
         // Restore window position with clamping
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
             _config.WindowLeft = l;
             _config.WindowTop = t;
             _config.CurrentLayer = _currentLayer;
+            _config.AlwaysOnTop = this.Topmost;
             _configService.Save(_config);
         };
 
@@ -64,6 +66,7 @@ public partial class MainWindow : Window
     private void OnExit(object sender, RoutedEventArgs e)
     {
         _config.CurrentLayer = _currentLayer;
+        _config.AlwaysOnTop = this.Topmost;
         _configService.Save(_config);
         Close();
     }
@@ -187,6 +190,7 @@ public partial class MainWindow : Window
     {
         if (this.ContextMenu != null)
         {
+            AlwaysOnTopMenuItem.IsChecked = this.Topmost;
             this.ContextMenu.PlacementTarget = (UIElement)sender;
             this.ContextMenu.IsOpen = true;
         }
@@ -208,6 +212,19 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private void OnToggleAlwaysOnTop(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item) return;
+        Topmost = item.IsChecked;
+        _config.AlwaysOnTop = Topmost;
+        _configService.Save(_config);
+    }
+
+    private void OnContextMenuOpened(object sender, RoutedEventArgs e)
+    {
+        AlwaysOnTopMenuItem.IsChecked = this.Topmost;
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)

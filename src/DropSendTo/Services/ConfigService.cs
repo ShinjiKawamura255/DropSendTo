@@ -88,6 +88,15 @@ public class ConfigService
             cfg.Version = 2;
             changed = true;
         }
+
+        if (cfg.Version < 3)
+        {
+            // v3 preserves legacy behavior of always-on-top window
+            cfg.AlwaysOnTop = true;
+            cfg.Version = 3;
+            changed = true;
+        }
+
         return changed;
     }
 }

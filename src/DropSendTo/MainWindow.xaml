@@ -10,8 +10,12 @@
         ResizeMode="NoResize"
         PreviewMouseWheel="OnMouseWheel">
     <Window.ContextMenu>
-        <ContextMenu>
+        <ContextMenu Opened="OnContextMenuOpened">
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
+            <MenuItem x:Name="AlwaysOnTopMenuItem"
+                      Header="常に最前面に表示"
+                      IsCheckable="True"
+                      Click="OnToggleAlwaysOnTop"/>
             <Separator/>
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>
