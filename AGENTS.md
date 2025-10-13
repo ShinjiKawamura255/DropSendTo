@@ -11,7 +11,7 @@
 - Run: `dotnet run --project src/DropSendTo`.
 - Test: `dotnet test` (xUnit default).
 - Format: `dotnet format` (requires `dotnet-format` in SDK workloads).
-- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す。
+- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す。(powershell.exeはWSLから呼び出せる)
   - 共通準備: `WIN_REPO=$(wslpath -w "$PWD")`
   - Build: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet build"`
   - Test: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet test"`

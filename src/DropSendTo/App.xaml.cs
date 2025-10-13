@@ -40,6 +40,7 @@ public partial class App : Application
 
         try
         {
+            _logger.CleanupOldLogs();
             var cfg = _configService.LoadOrCreate();
             var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
             if (args.Length > 0)
