@@ -11,11 +11,12 @@
 - Run: `dotnet run --project src/DropSendTo`.
 - Test: `dotnet test` (xUnit default).
 - Format: `dotnet format` (requires `dotnet-format` in SDK workloads).
-- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す。(powershell.exeはWSLから呼び出せる)
+- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す（`powershell.exe` 経由の実行を実機で確認済み）。
   - 共通準備: `WIN_REPO=$(wslpath -w "$PWD")`
   - Build: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet build"`
   - Test: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet test"`
   - Format: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet format"`
+  - 動作確認例: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "dotnet --version"`
 
 ## Coding Style & Naming Conventions
 - Language: C# 12, .NET 8, Windows-only APIs allowed.
