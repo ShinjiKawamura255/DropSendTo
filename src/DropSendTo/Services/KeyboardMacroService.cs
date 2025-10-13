@@ -1,0 +1,717 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Interop;
+
+namespace DropSendTo.Services;
+
+public sealed class KeyboardMacroService : IDisposable
+{
+    private static readonly Dictionary<string, ushort> KeyMap = CreateKeyMap();
+    private static readonly HashSet<string> ModifierTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CTRL", "CONTROL", "SHIFT", "ALT", "MENU", "WIN", "LWIN", "RWIN"
+    };
+
+    private readonly SemaphoreSlim _macroLock = new(1, 1);
+    private readonly LoggerService _logger = LoggerService.Instance;
+    private IntPtr _windowHandle;
+    private IntPtr _lastExternalWindow;
+    private IntPtr _winEventHook;
+    private WinEventDelegate? _winEventCallback;
+    private bool _disposed;
+    private uint _ownerThreadId;
+
+    public void Initialize(WindowInteropHelper helper)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(KeyboardMacroService));
+        _windowHandle = helper.Handle;
+        if (_windowHandle == IntPtr.Zero) throw new InvalidOperationException("Window handle is not ready.");
+        if (_winEventHook != IntPtr.Zero) return;
+        _winEventCallback = OnWinEvent;
+        _winEventHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
+            _winEventCallback, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        if (_winEventHook == IntPtr.Zero)
+        {
+            int err = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"Failed to set win event hook. Error={err}");
+        }
+        _ownerThreadId = GetCurrentThreadId();
+        var fg = GetForegroundWindow();
+        if (fg != IntPtr.Zero && fg != _windowHandle)
+        {
+            Volatile.Write(ref _lastExternalWindow, fg);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        if (_winEventHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_winEventHook);
+            _winEventHook = IntPtr.Zero;
+        }
+        _winEventCallback = null;
+        _macroLock.Dispose();
+    }
+
+    private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        if (_windowHandle != IntPtr.Zero && hwnd == _windowHandle) return;
+        if (!IsWindow(hwnd)) return;
+        Interlocked.Exchange(ref _lastExternalWindow, hwnd);
+    }
+
+    public Task<MacroExecutionResult> RunMacroAsync(string? script, CancellationToken cancellationToken = default)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(KeyboardMacroService));
+        if (string.IsNullOrWhiteSpace(script))
+            return Task.FromResult(MacroExecutionResult.Skip("No macro script configured."));
+
+        return Task.Run(() => RunMacroInternal(script!, cancellationToken), cancellationToken);
+    }
+
+    private MacroExecutionResult RunMacroInternal(string script, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IntPtr target = ResolveTargetWindow();
+        if (target == IntPtr.Zero)
+            return MacroExecutionResult.Fail("ターゲットとなる直前のウィンドウが見つかりません。");
+
+        try
+        {
+            _macroLock.Wait(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return MacroExecutionResult.Fail("マクロ実行がキャンセルされました。");
+        }
+
+        try
+        {
+            if (!TryFocusTarget(target, out string? focusError))
+            {
+                return MacroExecutionResult.Fail(focusError ?? "ターゲットのフォーカス取得に失敗しました。");
+            }
+
+            var lines = script.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var buffer = new List<INPUT>(16);
+            foreach (var rawLine in lines)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var line = rawLine.Trim();
+                if (line.Length == 0 || line.StartsWith('#')) continue;
+
+                if (StartsWithCommand(line, "WAIT"))
+                {
+                    if (!int.TryParse(line.AsSpan(4).Trim(), out var waitMs) || waitMs < 0 || waitMs > 60000)
+                    {
+                        return MacroExecutionResult.Fail($"WAIT に指定できる時間は 0〜60000 ミリ秒です: \"{line}\"");
+                    }
+                    if (!TryFlushInputs(buffer, out var flushError))
+                    {
+                        return MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。");
+                    }
+                    Thread.Sleep(waitMs);
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "TEXT"))
+                {
+                    var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
+                    AppendTextInputs(text, buffer);
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "KEYDOWN"))
+                {
+                    var token = line.Length > 7 ? line[7..].Trim() : string.Empty;
+                    if (!TryResolveKey(token, out var key))
+                        return MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{token}\"");
+                    AppendKey(buffer, key, false);
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "KEYUP"))
+                {
+                    var token = line.Length > 5 ? line[5..].Trim() : string.Empty;
+                    if (!TryResolveKey(token, out var key))
+                        return MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{token}\"");
+                    AppendKey(buffer, key, true);
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "KEY"))
+                {
+                    var combo = line.Length > 3 ? line[3..].Trim() : string.Empty;
+                    if (!TryAppendCombination(combo, buffer, out var error))
+                    {
+                        return MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{combo}\"");
+                    }
+                    continue;
+                }
+
+                return MacroExecutionResult.Fail($"未知のマクロ命令です: \"{line}\"");
+            }
+
+            if (!TryFlushInputs(buffer, out var finalFlushError))
+            {
+                return MacroExecutionResult.Fail(finalFlushError ?? "SendInput の実行に失敗しました。");
+            }
+
+            return MacroExecutionResult.Ok();
+        }
+        catch (OperationCanceledException)
+        {
+            return MacroExecutionResult.Fail("マクロ実行がキャンセルされました。");
+        }
+        finally
+        {
+            if (_macroLock.CurrentCount == 0)
+            {
+                _macroLock.Release();
+            }
+        }
+    }
+
+    private static bool StartsWithCommand(string line, string command) =>
+        line.Length >= command.Length && line.StartsWith(command, StringComparison.OrdinalIgnoreCase);
+
+    private IntPtr ResolveTargetWindow()
+    {
+        var target = Volatile.Read(ref _lastExternalWindow);
+        if (target != IntPtr.Zero && IsWindow(target))
+        {
+            return target;
+        }
+
+        var fg = GetForegroundWindow();
+        if (fg != IntPtr.Zero && fg != _windowHandle && IsWindow(fg))
+        {
+            return fg;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private bool TryFlushInputs(List<INPUT> buffer, out string? error)
+    {
+        error = null;
+        if (buffer.Count == 0) return true;
+        var arr = buffer.ToArray();
+        buffer.Clear();
+        var sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
+        if (sent == arr.Length) return true;
+        int err = Marshal.GetLastWin32Error();
+        error = $"SendInput の呼び出しに失敗しました (Error={err}).";
+        _logger.Error($"SendInput failure: requested={arr.Length}, sent={sent}, cbSize={Marshal.SizeOf<INPUT>()}, error={err}, firstType={(arr.Length > 0 ? arr[0].type : 0)}, firstVk={(arr.Length > 0 ? arr[0].u.ki.wVk : 0)}, firstFlags={(arr.Length > 0 ? arr[0].u.ki.dwFlags : 0)}");
+        return false;
+    }
+
+    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp)
+    {
+        ushort scanCode = (ushort)MapVirtualKey(vk, MAPVK_VK_TO_VSC);
+        uint flags = KEYEVENTF_SCANCODE;
+        if (IsExtendedKey(vk))
+        {
+            flags |= KEYEVENTF_EXTENDEDKEY;
+        }
+        if (keyUp) flags |= KEYEVENTF_KEYUP;
+
+        // Fallback to virtual-key mode when scan code is missing
+        bool useVirtualKey = scanCode == 0;
+
+        buffer.Add(new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            u = new InputUnion
+            {
+                ki = new KEYBDINPUT
+                {
+                    wVk = useVirtualKey ? vk : (ushort)0,
+                    wScan = useVirtualKey ? (ushort)0 : scanCode,
+                    dwFlags = useVirtualKey ? (keyUp ? KEYEVENTF_KEYUP : 0) : flags,
+                    dwExtraInfo = GetMessageExtraInfo()
+                }
+            }
+        });
+    }
+
+    private static void AppendTextInputs(string text, List<INPUT> buffer)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        foreach (var ch in text)
+        {
+            buffer.Add(new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = ch,
+                        dwFlags = KEYEVENTF_UNICODE,
+                        dwExtraInfo = GetMessageExtraInfo()
+                    }
+                }
+            });
+            buffer.Add(new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                u = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = ch,
+                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                        dwExtraInfo = GetMessageExtraInfo()
+                    }
+                }
+            });
+        }
+    }
+
+    private static bool TryAppendCombination(string combo, List<INPUT> buffer, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(combo))
+        {
+            error = "KEY の後にキー指定がありません。";
+            return false;
+        }
+
+        var parts = combo.Split('+', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            error = "KEY の書式が不正です。";
+            return false;
+        }
+
+        var modifiers = new List<ushort>();
+        for (int i = 0; i < parts.Length - 1; i++)
+        {
+            var token = parts[i].Trim();
+            if (!ModifierTokens.Contains(token))
+            {
+                error = $"修飾キーの指定が不正です: \"{token}\"";
+                return false;
+            }
+            if (!TryResolveModifier(token, out var vk))
+            {
+                error = $"修飾キーに対応する仮想キーを取得できません: \"{token}\"";
+                return false;
+            }
+            modifiers.Add(vk);
+        }
+
+        if (!TryResolveKey(parts[^1].Trim(), out var mainKey))
+        {
+            error = $"キーの指定が不正です: \"{parts[^1].Trim()}\"";
+            return false;
+        }
+
+        foreach (var mod in modifiers)
+        {
+            AppendKey(buffer, mod, keyUp: false);
+        }
+        AppendKey(buffer, mainKey, keyUp: false);
+        AppendKey(buffer, mainKey, keyUp: true);
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            AppendKey(buffer, modifiers[i], keyUp: true);
+        }
+
+        return true;
+    }
+
+    private bool TryFocusTarget(IntPtr hwnd, out string? error)
+    {
+        error = null;
+        if (!IsWindow(hwnd))
+        {
+            error = "ターゲットウィンドウが存在しません。";
+            return false;
+        }
+
+        uint ownerThread = _ownerThreadId;
+        if (ownerThread == 0 && _windowHandle != IntPtr.Zero)
+        {
+            ownerThread = GetWindowThreadProcessId(_windowHandle, out _);
+        }
+        var currentThread = GetCurrentThreadId();
+        var targetThread = GetWindowThreadProcessId(hwnd, out _);
+        bool attachedOwner = false;
+        bool attachedCurrent = false;
+        if (ownerThread != 0 && ownerThread != targetThread)
+        {
+            attachedOwner = AttachThreadInput(ownerThread, targetThread, true);
+            if (!attachedOwner)
+            {
+                error = "入力スレッドの一時接続に失敗しました。";
+                return false;
+            }
+        }
+        if (currentThread != targetThread && currentThread != ownerThread)
+        {
+            if (!AttachThreadInput(currentThread, targetThread, true))
+            {
+                error = "入力スレッドの一時接続に失敗しました。";
+                return false;
+            }
+            attachedCurrent = true;
+        }
+
+        try
+        {
+            if (IsIconic(hwnd))
+            {
+                ShowWindow(hwnd, SW_RESTORE);
+            }
+
+            if (!SetForegroundWindow(hwnd))
+            {
+                error = "SetForegroundWindow に失敗しました。";
+                return false;
+            }
+        }
+        finally
+        {
+            if (attachedCurrent)
+            {
+                AttachThreadInput(currentThread, targetThread, false);
+            }
+            if (attachedOwner)
+            {
+                AttachThreadInput(ownerThread, targetThread, false);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryResolveKey(string token, out ushort key)
+    {
+        key = 0;
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        token = token.Trim();
+        if (KeyMap.TryGetValue(token, out key)) return true;
+        if (token.Length == 1)
+        {
+            key = (ushort)char.ToUpperInvariant(token[0]);
+            return true;
+        }
+        return false;
+    }
+
+    private static bool TryResolveModifier(string token, out ushort key)
+    {
+        key = 0;
+        return token.ToUpperInvariant() switch
+        {
+            "CTRL" or "CONTROL" => (key = VK_CONTROL) != 0,
+            "SHIFT" => (key = VK_SHIFT) != 0,
+            "ALT" or "MENU" => (key = VK_MENU) != 0,
+            "WIN" or "LWIN" => (key = VK_LWIN) != 0,
+            "RWIN" => (key = VK_RWIN) != 0,
+            _ => false
+        };
+    }
+
+    private static Dictionary<string, ushort> CreateKeyMap()
+    {
+        var map = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ENTER"] = VK_RETURN,
+            ["RETURN"] = VK_RETURN,
+            ["ESC"] = VK_ESCAPE,
+            ["ESCAPE"] = VK_ESCAPE,
+            ["TAB"] = VK_TAB,
+            ["SPACE"] = VK_SPACE,
+            ["BACK"] = VK_BACK,
+            ["BACKSPACE"] = VK_BACK,
+            ["UP"] = VK_UP,
+            ["DOWN"] = VK_DOWN,
+            ["LEFT"] = VK_LEFT,
+            ["RIGHT"] = VK_RIGHT,
+            ["HOME"] = VK_HOME,
+            ["END"] = VK_END,
+            ["PGUP"] = VK_PRIOR,
+            ["PAGEUP"] = VK_PRIOR,
+            ["PGDN"] = VK_NEXT,
+            ["PAGEDOWN"] = VK_NEXT,
+            ["DELETE"] = VK_DELETE,
+            ["DEL"] = VK_DELETE,
+            ["INSERT"] = VK_INSERT,
+            ["INS"] = VK_INSERT,
+            ["F1"] = VK_F1,
+            ["F2"] = VK_F2,
+            ["F3"] = VK_F3,
+            ["F4"] = VK_F4,
+            ["F5"] = VK_F5,
+            ["F6"] = VK_F6,
+            ["F7"] = VK_F7,
+            ["F8"] = VK_F8,
+            ["F9"] = VK_F9,
+            ["F10"] = VK_F10,
+            ["F11"] = VK_F11,
+            ["F12"] = VK_F12,
+            ["F13"] = VK_F13,
+            ["F14"] = VK_F14,
+            ["F15"] = VK_F15,
+            ["F16"] = VK_F16,
+            ["F17"] = VK_F17,
+            ["F18"] = VK_F18,
+            ["F19"] = VK_F19,
+            ["F20"] = VK_F20,
+            ["F21"] = VK_F21,
+            ["F22"] = VK_F22,
+            ["F23"] = VK_F23,
+            ["F24"] = VK_F24,
+            ["CAPSLOCK"] = VK_CAPITAL,
+            ["SCROLLLOCK"] = VK_SCROLL,
+            ["PAUSE"] = VK_PAUSE,
+            ["BREAK"] = VK_PAUSE,
+            ["PRINTSCREEN"] = VK_SNAPSHOT,
+            ["PRTSC"] = VK_SNAPSHOT,
+            ["APPS"] = VK_APPS,
+            ["MENU"] = VK_APPS,
+            ["NUMLOCK"] = VK_NUMLOCK,
+            ["NUM0"] = VK_NUMPAD0,
+            ["NUM1"] = VK_NUMPAD1,
+            ["NUM2"] = VK_NUMPAD2,
+            ["NUM3"] = VK_NUMPAD3,
+            ["NUM4"] = VK_NUMPAD4,
+            ["NUM5"] = VK_NUMPAD5,
+            ["NUM6"] = VK_NUMPAD6,
+            ["NUM7"] = VK_NUMPAD7,
+            ["NUM8"] = VK_NUMPAD8,
+            ["NUM9"] = VK_NUMPAD9,
+            ["MULTIPLY"] = VK_MULTIPLY,
+            ["ADD"] = VK_ADD,
+            ["SUBTRACT"] = VK_SUBTRACT,
+            ["MINUS"] = VK_OEM_MINUS,
+            ["DIVIDE"] = VK_DIVIDE,
+            ["SEPARATOR"] = VK_SEPARATOR,
+            ["DECIMAL"] = VK_DECIMAL,
+            ["OEM1"] = VK_OEM_1,
+            ["OEMPLUS"] = VK_OEM_PLUS,
+            ["OEMCOMMA"] = VK_OEM_COMMA,
+            ["OEMMINUS"] = VK_OEM_MINUS,
+            ["OEMPERIOD"] = VK_OEM_PERIOD,
+            ["OEM2"] = VK_OEM_2,
+            ["OEM3"] = VK_OEM_3,
+            ["OEM4"] = VK_OEM_4,
+            ["OEM5"] = VK_OEM_5,
+            ["OEM6"] = VK_OEM_6,
+            ["OEM7"] = VK_OEM_7
+        };
+
+        for (char c = 'A'; c <= 'Z'; c++)
+        {
+            map[c.ToString()] = (ushort)c;
+        }
+
+        for (char c = '0'; c <= '9'; c++)
+        {
+            map[c.ToString()] = (ushort)c;
+        }
+
+        return map;
+    }
+
+    private static bool IsExtendedKey(ushort vk) =>
+        vk == VK_RIGHT || vk == VK_LEFT || vk == VK_UP || vk == VK_DOWN ||
+        vk == VK_HOME || vk == VK_END || vk == VK_PRIOR || vk == VK_NEXT ||
+        vk == VK_INSERT || vk == VK_DELETE || vk == VK_APPS ||
+        vk == VK_RWIN || vk == VK_LWIN || vk == VK_MENU;
+
+    private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+    private const uint INPUT_KEYBOARD = 1;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_UNICODE = 0x0004;
+    private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+    private const uint KEYEVENTF_SCANCODE = 0x0008;
+    private const int SW_RESTORE = 9;
+
+    private const uint MAPVK_VK_TO_VSC = 0x0;
+
+    private const ushort VK_CONTROL = 0x11;
+    private const ushort VK_SHIFT = 0x10;
+    private const ushort VK_MENU = 0x12;
+    private const ushort VK_LWIN = 0x5B;
+    private const ushort VK_RWIN = 0x5C;
+    private const ushort VK_RETURN = 0x0D;
+    private const ushort VK_ESCAPE = 0x1B;
+    private const ushort VK_TAB = 0x09;
+    private const ushort VK_SPACE = 0x20;
+    private const ushort VK_BACK = 0x08;
+    private const ushort VK_UP = 0x26;
+    private const ushort VK_DOWN = 0x28;
+    private const ushort VK_LEFT = 0x25;
+    private const ushort VK_RIGHT = 0x27;
+    private const ushort VK_HOME = 0x24;
+    private const ushort VK_END = 0x23;
+    private const ushort VK_PRIOR = 0x21;
+    private const ushort VK_NEXT = 0x22;
+    private const ushort VK_DELETE = 0x2E;
+    private const ushort VK_INSERT = 0x2D;
+    private const ushort VK_F1 = 0x70;
+    private const ushort VK_F2 = 0x71;
+    private const ushort VK_F3 = 0x72;
+    private const ushort VK_F4 = 0x73;
+    private const ushort VK_F5 = 0x74;
+    private const ushort VK_F6 = 0x75;
+    private const ushort VK_F7 = 0x76;
+    private const ushort VK_F8 = 0x77;
+    private const ushort VK_F9 = 0x78;
+    private const ushort VK_F10 = 0x79;
+    private const ushort VK_F11 = 0x7A;
+    private const ushort VK_F12 = 0x7B;
+    private const ushort VK_F13 = 0x7C;
+    private const ushort VK_F14 = 0x7D;
+    private const ushort VK_F15 = 0x7E;
+    private const ushort VK_F16 = 0x7F;
+    private const ushort VK_F17 = 0x80;
+    private const ushort VK_F18 = 0x81;
+    private const ushort VK_F19 = 0x82;
+    private const ushort VK_F20 = 0x83;
+    private const ushort VK_F21 = 0x84;
+    private const ushort VK_F22 = 0x85;
+    private const ushort VK_F23 = 0x86;
+    private const ushort VK_F24 = 0x87;
+    private const ushort VK_CAPITAL = 0x14;
+    private const ushort VK_SCROLL = 0x91;
+    private const ushort VK_PAUSE = 0x13;
+    private const ushort VK_SNAPSHOT = 0x2C;
+    private const ushort VK_APPS = 0x5D;
+    private const ushort VK_NUMLOCK = 0x90;
+    private const ushort VK_NUMPAD0 = 0x60;
+    private const ushort VK_NUMPAD1 = 0x61;
+    private const ushort VK_NUMPAD2 = 0x62;
+    private const ushort VK_NUMPAD3 = 0x63;
+    private const ushort VK_NUMPAD4 = 0x64;
+    private const ushort VK_NUMPAD5 = 0x65;
+    private const ushort VK_NUMPAD6 = 0x66;
+    private const ushort VK_NUMPAD7 = 0x67;
+    private const ushort VK_NUMPAD8 = 0x68;
+    private const ushort VK_NUMPAD9 = 0x69;
+    private const ushort VK_MULTIPLY = 0x6A;
+    private const ushort VK_ADD = 0x6B;
+    private const ushort VK_SEPARATOR = 0x6C;
+    private const ushort VK_SUBTRACT = 0x6D;
+    private const ushort VK_DECIMAL = 0x6E;
+    private const ushort VK_DIVIDE = 0x6F;
+    private const ushort VK_OEM_1 = 0xBA;
+    private const ushort VK_OEM_PLUS = 0xBB;
+    private const ushort VK_OEM_COMMA = 0xBC;
+    private const ushort VK_OEM_MINUS = 0xBD;
+    private const ushort VK_OEM_PERIOD = 0xBE;
+    private const ushort VK_OEM_2 = 0xBF;
+    private const ushort VK_OEM_3 = 0xC0;
+    private const ushort VK_OEM_4 = 0xDB;
+    private const ushort VK_OEM_5 = 0xDC;
+    private const ushort VK_OEM_6 = 0xDD;
+    private const ushort VK_OEM_7 = 0xDE;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT
+    {
+        public uint type;
+        public InputUnion u;
+    }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion
+    {
+        [FieldOffset(0)] public MOUSEINPUT mi;
+        [FieldOffset(0)] public KEYBDINPUT ki;
+        [FieldOffset(0)] public HARDWAREINPUT hi;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT
+    {
+        public int dx;
+        public int dy;
+        public uint mouseData;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KEYBDINPUT
+    {
+        public ushort wVk;
+        public ushort wScan;
+        public uint dwFlags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HARDWAREINPUT
+    {
+        public uint uMsg;
+        public ushort wParamL;
+        public ushort wParamH;
+    }
+
+    private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
+        WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetMessageExtraInfo();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    public record MacroExecutionResult(bool Success, string Message, bool Executed)
+    {
+        public static MacroExecutionResult Ok() => new(true, string.Empty, true);
+        public static MacroExecutionResult Skip(string message) => new(true, message, false);
+        public static MacroExecutionResult Fail(string message) => new(false, message, false);
+    }
+}

@@ -9,6 +9,7 @@ public partial class RegisterDialog : Window
     public string AppTitle => TitleBox.Text.Trim();
     public string CommandPath => CommandBox.Text.Trim();
     public string ArgumentsTemplate => ArgsBox.Text;
+    public string MacroScript => MacroBox.Text;
 
     public RegisterDialog()
     {
@@ -20,13 +21,16 @@ public partial class RegisterDialog : Window
         TitleBox.Text = slot.Title ?? string.Empty;
         CommandBox.Text = slot.Command ?? string.Empty;
         ArgsBox.Text = slot.ArgumentsTemplate ?? "{args}";
+        MacroBox.Text = slot.KeyboardMacroScript ?? string.Empty;
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(CommandBox.Text))
+        bool hasCommand = !string.IsNullOrWhiteSpace(CommandBox.Text);
+        bool hasMacro = !string.IsNullOrWhiteSpace(MacroBox.Text);
+        if (!hasCommand && !hasMacro)
         {
-            MessageBox.Show("Command is required.", "Register", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Command か Macro Script のどちらかを設定してください。", "Register", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         DialogResult = true;

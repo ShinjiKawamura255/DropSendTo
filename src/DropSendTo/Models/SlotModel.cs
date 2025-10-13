@@ -7,4 +7,5 @@ public class SlotModel
     public string? ArgumentsTemplate { get; set; } = "{args}"; // placeholder will be replaced by joined paths
     public string? IconPath { get; set; }
     public bool ClickEnabled { get; set; } = true;
+    public string? KeyboardMacroScript { get; set; } = string.Empty;
 }

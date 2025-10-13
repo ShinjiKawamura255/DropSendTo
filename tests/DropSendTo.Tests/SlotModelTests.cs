@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using DropSendTo.Models;
 using DropSendTo.Services;
 using FluentAssertions;
@@ -21,5 +23,22 @@ public class SlotModelTests
 
         var cfg2 = cfgSvc.LoadOrCreate();
         cfg2.Layers[0].Slots[0].ClickEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void KeyboardMacroScript_Defaults_To_Empty_And_Persists()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var cfgSvc = new ConfigService(temp);
+        var cfg = cfgSvc.LoadOrCreate();
+        var slot = cfg.Layers[1].Slots[2];
+        slot.KeyboardMacroScript.Should().Be(string.Empty);
+
+        slot.KeyboardMacroScript = "KEY Ctrl+C";
+        cfgSvc.Save(cfg);
+
+        var cfg2 = cfgSvc.LoadOrCreate();
+        cfg2.Layers[1].Slots[2].KeyboardMacroScript.Should().Be("KEY Ctrl+C");
     }
 }

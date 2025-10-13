@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using DropSendTo.Models;
 using DropSendTo.Services;
 
@@ -14,8 +16,10 @@ public partial class MainWindow : Window
 {
     private readonly ConfigService _configService;
     private readonly LauncherService _launcher;
+    private readonly LoggerService _logger = LoggerService.Instance;
     private readonly WindowPlacementService _placement = new();
     private readonly System.Windows.Threading.DispatcherTimer _layerHoverTimer;
+    private readonly KeyboardMacroService _macroService = new();
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
@@ -23,6 +27,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SourceInitialized += OnSourceInitialized;
         _configService = new ConfigService();
         _launcher = new LauncherService();
         _config = _configService.LoadOrCreate();
@@ -61,6 +66,20 @@ public partial class MainWindow : Window
             }
             _layerHoverTimer.Stop();
         };
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        try
+        {
+            var helper = new WindowInteropHelper(this);
+            _macroService.Initialize(helper);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Failed to initialize keyboard macro service: {ex}");
+            MessageBox.Show("マクロサービスの初期化に失敗しました。ログを確認してください。", "Macro Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OnExit(object sender, RoutedEventArgs e)
@@ -117,20 +136,24 @@ public partial class MainWindow : Window
     private void RegisterSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
-        var ofd = new Microsoft.Win32.OpenFileDialog
+        var tempSlot = new SlotModel
         {
-            Filter = "All files (*.*)|*.*"
+            Title = string.Empty,
+            Command = string.Empty,
+            ArgumentsTemplate = "{args}",
+            ClickEnabled = true,
+            KeyboardMacroScript = string.Empty
         };
-        if (ofd.ShowDialog(this) == true)
+        var dlg = new RegisterDialog(tempSlot);
+        if (dlg.ShowDialog() == true)
         {
-            var file = ofd.FileName;
-            var name = System.IO.Path.GetFileNameWithoutExtension(file);
             _config.Layers[_currentLayer].Slots[idx] = new SlotModel
             {
-                Title = name,
-                Command = file,
-                ArgumentsTemplate = "{args}",
-                ClickEnabled = true
+                Title = dlg.AppTitle,
+                Command = dlg.CommandPath,
+                ArgumentsTemplate = dlg.ArgumentsTemplate,
+                ClickEnabled = true,
+                KeyboardMacroScript = dlg.MacroScript
             };
             _configService.Save(_config);
             RefreshUi();
@@ -147,6 +170,7 @@ public partial class MainWindow : Window
             slot.Title = dlg.AppTitle;
             slot.Command = dlg.CommandPath;
             slot.ArgumentsTemplate = dlg.ArgumentsTemplate;
+            slot.KeyboardMacroScript = dlg.MacroScript;
             _configService.Save(_config);
             RefreshUi();
         }
@@ -211,6 +235,29 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnOpenLogs(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dir = _logger.LogDirectory;
+            if (!Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = dir,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Open Logs", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -296,16 +343,43 @@ public partial class MainWindow : Window
         OnSlotMouseLeave(sender, null!);
     }
 
-    private void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
         int idx = GetSlotIndex(fe);
         var slot = _config.Layers[_currentLayer].Slots[idx];
         if (!slot.ClickEnabled) return;
-        if (string.IsNullOrWhiteSpace(slot.Command)) return;
-        var result = _launcher.Launch(slot, Array.Empty<string>());
-        if (!result.Success)
-            MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        var script = slot.KeyboardMacroScript ?? string.Empty;
+        var hasMacro = !string.IsNullOrWhiteSpace(script);
+        var hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
+
+        if (!hasMacro && !hasCommand) return;
+
+        if (hasMacro)
+        {
+            try
+            {
+                var macroResult = await _macroService.RunMacroAsync(script);
+                if (!macroResult.Success)
+                {
+                    MessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Macro execution failed: {ex}");
+                MessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+        }
+
+        if (hasCommand)
+        {
+            var result = _launcher.Launch(slot, Array.Empty<string>());
+            if (!result.Success)
+                MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void RefreshUi()
@@ -346,5 +420,11 @@ public partial class MainWindow : Window
         SetState(LayerBtn2, _currentLayer == 1);
         SetState(LayerBtn3, _currentLayer == 2);
         SetState(LayerBtn4, _currentLayer == 3);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        base.OnClosed(e);
+        _macroService.Dispose();
     }
 }

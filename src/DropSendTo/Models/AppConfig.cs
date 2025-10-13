@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 3;
+    public int Version { get; set; } = 4;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }

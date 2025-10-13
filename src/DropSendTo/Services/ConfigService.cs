@@ -97,6 +97,21 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 4)
+        {
+            foreach (var layer in cfg.Layers)
+            foreach (var slot in layer.Slots)
+            {
+                if (slot.KeyboardMacroScript == null)
+                {
+                    slot.KeyboardMacroScript = string.Empty;
+                    changed = true;
+                }
+            }
+            cfg.Version = 4;
+            changed = true;
+        }
+
         return changed;
     }
 }
