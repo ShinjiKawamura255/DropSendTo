@@ -14,6 +14,7 @@ public sealed class KeyboardMacroService : IDisposable
     {
         "CTRL", "CONTROL", "SHIFT", "ALT", "MENU", "WIN", "LWIN", "RWIN"
     };
+    private const int MaxRepeatCount = 1000;
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly LoggerService _logger = LoggerService.Instance;
@@ -100,8 +101,12 @@ public sealed class KeyboardMacroService : IDisposable
             }
 
             var lines = script.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            if (!TryExpandRepeatBlocks(lines, out var expandedLines, out var expandError))
+            {
+                return MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。");
+            }
             var buffer = new List<INPUT>(16);
-            foreach (var rawLine in lines)
+            foreach (var rawLine in expandedLines)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var line = rawLine.Trim();
@@ -181,6 +186,81 @@ public sealed class KeyboardMacroService : IDisposable
 
     private static bool StartsWithCommand(string line, string command) =>
         line.Length >= command.Length && line.StartsWith(command, StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryExpandRepeatBlocks(string[] lines, out List<string> expanded, out string? error)
+    {
+        expanded = new List<string>(lines.Length);
+        error = null;
+        var stack = new Stack<RepeatFrame>();
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var rawLine = lines[i];
+            var trimmed = rawLine.Trim();
+
+            if (StartsWithCommand(trimmed, "REPEAT"))
+            {
+                var countToken = trimmed.Length > 6 ? trimmed[6..].Trim() : string.Empty;
+                if (!int.TryParse(countToken, out var repeat))
+                {
+                    error = $"REPEAT の回数指定が不正です: \"{trimmed}\"";
+                    return false;
+                }
+                if (repeat < 0 || repeat > MaxRepeatCount)
+                {
+                    error = $"REPEAT に指定できる回数は 0〜{MaxRepeatCount} です: \"{trimmed}\"";
+                    return false;
+                }
+
+                stack.Push(new RepeatFrame(repeat));
+                continue;
+            }
+
+            if (StartsWithCommand(trimmed, "ENDREPEAT"))
+            {
+                var remainder = trimmed.Length > 9 ? trimmed[9..].Trim() : string.Empty;
+                if (remainder.Length > 0)
+                {
+                    error = $"ENDREPEAT 行に余分な記述があります: \"{trimmed}\"";
+                    return false;
+                }
+                if (stack.Count == 0)
+                {
+                    error = "ENDREPEAT に対応する REPEAT が見つかりません。";
+                    return false;
+                }
+
+                var frame = stack.Pop();
+                if (frame.Count == 0)
+                {
+                    continue;
+                }
+
+                var target = stack.Count > 0 ? stack.Peek().Lines : expanded;
+                for (int r = 0; r < frame.Count; r++)
+                {
+                    target.AddRange(frame.Lines);
+                }
+                continue;
+            }
+
+            if (stack.Count > 0)
+            {
+                stack.Peek().Lines.Add(rawLine);
+            }
+            else
+            {
+                expanded.Add(rawLine);
+            }
+        }
+
+        if (stack.Count > 0)
+        {
+            error = "REPEAT ブロックが ENDREPEAT で閉じられていません。";
+            return false;
+        }
+
+        return true;
+    }
 
     private IntPtr ResolveTargetWindow()
     {
@@ -329,6 +409,17 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         return true;
+    }
+
+    private sealed class RepeatFrame
+    {
+        public RepeatFrame(int count)
+        {
+            Count = count;
+        }
+
+        public int Count { get; }
+        public List<string> Lines { get; } = new();
     }
 
     private bool TryFocusTarget(IntPtr hwnd, out string? error)

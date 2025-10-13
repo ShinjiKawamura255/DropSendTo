@@ -30,7 +30,7 @@ public partial class RegisterDialog : Window
         bool hasMacro = !string.IsNullOrWhiteSpace(MacroBox.Text);
         if (!hasCommand && !hasMacro)
         {
-            MessageBox.Show("Command か Macro Script のどちらかを設定してください。", "Register", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Command か Macro Script のどちらかを設定してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         DialogResult = true;

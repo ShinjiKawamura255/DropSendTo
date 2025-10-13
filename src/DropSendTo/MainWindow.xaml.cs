@@ -106,16 +106,13 @@ public partial class MainWindow : Window
     {
         if (sender is not FrameworkElement fe) return;
         var cm = new ContextMenu();
-        var miRegister = new MenuItem { Header = "Register..." };
-        miRegister.Click += (_, _) => RegisterSlot(fe);
         var miEdit = new MenuItem { Header = "Edit..." };
         miEdit.Click += (_, _) => EditSlot(fe);
-        var miRemove = new MenuItem { Header = "Remove" };
-        miRemove.Click += (_, _) => RemoveSlot(fe);
-        cm.Items.Add(miRegister);
+        var miClear = new MenuItem { Header = "Clear..." };
+        miClear.Click += (_, _) => ClearSlot(fe);
         cm.Items.Add(miEdit);
         cm.Items.Add(new Separator());
-        cm.Items.Add(miRemove);
+        cm.Items.Add(miClear);
         cm.Items.Add(new Separator());
         var idx = GetSlotIndex(fe);
         var slot = _config.Layers[_currentLayer].Slots[idx];
@@ -131,33 +128,6 @@ public partial class MainWindow : Window
         int row = Grid.GetRow(fe);
         int col = Grid.GetColumn(fe);
         return row * 2 + col; // 0..3
-    }
-
-    private void RegisterSlot(FrameworkElement fe)
-    {
-        int idx = GetSlotIndex(fe);
-        var tempSlot = new SlotModel
-        {
-            Title = string.Empty,
-            Command = string.Empty,
-            ArgumentsTemplate = "{args}",
-            ClickEnabled = true,
-            KeyboardMacroScript = string.Empty
-        };
-        var dlg = new RegisterDialog(tempSlot);
-        if (dlg.ShowDialog() == true)
-        {
-            _config.Layers[_currentLayer].Slots[idx] = new SlotModel
-            {
-                Title = dlg.AppTitle,
-                Command = dlg.CommandPath,
-                ArgumentsTemplate = dlg.ArgumentsTemplate,
-                ClickEnabled = true,
-                KeyboardMacroScript = dlg.MacroScript
-            };
-            _configService.Save(_config);
-            RefreshUi();
-        }
     }
 
     private void EditSlot(FrameworkElement fe)
@@ -176,9 +146,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RemoveSlot(FrameworkElement fe)
+    private void ClearSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
+        var slot = _config.Layers[_currentLayer].Slots[idx];
+        bool isEmpty = string.IsNullOrWhiteSpace(slot.Title) &&
+                       string.IsNullOrWhiteSpace(slot.Command) &&
+                       string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) &&
+                       string.Equals(slot.ArgumentsTemplate ?? string.Empty, "{args}", StringComparison.Ordinal) &&
+                       slot.ClickEnabled;
+        if (!isEmpty)
+        {
+            var result = MessageBox.Show(
+                "このスロットの設定を初期化します。よろしいですか？",
+                "Clear Slot",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
         _config.Layers[_currentLayer].Slots[idx] = new SlotModel();
         _configService.Save(_config);
         RefreshUi();
