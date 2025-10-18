@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Interop;
+using System.Windows;
 
 namespace DropSendTo.Services;
 
@@ -15,6 +16,9 @@ public sealed class KeyboardMacroService : IDisposable
         "CTRL", "CONTROL", "SHIFT", "ALT", "MENU", "WIN", "LWIN", "RWIN"
     };
     private const int MaxRepeatCount = 1000;
+    private const int TextSendInterCharacterDelayMilliseconds = 18;
+    private const int TextSendWhitespaceDelayMilliseconds = 28;
+    private const int ClipTextAutoWaitMilliseconds = 30;
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly object _stateLock = new();
@@ -208,7 +212,40 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "TEXT"))
                 {
                     var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
-                    AppendTextInputs(text, buffer);
+                    if (!TryFlushInputs(buffer, out var flushBeforeTextError))
+                    {
+                        return MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。");
+                    }
+                    if (!TrySendUnicodeText(text, cancellationToken, out var textError))
+                    {
+                        return MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。");
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "CLIPTEXT"))
+                {
+                    var text = line.Length > 8 ? line[8..].TrimStart() : string.Empty;
+                    if (!TryFlushInputs(buffer, out var flushBeforeClipError))
+                    {
+                        return MacroExecutionResult.Fail(flushBeforeClipError ?? "SendInput の実行に失敗しました。");
+                    }
+                    if (!TrySetClipboardText(text, out var clipboardError))
+                    {
+                        return MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。");
+                    }
+                    if (!TryAppendCombination("CTRL+V", buffer, out var pasteError))
+                    {
+                        return MacroExecutionResult.Fail(pasteError ?? "Ctrl+V の送信に失敗しました。");
+                    }
+                    if (!TryFlushInputs(buffer, out var flushAfterClipError))
+                    {
+                        return MacroExecutionResult.Fail(flushAfterClipError ?? "SendInput の実行に失敗しました。");
+                    }
+                    if (ClipTextAutoWaitMilliseconds > 0 && cancellationToken.WaitHandle.WaitOne(ClipTextAutoWaitMilliseconds))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
                     continue;
                 }
 
@@ -334,6 +371,61 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    private bool TrySetClipboardText(string text, out string? error)
+    {
+        error = null;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            error = "アプリケーションのディスパッチャが利用できません。";
+            return false;
+        }
+
+        string clipboardText = text ?? string.Empty;
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            Exception? operationError = null;
+
+            void SetClipboard()
+            {
+                try
+                {
+                    Clipboard.SetText(clipboardText);
+                }
+                catch (Exception ex)
+                {
+                    operationError = ex;
+                }
+            }
+
+            if (dispatcher.CheckAccess())
+            {
+                SetClipboard();
+            }
+            else
+            {
+                dispatcher.Invoke(SetClipboard);
+            }
+
+            if (operationError == null)
+            {
+                return true;
+            }
+
+            if (attempt == 2)
+            {
+                error = $"クリップボードへの書き込みに失敗しました: {operationError.Message}";
+                _logger.Error($"Clipboard.SetText failed: {operationError}");
+                return false;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        return false;
+    }
+
     private IntPtr ResolveTargetWindow()
     {
         var target = Volatile.Read(ref _lastExternalWindow);
@@ -357,15 +449,10 @@ public sealed class KeyboardMacroService : IDisposable
         if (buffer.Count == 0) return true;
         var arr = buffer.ToArray();
         buffer.Clear();
-        var sent = SendInput((uint)arr.Length, arr, Marshal.SizeOf<INPUT>());
-        if (sent == arr.Length) return true;
-        int err = Marshal.GetLastWin32Error();
-        error = $"SendInput の呼び出しに失敗しました (Error={err}).";
-        _logger.Error($"SendInput failure: requested={arr.Length}, sent={sent}, cbSize={Marshal.SizeOf<INPUT>()}, error={err}, firstType={(arr.Length > 0 ? arr[0].type : 0)}, firstVk={(arr.Length > 0 ? arr[0].u.ki.wVk : 0)}, firstFlags={(arr.Length > 0 ? arr[0].u.ki.dwFlags : 0)}");
-        return false;
+        return TrySendInputArray(arr, arr.Length, out error);
     }
 
-    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp)
+    private static INPUT CreateVirtualKeyInput(ushort vk, bool keyUp)
     {
         ushort scanCode = (ushort)MapVirtualKey(vk, MAPVK_VK_TO_VSC);
         uint flags = KEYEVENTF_SCANCODE;
@@ -378,7 +465,7 @@ public sealed class KeyboardMacroService : IDisposable
         // Fallback to virtual-key mode when scan code is missing
         bool useVirtualKey = scanCode == 0;
 
-        buffer.Add(new INPUT
+        return new INPUT
         {
             type = INPUT_KEYBOARD,
             u = new InputUnion
@@ -391,42 +478,74 @@ public sealed class KeyboardMacroService : IDisposable
                     dwExtraInfo = GetMessageExtraInfo()
                 }
             }
-        });
+        };
     }
 
-    private static void AppendTextInputs(string text, List<INPUT> buffer)
+    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp)
     {
-        if (string.IsNullOrEmpty(text)) return;
+        buffer.Add(CreateVirtualKeyInput(vk, keyUp));
+    }
+
+    private bool TrySendUnicodeText(string text, CancellationToken cancellationToken, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrEmpty(text)) return true;
+
+        var inputs = new INPUT[2];
         foreach (var ch in text)
         {
-            buffer.Add(new INPUT
+            cancellationToken.ThrowIfCancellationRequested();
+
+            inputs[0] = CreateUnicodeInput(ch, keyUp: false);
+            inputs[1] = CreateUnicodeInput(ch, keyUp: true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!TrySendInputArray(inputs, inputs.Length, out var charError))
             {
-                type = INPUT_KEYBOARD,
-                u = new InputUnion
-                {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = 0,
-                        wScan = ch,
-                        dwFlags = KEYEVENTF_UNICODE,
-                        dwExtraInfo = GetMessageExtraInfo()
-                    }
-                }
-            });
-            buffer.Add(new INPUT
+                error = charError;
+                return false;
+            }
+            bool isWhitespace = char.IsWhiteSpace(ch);
+            DelayFor(isWhitespace ? TextSendWhitespaceDelayMilliseconds : TextSendInterCharacterDelayMilliseconds, cancellationToken);
+        }
+
+        error = null;
+        return true;
+    }
+
+    private static INPUT CreateUnicodeInput(char ch, bool keyUp) =>
+        new()
+        {
+            type = INPUT_KEYBOARD,
+            u = new InputUnion
             {
-                type = INPUT_KEYBOARD,
-                u = new InputUnion
+                ki = new KEYBDINPUT
                 {
-                    ki = new KEYBDINPUT
-                    {
-                        wVk = 0,
-                        wScan = ch,
-                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
-                        dwExtraInfo = GetMessageExtraInfo()
-                    }
+                    wVk = 0,
+                    wScan = ch,
+                    dwFlags = keyUp ? (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP) : KEYEVENTF_UNICODE,
+                    dwExtraInfo = GetMessageExtraInfo()
                 }
-            });
+            }
+        };
+
+    private bool TrySendInputArray(INPUT[] inputs, int length, out string? error)
+    {
+        error = null;
+        if (length == 0) return true;
+        var sent = SendInput((uint)length, inputs, Marshal.SizeOf<INPUT>());
+        if (sent == length) return true;
+        int err = Marshal.GetLastWin32Error();
+        error = $"SendInput の呼び出しに失敗しました (Error={err}).";
+        _logger.Error($"SendInput failure: requested={length}, sent={sent}, cbSize={Marshal.SizeOf<INPUT>()}, error={err}, firstType={(length > 0 ? inputs[0].type : 0)}, firstVk={(length > 0 ? inputs[0].u.ki.wVk : 0)}, firstFlags={(length > 0 ? inputs[0].u.ki.dwFlags : 0)}");
+        return false;
+    }
+
+    private static void DelayFor(int milliseconds, CancellationToken cancellationToken)
+    {
+        if (milliseconds <= 0) return;
+        if (cancellationToken.WaitHandle.WaitOne(milliseconds))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 
