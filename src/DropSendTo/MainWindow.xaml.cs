@@ -23,6 +23,8 @@ public partial class MainWindow : Window
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
+    private int? _runningSlotIndex;
+    private bool _runningSlotCancellationRequested;
 
     public MainWindow()
     {
@@ -128,6 +130,97 @@ public partial class MainWindow : Window
         int row = Grid.GetRow(fe);
         int col = Grid.GetColumn(fe);
         return row * 2 + col; // 0..3
+    }
+
+    private enum SlotMacroState
+    {
+        Idle,
+        Running,
+        Cancelling
+    }
+
+    private SlotMacroState GetSlotMacroState(int index)
+    {
+        if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == index)
+        {
+            return _runningSlotCancellationRequested ? SlotMacroState.Cancelling : SlotMacroState.Running;
+        }
+        return SlotMacroState.Idle;
+    }
+
+    private (Border? border, TextBlock? status) GetSlotVisuals(int index) =>
+        index switch
+        {
+            0 => (Slot1Border, Slot1Status),
+            1 => (Slot2Border, Slot2Status),
+            2 => (Slot3Border, Slot3Status),
+            3 => (Slot4Border, Slot4Status),
+            _ => (null, null)
+        };
+
+    private void RenderSlotMacroState(int index, SlotMacroState state)
+    {
+        var (border, status) = GetSlotVisuals(index);
+        if (border == null || status == null) return;
+
+        switch (state)
+        {
+            case SlotMacroState.Running:
+                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x2E, 0x1A));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5A, 0xD6, 0x6B));
+                status.Text = "マクロ実行中...";
+                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+                status.Visibility = Visibility.Visible;
+                break;
+            case SlotMacroState.Cancelling:
+                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0x28, 0x1A));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xC6, 0x4D));
+                status.Text = "キャンセル中...";
+                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x66));
+                status.Visibility = Visibility.Visible;
+                break;
+            default:
+                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51));
+                status.Text = "マクロ実行中...";
+                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+                status.Visibility = Visibility.Collapsed;
+                break;
+        }
+    }
+
+    private void UpdateAllSlotMacroStates()
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            RenderSlotMacroState(i, GetSlotMacroState(i));
+        }
+    }
+
+    private void BeginSlotMacro(int index)
+    {
+        _runningSlotIndex = index;
+        _runningSlotCancellationRequested = false;
+        RenderSlotMacroState(index, SlotMacroState.Running);
+    }
+
+    private void MarkSlotMacroCanceling()
+    {
+        if (_runningSlotIndex.HasValue)
+        {
+            _runningSlotCancellationRequested = true;
+            RenderSlotMacroState(_runningSlotIndex.Value, SlotMacroState.Cancelling);
+        }
+    }
+
+    private void ClearSlotMacroState(int index)
+    {
+        if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == index)
+        {
+            _runningSlotIndex = null;
+            _runningSlotCancellationRequested = false;
+        }
+        RenderSlotMacroState(index, SlotMacroState.Idle);
     }
 
     private void EditSlot(FrameworkElement fe)
@@ -311,20 +404,35 @@ public partial class MainWindow : Window
 
     private void OnSlotMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray); }
+        if (sender is not Border b) return;
+        int idx = GetSlotIndex(b);
+        if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
+        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32));
+        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray);
     }
     private void OnSlotMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51)); }
+        if (sender is not Border b) return;
+        int idx = GetSlotIndex(b);
+        if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
+        RenderSlotMacroState(idx, SlotMacroState.Idle);
     }
     private void OnSlotMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(200, 200, 200)); }
+        if (sender is not Border b) return;
+        int idx = GetSlotIndex(b);
+        if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
+        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48));
+        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(200, 200, 200));
     }
 
     private void OnSlotDragEnter(object sender, DragEventArgs e)
     {
-        if (sender is Border b) { b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48)); b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White); }
+        if (sender is not Border b) return;
+        int idx = GetSlotIndex(b);
+        if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
+        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48));
+        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
     }
     private void OnSlotDragLeave(object sender, DragEventArgs e)
     {
@@ -343,14 +451,34 @@ public partial class MainWindow : Window
 
         if (!hasMacro && !hasCommand) return;
 
+        if (_macroService.IsMacroRunning)
+        {
+            if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == idx && hasMacro)
+            {
+                if (_macroService.CancelCurrentMacro())
+                {
+                    MarkSlotMacroCanceling();
+                }
+            }
+            else
+            {
+                MessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            return;
+        }
+
         if (hasMacro)
         {
+            BeginSlotMacro(idx);
             try
             {
                 var macroResult = await _macroService.RunMacroAsync(script);
                 if (!macroResult.Success)
                 {
-                    MessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    if (!macroResult.IsCanceled)
+                    {
+                        MessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                     return;
                 }
             }
@@ -359,6 +487,10 @@ public partial class MainWindow : Window
                 _logger.Error($"Macro execution failed: {ex}");
                 MessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
+            }
+            finally
+            {
+                ClearSlotMacroState(idx);
             }
         }
 
@@ -380,6 +512,7 @@ public partial class MainWindow : Window
         Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? $"Slot {baseNo + 4}" : layer.Slots[3].Title;
         // Layer button highlight with stronger contrast
         UpdateLayerButtonVisuals();
+        UpdateAllSlotMacroStates();
     }
 
     private void UpdateLayerButtonVisuals()

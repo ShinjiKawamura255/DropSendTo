@@ -17,7 +17,10 @@ public sealed class KeyboardMacroService : IDisposable
     private const int MaxRepeatCount = 1000;
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
+    private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
+    private CancellationTokenSource? _currentMacroCts;
+    private int _macroRunningFlag;
     private IntPtr _windowHandle;
     private IntPtr _lastExternalWindow;
     private IntPtr _winEventHook;
@@ -47,10 +50,41 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
+    public bool IsMacroRunning => Volatile.Read(ref _macroRunningFlag) == 1;
+
+    public bool CancelCurrentMacro()
+    {
+        CancellationTokenSource? cts;
+        lock (_stateLock)
+        {
+            cts = _currentMacroCts;
+        }
+
+        if (cts == null || cts.IsCancellationRequested) return false;
+
+        try
+        {
+            cts.Cancel();
+            return true;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        try
+        {
+            CancelCurrentMacro();
+        }
+        catch
+        {
+            // Dispose 中はキャンセル要求の成否に依存しない
+        }
         if (_winEventHook != IntPtr.Zero)
         {
             UnhookWinEvent(_winEventHook);
@@ -58,6 +92,24 @@ public sealed class KeyboardMacroService : IDisposable
         }
         _winEventCallback = null;
         _macroLock.Dispose();
+    }
+
+    private void SetMacroRunning(CancellationTokenSource cts)
+    {
+        lock (_stateLock)
+        {
+            _currentMacroCts = cts;
+            Volatile.Write(ref _macroRunningFlag, 1);
+        }
+    }
+
+    private void ClearMacroRunning()
+    {
+        lock (_stateLock)
+        {
+            _currentMacroCts = null;
+            Volatile.Write(ref _macroRunningFlag, 0);
+        }
     }
 
     private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
@@ -68,13 +120,46 @@ public sealed class KeyboardMacroService : IDisposable
         Interlocked.Exchange(ref _lastExternalWindow, hwnd);
     }
 
-    public Task<MacroExecutionResult> RunMacroAsync(string? script, CancellationToken cancellationToken = default)
+    public async Task<MacroExecutionResult> RunMacroAsync(string? script, CancellationToken cancellationToken = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(KeyboardMacroService));
         if (string.IsNullOrWhiteSpace(script))
-            return Task.FromResult(MacroExecutionResult.Skip("No macro script configured."));
+            return MacroExecutionResult.Skip("No macro script configured.");
 
-        return Task.Run(() => RunMacroInternal(script!, cancellationToken), cancellationToken);
+        bool lockTaken = false;
+        try
+        {
+            await _macroLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            lockTaken = true;
+        }
+        catch (OperationCanceledException)
+        {
+            return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
+        }
+
+        CancellationTokenSource? linkedCts = null;
+        try
+        {
+            linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            SetMacroRunning(linkedCts);
+            try
+            {
+                return await Task.Run(() => RunMacroInternal(script!, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
+            }
+        }
+        finally
+        {
+            ClearMacroRunning();
+            linkedCts?.Dispose();
+            if (lockTaken)
+            {
+                _macroLock.Release();
+            }
+        }
     }
 
     private MacroExecutionResult RunMacroInternal(string script, CancellationToken cancellationToken)
@@ -83,15 +168,6 @@ public sealed class KeyboardMacroService : IDisposable
         IntPtr target = ResolveTargetWindow();
         if (target == IntPtr.Zero)
             return MacroExecutionResult.Fail("ターゲットとなる直前のウィンドウが見つかりません。");
-
-        try
-        {
-            _macroLock.Wait(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return MacroExecutionResult.Fail("マクロ実行がキャンセルされました。");
-        }
 
         try
         {
@@ -122,7 +198,10 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。");
                     }
-                    Thread.Sleep(waitMs);
+                    if (waitMs > 0 && cancellationToken.WaitHandle.WaitOne(waitMs))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
                     continue;
                 }
 
@@ -173,14 +252,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
         catch (OperationCanceledException)
         {
-            return MacroExecutionResult.Fail("マクロ実行がキャンセルされました。");
-        }
-        finally
-        {
-            if (_macroLock.CurrentCount == 0)
-            {
-                _macroLock.Release();
-            }
+            return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
         }
     }
 
@@ -525,6 +597,7 @@ public sealed class KeyboardMacroService : IDisposable
             ["ESCAPE"] = VK_ESCAPE,
             ["TAB"] = VK_TAB,
             ["SPACE"] = VK_SPACE,
+            ["ALT"] = VK_MENU,
             ["BACK"] = VK_BACK,
             ["BACKSPACE"] = VK_BACK,
             ["UP"] = VK_UP,
@@ -799,10 +872,11 @@ public sealed class KeyboardMacroService : IDisposable
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
-    public record MacroExecutionResult(bool Success, string Message, bool Executed)
+    public record MacroExecutionResult(bool Success, string Message, bool Executed, bool IsCanceled)
     {
-        public static MacroExecutionResult Ok() => new(true, string.Empty, true);
-        public static MacroExecutionResult Skip(string message) => new(true, message, false);
-        public static MacroExecutionResult Fail(string message) => new(false, message, false);
+        public static MacroExecutionResult Ok() => new(true, string.Empty, true, false);
+        public static MacroExecutionResult Skip(string message) => new(true, message, false, false);
+        public static MacroExecutionResult Fail(string message) => new(false, message, false, false);
+        public static MacroExecutionResult Canceled(string message) => new(false, message, false, true);
     }
 }
