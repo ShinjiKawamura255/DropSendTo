@@ -25,7 +25,7 @@ public class ConfigServiceTests
             }
         }
         cfg.AlwaysOnTop.Should().BeTrue();
-        cfg.Version.Should().Be(4);
+        cfg.Version.Should().Be(5);
     }
 
     [Fact]
@@ -40,11 +40,11 @@ public class ConfigServiceTests
 
         var reloaded = svc.LoadOrCreate();
         reloaded.AlwaysOnTop.Should().BeFalse();
-        reloaded.Version.Should().Be(4);
+        reloaded.Version.Should().Be(5);
     }
 
     [Fact]
-    public void LoadOrCreate_Should_Migrate_V3_Config_To_V4_And_Add_Macro_Field()
+    public void LoadOrCreate_Should_Migrate_V3_Config_And_Add_Macro_Field()
     {
         var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
         var cfgDir = Path.Combine(temp, "DropSendTo");
@@ -86,11 +86,31 @@ public class ConfigServiceTests
 
         var svc = new ConfigService(temp);
         var cfg = svc.LoadOrCreate();
-        cfg.Version.Should().Be(4);
+        cfg.Version.Should().Be(5);
         foreach (var layer in cfg.Layers)
         foreach (var slot in layer.Slots)
         {
             slot.KeyboardMacroScript.Should().Be(string.Empty);
         }
+    }
+
+    [Fact]
+    public void Save_Should_Obfuscate_Macro_Script_On_Disk()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var svc = new ConfigService(temp);
+        var cfg = svc.LoadOrCreate();
+        cfg.Layers[0].Slots[0].KeyboardMacroScript = "SECRET";
+
+        svc.Save(cfg);
+
+        var cfgPath = Path.Combine(temp, "DropSendTo", "config.json");
+        var json = File.ReadAllText(cfgPath);
+        json.Should().Contain("!obf!");
+        json.Should().NotContain("SECRET");
+
+        var reloaded = svc.LoadOrCreate();
+        reloaded.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("SECRET");
     }
 }
