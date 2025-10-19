@@ -15,6 +15,9 @@
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
             <MenuItem Header="Open Logs" Click="OnOpenLogs"/>
             <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
+            <MenuItem x:Name="LayoutMenuItem"
+                      Header="Slot Layout"
+                      SubmenuOpened="OnLayoutMenuOpened"/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
                       IsCheckable="True"
@@ -62,7 +65,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
-        <DockPanel Grid.Row="0" LastChildFill="False">
+        <DockPanel Grid.Row="0" LastChildFill="False" Background="Transparent" MouseLeftButtonDown="OnDragMoveArea">
             <!-- Drag handle area to move window -->
             <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="60" MouseLeftButtonDown="OnDragMove"/>
             <Border x:Name="PrefixIndicator"
@@ -89,41 +92,12 @@
             </StackPanel>
         </DockPanel>
 
-        <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition/>
-                <RowDefinition/>
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition/>
-                <ColumnDefinition/>
-            </Grid.ColumnDefinitions>
-            
-            <Border x:Name="Slot1Border" Grid.Row="0" Grid.Column="0" Margin="2" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock x:Name="Slot1Text" Text="Slot 1" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="Slot1Status" Text="マクロ実行中..." FontSize="11" Foreground="#7CFFB0" TextAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/>
-                </StackPanel>
-            </Border>
-            <Border x:Name="Slot2Border" Grid.Row="0" Grid.Column="1" Margin="2" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock x:Name="Slot2Text" Text="Slot 2" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="Slot2Status" Text="マクロ実行中..." FontSize="11" Foreground="#7CFFB0" TextAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/>
-                </StackPanel>
-            </Border>
-            <Border x:Name="Slot3Border" Grid.Row="1" Grid.Column="0" Margin="2" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock x:Name="Slot3Text" Text="Slot 3" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="Slot3Status" Text="マクロ実行中..." FontSize="11" Foreground="#7CFFB0" TextAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/>
-                </StackPanel>
-            </Border>
-            <Border x:Name="Slot4Border" Grid.Row="1" Grid.Column="1" Margin="2" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Background="#111" Height="48" AllowDrop="True" Drop="OnSlotDrop" MouseRightButtonUp="OnSlotContextMenu" MouseEnter="OnSlotMouseEnter" MouseLeave="OnSlotMouseLeave" DragEnter="OnSlotDragEnter" DragLeave="OnSlotDragLeave" MouseLeftButtonDown="OnSlotMouseDown" MouseLeftButtonUp="OnSlotClick">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock x:Name="Slot4Text" Text="Slot 4" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"/>
-                    <TextBlock x:Name="Slot4Status" Text="マクロ実行中..." FontSize="11" Foreground="#7CFFB0" TextAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed"/>
-                </StackPanel>
-            </Border>
-        </Grid>
+        <UniformGrid x:Name="SlotsPanel"
+                     Grid.Row="1"
+                     Rows="2"
+                     Columns="2"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Stretch"/>
     </Grid>
     </Border>
 </Window>

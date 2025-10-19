@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using DropSendTo.Models;
 using DropSendTo.Services;
 
@@ -22,6 +23,17 @@ public partial class MainWindow : Window
     private readonly KeyboardMacroService _macroService = new();
     private readonly ShortcutService _shortcutService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
+    private readonly List<SlotVisual> _slotVisuals = new();
+    private static readonly (int rows, int columns)[] SlotLayoutOptions =
+    {
+        (2, 2), (2, 3), (2, 4),
+        (3, 2), (3, 3), (3, 4),
+        (4, 2), (4, 3), (4, 4)
+    };
+    private const double BaseWindowWidth = 234;
+    private const double BaseWindowHeight = 148;
+    private const double ColumnWidthStep = 95;
+    private const double RowHeightStep = 60;
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
@@ -34,26 +46,20 @@ public partial class MainWindow : Window
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         _configService = new ConfigService();
-        _launcher = new LauncherService();
-        _config = _configService.LoadOrCreate();
-        Topmost = _config.AlwaysOnTop;
-        _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+       _launcher = new LauncherService();
+       _config = _configService.LoadOrCreate();
+       Topmost = _config.AlwaysOnTop;
+       _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
 
-        // Restore window position with clamping
-        var bounds = new ScreenBounds(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
-            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
-        if (_config.WindowLeft.HasValue && _config.WindowTop.HasValue)
-        {
-            var (l, t) = _placement.Clamp(_config.WindowLeft.Value, _config.WindowTop.Value, bounds, this.Width, this.Height);
-            Left = l; Top = t;
-        }
+        ApplySlotLayout();
+        RestoreWindowPosition();
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
         this.Closing += (_, _) =>
         {
-            var (l, t) = _placement.Clamp(this.Left, this.Top, bounds, this.Width, this.Height);
-            _config.WindowLeft = l;
-            _config.WindowTop = t;
+            ClampWindowWithinBounds();
+            _config.WindowLeft = this.Left;
+            _config.WindowTop = this.Top;
             _config.CurrentLayer = _currentLayer;
             _config.AlwaysOnTop = this.Topmost;
             _configService.Save(_config);
@@ -71,6 +77,134 @@ public partial class MainWindow : Window
             }
             _layerHoverTimer.Stop();
         };
+    }
+
+    private void ApplySlotLayout()
+    {
+        int rows = Math.Clamp(_config.SlotRows, 2, 4);
+        int columns = Math.Clamp(_config.SlotColumns, 2, 4);
+        _config.SlotRows = rows;
+        _config.SlotColumns = columns;
+
+        int requiredSlots = rows * columns;
+        foreach (var layer in _config.Layers)
+        {
+            EnsureLayerSlotCapacity(layer, requiredSlots);
+        }
+
+        SlotsPanel.Rows = rows;
+        SlotsPanel.Columns = columns;
+        SlotsPanel.Children.Clear();
+        _slotVisuals.Clear();
+
+        for (int index = 0; index < requiredSlots; index++)
+        {
+            var visual = CreateSlotVisual(index);
+            _slotVisuals.Add(visual);
+            SlotsPanel.Children.Add(visual.Border);
+        }
+
+        UpdateWindowSize(rows, columns);
+        ClampWindowWithinBounds();
+    }
+
+    private void RestoreWindowPosition()
+    {
+        if (_config.WindowLeft.HasValue && _config.WindowTop.HasValue)
+        {
+            var bounds = GetVirtualScreenBounds();
+            var (left, top) = _placement.Clamp(_config.WindowLeft.Value, _config.WindowTop.Value, bounds, this.Width, this.Height);
+            Left = left;
+            Top = top;
+        }
+        else
+        {
+            ClampWindowWithinBounds();
+        }
+    }
+
+    private void ClampWindowWithinBounds()
+    {
+        var bounds = GetVirtualScreenBounds();
+        var (left, top) = _placement.Clamp(this.Left, this.Top, bounds, this.Width, this.Height);
+        Left = left;
+        Top = top;
+    }
+
+    private static ScreenBounds GetVirtualScreenBounds() =>
+        new(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+
+    private void UpdateWindowSize(int rows, int columns)
+    {
+        Width = BaseWindowWidth + (columns - 2) * ColumnWidthStep;
+        Height = BaseWindowHeight + (rows - 2) * RowHeightStep;
+    }
+
+    private static void EnsureLayerSlotCapacity(Layer layer, int requiredSlots)
+    {
+        layer.Slots ??= new List<SlotModel>();
+        while (layer.Slots.Count < requiredSlots)
+        {
+            layer.Slots.Add(new SlotModel());
+        }
+    }
+
+    private SlotVisual CreateSlotVisual(int index)
+    {
+        var border = new Border
+        {
+            Margin = new Thickness(2),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11)),
+            Height = 48,
+            AllowDrop = true,
+            Tag = index
+        };
+
+        var stack = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Tag = index
+        };
+
+        var title = new TextBlock
+        {
+            Text = $"Slot {index + 1}",
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Tag = index
+        };
+
+        var status = new TextBlock
+        {
+            Text = "マクロ実行中...",
+            FontSize = 11,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0)),
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Tag = index
+        };
+
+        stack.Children.Add(title);
+        stack.Children.Add(status);
+        border.Child = stack;
+
+        border.Drop += OnSlotDrop;
+        border.MouseRightButtonUp += OnSlotContextMenu;
+        border.MouseEnter += OnSlotMouseEnter;
+        border.MouseLeave += OnSlotMouseLeave;
+        border.DragEnter += OnSlotDragEnter;
+        border.DragLeave += OnSlotDragLeave;
+        border.MouseLeftButtonDown += OnSlotMouseDown;
+        border.MouseLeftButtonUp += OnSlotClick;
+
+        return new SlotVisual(border, title, status);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -157,9 +291,17 @@ public partial class MainWindow : Window
 
     private int GetSlotIndex(FrameworkElement fe)
     {
-        int row = Grid.GetRow(fe);
-        int col = Grid.GetColumn(fe);
-        return row * 2 + col; // 0..3
+        if (fe.Tag is int index)
+        {
+            return index;
+        }
+
+        if (fe.Parent is FrameworkElement parent)
+        {
+            return GetSlotIndex(parent);
+        }
+
+        throw new InvalidOperationException("Slot index could not be resolved.");
     }
 
     private enum SlotMacroState
@@ -176,6 +318,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
+    private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status);
 
     private SlotMacroState GetSlotMacroState(int index)
     {
@@ -189,20 +332,13 @@ public partial class MainWindow : Window
         return SlotMacroState.Idle;
     }
 
-    private (Border? border, TextBlock? status) GetSlotVisuals(int index) =>
-        index switch
-        {
-            0 => (Slot1Border, Slot1Status),
-            1 => (Slot2Border, Slot2Status),
-            2 => (Slot3Border, Slot3Status),
-            3 => (Slot4Border, Slot4Status),
-            _ => (null, null)
-        };
-
     private void RenderSlotMacroState(int index, SlotMacroState state)
     {
-        var (border, status) = GetSlotVisuals(index);
-        if (border == null || status == null) return;
+        if (index < 0 || index >= _slotVisuals.Count) return;
+
+        var visual = _slotVisuals[index];
+        var border = visual.Border;
+        var status = visual.Status;
 
         switch (state)
         {
@@ -221,8 +357,8 @@ public partial class MainWindow : Window
                 status.Visibility = Visibility.Visible;
                 break;
             default:
-                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 17));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(51, 51, 51));
+                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
                 status.Text = "マクロ実行中...";
                 status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
                 status.Visibility = Visibility.Collapsed;
@@ -232,7 +368,7 @@ public partial class MainWindow : Window
 
     private void UpdateAllSlotMacroStates()
     {
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < _slotVisuals.Count; i++)
         {
             RenderSlotMacroState(i, GetSlotMacroState(i));
         }
@@ -356,8 +492,46 @@ public partial class MainWindow : Window
         if (this.ContextMenu != null)
         {
             AlwaysOnTopMenuItem.IsChecked = this.Topmost;
+            PopulateLayoutMenu(LayoutMenuItem);
             this.ContextMenu.PlacementTarget = (UIElement)sender;
             this.ContextMenu.IsOpen = true;
+        }
+    }
+
+    private void OnLayoutMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem) return;
+        PopulateLayoutMenu(menuItem);
+    }
+
+    private void OnLayoutOptionSelected(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item || item.Tag is not ValueTuple<int, int> layout) return;
+        if (_config.SlotRows == layout.Item1 && _config.SlotColumns == layout.Item2) return;
+
+        _config.SlotRows = layout.Item1;
+        _config.SlotColumns = layout.Item2;
+        ApplySlotLayout();
+        RefreshUi();
+        ClampWindowWithinBounds();
+        _configService.Save(_config);
+    }
+
+    private void PopulateLayoutMenu(MenuItem menuItem)
+    {
+        if (menuItem == null) return;
+        menuItem.Items.Clear();
+        foreach (var option in SlotLayoutOptions)
+        {
+            var item = new MenuItem
+            {
+                Header = $"{option.rows}x{option.columns}",
+                IsCheckable = true,
+                IsChecked = option.rows == _config.SlotRows && option.columns == _config.SlotColumns,
+                Tag = option
+            };
+            item.Click += OnLayoutOptionSelected;
+            menuItem.Items.Add(item);
         }
     }
 
@@ -432,11 +606,31 @@ public partial class MainWindow : Window
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
+        PopulateLayoutMenu(LayoutMenuItem);
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
         if (e.Delta > 0) SetLayer((_currentLayer + 3) % 4); else SetLayer((_currentLayer + 1) % 4);
+    }
+
+    private void OnDragMoveArea(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (IsWithinInteractiveElement(e.OriginalSource as DependencyObject)) return;
+        OnDragMove(sender, e);
+    }
+
+    private static bool IsWithinInteractiveElement(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is Button or MenuItem)
+            {
+                return true;
+            }
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return false;
     }
 
     private void OnDragMove(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -520,6 +714,7 @@ public partial class MainWindow : Window
 
     private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source)
     {
+        if (slotIndex < 0 || slotIndex >= _slotVisuals.Count) return;
         var layer = _config.Layers[layerIndex];
         var slot = layer.Slots[slotIndex];
         if (source == SlotTriggerSource.Mouse && !slot.ClickEnabled) return;
@@ -655,11 +850,15 @@ public partial class MainWindow : Window
     private void RefreshUi()
     {
         var layer = _config.Layers[_currentLayer];
-        int baseNo = _currentLayer * 4;
-        Slot1Text.Text = string.IsNullOrWhiteSpace(layer.Slots[0].Title) ? $"Slot {baseNo + 1}" : layer.Slots[0].Title;
-        Slot2Text.Text = string.IsNullOrWhiteSpace(layer.Slots[1].Title) ? $"Slot {baseNo + 2}" : layer.Slots[1].Title;
-        Slot3Text.Text = string.IsNullOrWhiteSpace(layer.Slots[2].Title) ? $"Slot {baseNo + 3}" : layer.Slots[2].Title;
-        Slot4Text.Text = string.IsNullOrWhiteSpace(layer.Slots[3].Title) ? $"Slot {baseNo + 4}" : layer.Slots[3].Title;
+        int baseNo = _currentLayer * _slotVisuals.Count;
+        for (int i = 0; i < _slotVisuals.Count; i++)
+        {
+            var slot = layer.Slots[i];
+            string title = string.IsNullOrWhiteSpace(slot.Title)
+                ? $"Slot {baseNo + i + 1}"
+                : slot.Title;
+            _slotVisuals[i].Title.Text = title;
+        }
         // Layer button highlight with stronger contrast
         UpdateLayerButtonVisuals();
         UpdateAllSlotMacroStates();
@@ -677,7 +876,8 @@ public partial class MainWindow : Window
         {
             if (layerIndex < 0 || layerIndex >= _config.Layers.Count) return;
             var layer = _config.Layers[layerIndex];
-            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            int maxSlots = Math.Min(_slotVisuals.Count, layer.Slots.Count);
+            for (int slotIndex = 0; slotIndex < maxSlots; slotIndex++)
             {
                 var shortcutText = layer.Slots[slotIndex].ShortcutKey;
                 if (string.IsNullOrWhiteSpace(shortcutText)) continue;

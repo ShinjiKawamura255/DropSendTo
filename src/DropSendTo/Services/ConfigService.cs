@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using DropSendTo.Models;
@@ -60,13 +61,25 @@ public class ConfigService
         File.WriteAllText(ConfigPath, json);
     }
 
+    private const int MinSlotDimension = 2;
+    private const int MaxSlotDimension = 4;
+
+    private static int NormalizeSlotDimension(int value) =>
+        value is >= MinSlotDimension and <= MaxSlotDimension ? value : MinSlotDimension;
+
+    private static void EnsureSlotCapacity(Layer layer, int requiredSlots)
+    {
+        while (layer.Slots.Count < requiredSlots)
+        {
+            layer.Slots.Add(new SlotModel());
+        }
+    }
+
     private static void Validate(AppConfig cfg)
     {
         if (cfg.Layers.Count != 4) throw new InvalidDataException("Config must have 4 layers.");
-        foreach (var layer in cfg.Layers)
-        {
-            if (layer.Slots.Count != 4) throw new InvalidDataException("Each layer must have 4 slots.");
-        }
+        cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
+        cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
         if (string.IsNullOrWhiteSpace(cfg.ShortcutPrefix))
         {
@@ -76,20 +89,26 @@ public class ConfigService
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
         }
+
+        int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
         foreach (var layer in cfg.Layers)
-        foreach (var slot in layer.Slots)
         {
-            if (slot.KeyboardMacroScript == null)
+            layer.Slots ??= new List<SlotModel>();
+            EnsureSlotCapacity(layer, requiredSlots);
+            foreach (var slot in layer.Slots)
             {
-                slot.KeyboardMacroScript = string.Empty;
-            }
-            if (slot.ShortcutKey == null)
-            {
-                slot.ShortcutKey = string.Empty;
-            }
-            else
-            {
-                slot.ShortcutKey = slot.ShortcutKey.Trim();
+                if (slot.KeyboardMacroScript == null)
+                {
+                    slot.KeyboardMacroScript = string.Empty;
+                }
+                if (slot.ShortcutKey == null)
+                {
+                    slot.ShortcutKey = string.Empty;
+                }
+                else
+                {
+                    slot.ShortcutKey = slot.ShortcutKey.Trim();
+                }
             }
         }
     }
@@ -100,13 +119,16 @@ public class ConfigService
         if (cfg.Version < 2)
         {
             foreach (var layer in cfg.Layers)
-            foreach (var slot in layer.Slots)
             {
-                // v2 introduces ClickEnabled default true
-                if (slot is { ClickEnabled: false })
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
                 {
-                    slot.ClickEnabled = true;
-                    changed = true;
+                    // v2 introduces ClickEnabled default true
+                    if (slot is { ClickEnabled: false })
+                    {
+                        slot.ClickEnabled = true;
+                        changed = true;
+                    }
                 }
             }
             cfg.Version = 2;
@@ -124,12 +146,15 @@ public class ConfigService
         if (cfg.Version < 4)
         {
             foreach (var layer in cfg.Layers)
-            foreach (var slot in layer.Slots)
             {
-                if (slot.KeyboardMacroScript == null)
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
                 {
-                    slot.KeyboardMacroScript = string.Empty;
-                    changed = true;
+                    if (slot.KeyboardMacroScript == null)
+                    {
+                        slot.KeyboardMacroScript = string.Empty;
+                        changed = true;
+                    }
                 }
             }
             cfg.Version = 4;
@@ -150,15 +175,32 @@ public class ConfigService
                 changed = true;
             }
             foreach (var layer in cfg.Layers)
-            foreach (var slot in layer.Slots)
             {
-                if (slot.ShortcutKey == null)
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
                 {
-                    slot.ShortcutKey = string.Empty;
-                    changed = true;
+                    if (slot.ShortcutKey == null)
+                    {
+                        slot.ShortcutKey = string.Empty;
+                        changed = true;
+                    }
                 }
             }
             cfg.Version = 6;
+            changed = true;
+        }
+
+        if (cfg.Version < 7)
+        {
+            cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
+            cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
+            int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Slots ??= new List<SlotModel>();
+                EnsureSlotCapacity(layer, requiredSlots);
+            }
+            cfg.Version = 7;
             changed = true;
         }
 
