@@ -14,6 +14,7 @@
         <ContextMenu Opened="OnContextMenuOpened">
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
             <MenuItem Header="Open Logs" Click="OnOpenLogs"/>
+            <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
                       IsCheckable="True"
@@ -64,6 +65,21 @@
         <DockPanel Grid.Row="0" LastChildFill="False">
             <!-- Drag handle area to move window -->
             <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="60" MouseLeftButtonDown="OnDragMove"/>
+            <Border x:Name="PrefixIndicator"
+                    DockPanel.Dock="Left"
+                    Margin="6,0"
+                    Padding="8,2"
+                    CornerRadius="8"
+                    Background="#33222222"
+                    BorderBrush="#6600FF99"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="PrefixIndicatorText"
+                           Text="PREFIX Ctrl+Q"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"/>
+            </Border>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                 <Button x:Name="MenuBtn" Content="≡" Width="24" Height="24" Margin="2" Click="OnOpenMenu"/>
                 <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>

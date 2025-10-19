@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Win32;
 using DropSendTo.Models;
+using DropSendTo.Services;
 
 namespace DropSendTo;
 
@@ -10,6 +11,7 @@ public partial class RegisterDialog : Window
     public string CommandPath => CommandBox.Text.Trim();
     public string ArgumentsTemplate => ArgsBox.Text;
     public string MacroScript => MacroBox.Text;
+    public string ShortcutChord { get; private set; } = string.Empty;
 
     public RegisterDialog()
     {
@@ -22,6 +24,8 @@ public partial class RegisterDialog : Window
         CommandBox.Text = slot.Command ?? string.Empty;
         ArgsBox.Text = slot.ArgumentsTemplate ?? "{args}";
         MacroBox.Text = slot.KeyboardMacroScript ?? string.Empty;
+        ShortcutBox.Text = slot.ShortcutKey ?? string.Empty;
+        ShortcutChord = ShortcutBox.Text.Trim();
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
@@ -33,6 +37,23 @@ public partial class RegisterDialog : Window
             MessageBox.Show("Command か Macro Script のどちらかを設定してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
+        var shortcutText = ShortcutBox.Text.Trim();
+        if (shortcutText.Length > 0)
+        {
+            if (!KeyChordParser.TryParse(shortcutText, out var chord, out var error))
+            {
+                MessageBox.Show(error ?? "ショートカットの書式が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            ShortcutChord = chord.NormalizedString;
+            ShortcutBox.Text = chord.NormalizedString;
+        }
+        else
+        {
+            ShortcutChord = string.Empty;
+        }
+
         DialogResult = true;
     }
 

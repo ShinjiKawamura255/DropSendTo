@@ -20,10 +20,13 @@ public partial class MainWindow : Window
     private readonly WindowPlacementService _placement = new();
     private readonly System.Windows.Threading.DispatcherTimer _layerHoverTimer;
     private readonly KeyboardMacroService _macroService = new();
+    private readonly ShortcutService _shortcutService = new();
+    private readonly List<ShortcutBinding> _shortcutBindings = new();
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
     private int? _runningSlotIndex;
+    private int? _runningSlotLayerIndex;
     private bool _runningSlotCancellationRequested;
 
     public MainWindow()
@@ -82,6 +85,33 @@ public partial class MainWindow : Window
             _logger.Error($"Failed to initialize keyboard macro service: {ex}");
             MessageBox.Show("マクロサービスの初期化に失敗しました。ログを確認してください。", "Macro Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+
+        try
+        {
+            _shortcutService.ShortcutTriggered += OnShortcutTriggered;
+            _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
+            _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
+            _shortcutService.Initialize(_config.ShortcutPrefix);
+            if (!_shortcutService.IsUsingFallbackPrefix)
+            {
+                var normalized = _shortcutService.CurrentPrefixText;
+                if (!string.Equals(_config.ShortcutPrefix, normalized, StringComparison.Ordinal))
+                {
+                    _config.ShortcutPrefix = normalized;
+                }
+            }
+            else
+            {
+                _logger.Warn("Configured shortcut prefix could not be parsed. Falling back to Ctrl+Q.");
+                MessageBox.Show("設定ファイルの Prefix を解釈できなかったため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            UpdateShortcutRegistrations();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Failed to initialize shortcut service: {ex}");
+            MessageBox.Show("ショートカットサービスの初期化に失敗しました。ログを確認してください。", "Shortcut Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OnExit(object sender, RoutedEventArgs e)
@@ -139,9 +169,20 @@ public partial class MainWindow : Window
         Cancelling
     }
 
+    private enum SlotTriggerSource
+    {
+        Mouse,
+        Shortcut
+    }
+
+    private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
+
     private SlotMacroState GetSlotMacroState(int index)
     {
-        if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == index)
+        if (_runningSlotLayerIndex.HasValue &&
+            _runningSlotLayerIndex.Value == _currentLayer &&
+            _runningSlotIndex.HasValue &&
+            _runningSlotIndex.Value == index)
         {
             return _runningSlotCancellationRequested ? SlotMacroState.Cancelling : SlotMacroState.Running;
         }
@@ -197,30 +238,47 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BeginSlotMacro(int index)
+    private void BeginSlotMacro(int layerIndex, int index)
     {
+        _runningSlotLayerIndex = layerIndex;
         _runningSlotIndex = index;
         _runningSlotCancellationRequested = false;
-        RenderSlotMacroState(index, SlotMacroState.Running);
-    }
-
-    private void MarkSlotMacroCanceling()
-    {
-        if (_runningSlotIndex.HasValue)
+        if (layerIndex == _currentLayer)
         {
-            _runningSlotCancellationRequested = true;
-            RenderSlotMacroState(_runningSlotIndex.Value, SlotMacroState.Cancelling);
+            RenderSlotMacroState(index, SlotMacroState.Running);
         }
     }
 
-    private void ClearSlotMacroState(int index)
+    private void MarkSlotMacroCanceling(int layerIndex, int index)
     {
-        if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == index)
+        if (_runningSlotLayerIndex.HasValue &&
+            _runningSlotLayerIndex.Value == layerIndex &&
+            _runningSlotIndex.HasValue &&
+            _runningSlotIndex.Value == index)
         {
+            _runningSlotCancellationRequested = true;
+            if (layerIndex == _currentLayer)
+            {
+                RenderSlotMacroState(index, SlotMacroState.Cancelling);
+            }
+        }
+    }
+
+    private void ClearSlotMacroState(int layerIndex, int index)
+    {
+        if (_runningSlotLayerIndex.HasValue &&
+            _runningSlotLayerIndex.Value == layerIndex &&
+            _runningSlotIndex.HasValue &&
+            _runningSlotIndex.Value == index)
+        {
+            _runningSlotLayerIndex = null;
             _runningSlotIndex = null;
             _runningSlotCancellationRequested = false;
         }
-        RenderSlotMacroState(index, SlotMacroState.Idle);
+        if (layerIndex == _currentLayer)
+        {
+            RenderSlotMacroState(index, SlotMacroState.Idle);
+        }
     }
 
     private void EditSlot(FrameworkElement fe)
@@ -234,6 +292,7 @@ public partial class MainWindow : Window
             slot.Command = dlg.CommandPath;
             slot.ArgumentsTemplate = dlg.ArgumentsTemplate;
             slot.KeyboardMacroScript = dlg.MacroScript;
+            slot.ShortcutKey = dlg.ShortcutChord;
             _configService.Save(_config);
             RefreshUi();
         }
@@ -246,6 +305,7 @@ public partial class MainWindow : Window
         bool isEmpty = string.IsNullOrWhiteSpace(slot.Title) &&
                        string.IsNullOrWhiteSpace(slot.Command) &&
                        string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) &&
+                       string.IsNullOrWhiteSpace(slot.ShortcutKey) &&
                        string.Equals(slot.ArgumentsTemplate ?? string.Empty, "{args}", StringComparison.Ordinal) &&
                        slot.ClickEnabled;
         if (!isEmpty)
@@ -339,6 +399,25 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Open Logs", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnChangePrefix(object sender, RoutedEventArgs e)
+    {
+        var dlg = new PrefixDialog(_config.ShortcutPrefix) { Owner = this };
+        if (dlg.ShowDialog() == true)
+        {
+            var newPrefix = dlg.NormalizedPrefix;
+            bool prefixChanged = !string.Equals(_config.ShortcutPrefix, newPrefix, StringComparison.Ordinal);
+
+            _shortcutService.UpdatePrefix(newPrefix);
+            if (prefixChanged)
+            {
+                _config.ShortcutPrefix = newPrefix;
+                _configService.Save(_config);
+            }
+
+            UpdateShortcutRegistrations();
         }
     }
 
@@ -439,12 +518,12 @@ public partial class MainWindow : Window
         OnSlotMouseLeave(sender, null!);
     }
 
-    private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source)
     {
-        if (sender is not FrameworkElement fe) return;
-        int idx = GetSlotIndex(fe);
-        var slot = _config.Layers[_currentLayer].Slots[idx];
-        if (!slot.ClickEnabled) return;
+        var layer = _config.Layers[layerIndex];
+        var slot = layer.Slots[slotIndex];
+        if (source == SlotTriggerSource.Mouse && !slot.ClickEnabled) return;
+
         var script = slot.KeyboardMacroScript ?? string.Empty;
         var hasMacro = !string.IsNullOrWhiteSpace(script);
         var hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
@@ -453,11 +532,15 @@ public partial class MainWindow : Window
 
         if (_macroService.IsMacroRunning)
         {
-            if (_runningSlotIndex.HasValue && _runningSlotIndex.Value == idx && hasMacro)
+            if (_runningSlotLayerIndex.HasValue &&
+                _runningSlotLayerIndex.Value == layerIndex &&
+                _runningSlotIndex.HasValue &&
+                _runningSlotIndex.Value == slotIndex &&
+                hasMacro)
             {
                 if (_macroService.CancelCurrentMacro())
                 {
-                    MarkSlotMacroCanceling();
+                    MarkSlotMacroCanceling(layerIndex, slotIndex);
                 }
             }
             else
@@ -469,7 +552,7 @@ public partial class MainWindow : Window
 
         if (hasMacro)
         {
-            BeginSlotMacro(idx);
+            BeginSlotMacro(layerIndex, slotIndex);
             try
             {
                 var macroResult = await _macroService.RunMacroAsync(script);
@@ -490,7 +573,7 @@ public partial class MainWindow : Window
             }
             finally
             {
-                ClearSlotMacroState(idx);
+                ClearSlotMacroState(layerIndex, slotIndex);
             }
         }
 
@@ -498,7 +581,74 @@ public partial class MainWindow : Window
         {
             var result = _launcher.Launch(slot, Array.Empty<string>());
             if (!result.Success)
+            {
                 MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement fe) return;
+        int idx = GetSlotIndex(fe);
+        await TriggerSlotAsync(_currentLayer, idx, SlotTriggerSource.Mouse);
+    }
+
+    private void OnShortcutTriggered(object? sender, ShortcutTriggeredEventArgs e)
+    {
+        var normalized = e.RegisteredChord.NormalizedString;
+        foreach (var binding in _shortcutBindings)
+        {
+            if (string.Equals(binding.NormalizedKey, normalized, StringComparison.Ordinal))
+            {
+                if (binding.LayerIndex != _currentLayer)
+                {
+                    SetLayer(binding.LayerIndex);
+                }
+                _ = TriggerSlotAsync(binding.LayerIndex, binding.SlotIndex, SlotTriggerSource.Shortcut);
+                break;
+            }
+        }
+    }
+
+    private void OnPrefixPassthroughRequested(object? sender, PrefixPassthroughEventArgs e)
+    {
+        _ = SendPrefixPassthroughAsync(e.ShortcutText);
+    }
+
+    private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
+    {
+        PrefixIndicatorText.Text = $"PREFIX {_shortcutService.CurrentPrefixText}";
+        if (e.IsArmed)
+        {
+            PrefixIndicator.Visibility = Visibility.Visible;
+            PrefixIndicator.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1E, 0x82, 0x4C));
+            PrefixIndicator.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+        }
+        else
+        {
+            PrefixIndicator.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private async Task SendPrefixPassthroughAsync(string prefixText)
+    {
+        if (_macroService.IsMacroRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _macroService.RunMacroAsync("KEY " + prefixText);
+            if (!result.Success && !result.IsCanceled)
+            {
+                _logger.Warn($"Prefix passthrough failed: {result.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Prefix passthrough execution failed: {ex}");
         }
     }
 
@@ -513,6 +663,44 @@ public partial class MainWindow : Window
         // Layer button highlight with stronger contrast
         UpdateLayerButtonVisuals();
         UpdateAllSlotMacroStates();
+        UpdateShortcutRegistrations();
+    }
+
+    private void UpdateShortcutRegistrations()
+    {
+        if (_config == null) return;
+
+        _shortcutBindings.Clear();
+        var orderedBindings = new List<ShortcutBinding>();
+
+        void AddLayerBindings(int layerIndex)
+        {
+            if (layerIndex < 0 || layerIndex >= _config.Layers.Count) return;
+            var layer = _config.Layers[layerIndex];
+            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            {
+                var shortcutText = layer.Slots[slotIndex].ShortcutKey;
+                if (string.IsNullOrWhiteSpace(shortcutText)) continue;
+                var trimmed = shortcutText.Trim();
+                if (!KeyChordParser.TryParse(trimmed, out var chord, out var error))
+                {
+                    _logger.Warn($"ショートカット設定の解析に失敗しました (Layer={layerIndex + 1}, Slot={slotIndex + 1}): {error}");
+                    continue;
+                }
+                orderedBindings.Add(new ShortcutBinding(chord.NormalizedString, layerIndex, slotIndex));
+            }
+        }
+
+        AddLayerBindings(_currentLayer);
+        for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
+        {
+            if (layerIndex == _currentLayer) continue;
+            AddLayerBindings(layerIndex);
+        }
+
+        _shortcutBindings.AddRange(orderedBindings);
+        _shortcutService.UpdateAvailableShortcuts(_shortcutBindings.Select(b => b.NormalizedKey));
+        PrefixIndicatorText.Text = $"PREFIX {_shortcutService.CurrentPrefixText}";
     }
 
     private void UpdateLayerButtonVisuals()
@@ -546,6 +734,10 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
+        _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
+        _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
+        _shortcutService.Dispose();
         _macroService.Dispose();
     }
 }

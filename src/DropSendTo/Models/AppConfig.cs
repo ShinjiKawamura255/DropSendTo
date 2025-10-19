@@ -5,11 +5,12 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 5;
+    public int Version { get; set; } = 6;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
     public bool AlwaysOnTop { get; set; } = true;
+    public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()

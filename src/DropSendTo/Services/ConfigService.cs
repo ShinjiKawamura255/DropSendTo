@@ -68,6 +68,30 @@ public class ConfigService
             if (layer.Slots.Count != 4) throw new InvalidDataException("Each layer must have 4 slots.");
         }
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
+        if (string.IsNullOrWhiteSpace(cfg.ShortcutPrefix))
+        {
+            cfg.ShortcutPrefix = "CTRL+Q";
+        }
+        else
+        {
+            cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
+        }
+        foreach (var layer in cfg.Layers)
+        foreach (var slot in layer.Slots)
+        {
+            if (slot.KeyboardMacroScript == null)
+            {
+                slot.KeyboardMacroScript = string.Empty;
+            }
+            if (slot.ShortcutKey == null)
+            {
+                slot.ShortcutKey = string.Empty;
+            }
+            else
+            {
+                slot.ShortcutKey = slot.ShortcutKey.Trim();
+            }
+        }
     }
 
     private static bool Migrate(AppConfig cfg)
@@ -115,6 +139,26 @@ public class ConfigService
         if (cfg.Version < 5)
         {
             cfg.Version = 5;
+            changed = true;
+        }
+
+        if (cfg.Version < 6)
+        {
+            if (string.IsNullOrWhiteSpace(cfg.ShortcutPrefix))
+            {
+                cfg.ShortcutPrefix = "CTRL+Q";
+                changed = true;
+            }
+            foreach (var layer in cfg.Layers)
+            foreach (var slot in layer.Slots)
+            {
+                if (slot.ShortcutKey == null)
+                {
+                    slot.ShortcutKey = string.Empty;
+                    changed = true;
+                }
+            }
+            cfg.Version = 6;
             changed = true;
         }
 

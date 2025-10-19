@@ -10,11 +10,6 @@ namespace DropSendTo.Services;
 
 public sealed class KeyboardMacroService : IDisposable
 {
-    private static readonly Dictionary<string, ushort> KeyMap = CreateKeyMap();
-    private static readonly HashSet<string> ModifierTokens = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CTRL", "CONTROL", "SHIFT", "ALT", "MENU", "WIN", "LWIN", "RWIN"
-    };
     private const int MaxRepeatCount = 1000;
     private const int TextSendInterCharacterDelayMilliseconds = 18;
     private const int TextSendWhitespaceDelayMilliseconds = 28;
@@ -252,7 +247,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYDOWN"))
                 {
                     var token = line.Length > 7 ? line[7..].Trim() : string.Empty;
-                    if (!TryResolveKey(token, out var key))
+                    if (!KeyChordParser.TryResolveKeyToken(token, out var key))
                         return MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{token}\"");
                     AppendKey(buffer, key, false);
                     continue;
@@ -261,7 +256,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYUP"))
                 {
                     var token = line.Length > 5 ? line[5..].Trim() : string.Empty;
-                    if (!TryResolveKey(token, out var key))
+                    if (!KeyChordParser.TryResolveKeyToken(token, out var key))
                         return MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{token}\"");
                     AppendKey(buffer, key, true);
                     continue;
@@ -552,51 +547,31 @@ public sealed class KeyboardMacroService : IDisposable
     private static bool TryAppendCombination(string combo, List<INPUT> buffer, out string? error)
     {
         error = null;
-        if (string.IsNullOrWhiteSpace(combo))
+        if (!KeyChordParser.TryParse(combo, out var chord, out error))
         {
-            error = "KEY の後にキー指定がありません。";
             return false;
         }
 
-        var parts = combo.Split('+', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0)
+        var modifierKeys = new List<ushort>(chord.Modifiers.Count);
+        foreach (var modifier in chord.Modifiers)
         {
-            error = "KEY の書式が不正です。";
-            return false;
-        }
-
-        var modifiers = new List<ushort>();
-        for (int i = 0; i < parts.Length - 1; i++)
-        {
-            var token = parts[i].Trim();
-            if (!ModifierTokens.Contains(token))
+            if (!KeyChordParser.TryGetModifierVirtualKey(modifier, out var vk))
             {
-                error = $"修飾キーの指定が不正です: \"{token}\"";
+                error = $"修飾キーに対応する仮想キーを取得できません: \"{modifier}\"";
                 return false;
             }
-            if (!TryResolveModifier(token, out var vk))
-            {
-                error = $"修飾キーに対応する仮想キーを取得できません: \"{token}\"";
-                return false;
-            }
-            modifiers.Add(vk);
+            modifierKeys.Add(vk);
         }
 
-        if (!TryResolveKey(parts[^1].Trim(), out var mainKey))
-        {
-            error = $"キーの指定が不正です: \"{parts[^1].Trim()}\"";
-            return false;
-        }
-
-        foreach (var mod in modifiers)
+        foreach (var mod in modifierKeys)
         {
             AppendKey(buffer, mod, keyUp: false);
         }
-        AppendKey(buffer, mainKey, keyUp: false);
-        AppendKey(buffer, mainKey, keyUp: true);
-        for (int i = modifiers.Count - 1; i >= 0; i--)
+        AppendKey(buffer, chord.MainKey, keyUp: false);
+        AppendKey(buffer, chord.MainKey, keyUp: true);
+        for (int i = modifierKeys.Count - 1; i >= 0; i--)
         {
-            AppendKey(buffer, modifiers[i], keyUp: true);
+            AppendKey(buffer, modifierKeys[i], keyUp: true);
         }
 
         return true;
@@ -676,137 +651,6 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         return true;
-    }
-
-    private static bool TryResolveKey(string token, out ushort key)
-    {
-        key = 0;
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        token = token.Trim();
-        if (KeyMap.TryGetValue(token, out key)) return true;
-        if (token.Length == 1)
-        {
-            key = (ushort)char.ToUpperInvariant(token[0]);
-            return true;
-        }
-        return false;
-    }
-
-    private static bool TryResolveModifier(string token, out ushort key)
-    {
-        key = 0;
-        return token.ToUpperInvariant() switch
-        {
-            "CTRL" or "CONTROL" => (key = VK_CONTROL) != 0,
-            "SHIFT" => (key = VK_SHIFT) != 0,
-            "ALT" or "MENU" => (key = VK_MENU) != 0,
-            "WIN" or "LWIN" => (key = VK_LWIN) != 0,
-            "RWIN" => (key = VK_RWIN) != 0,
-            _ => false
-        };
-    }
-
-    private static Dictionary<string, ushort> CreateKeyMap()
-    {
-        var map = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["ENTER"] = VK_RETURN,
-            ["RETURN"] = VK_RETURN,
-            ["ESC"] = VK_ESCAPE,
-            ["ESCAPE"] = VK_ESCAPE,
-            ["TAB"] = VK_TAB,
-            ["SPACE"] = VK_SPACE,
-            ["ALT"] = VK_MENU,
-            ["BACK"] = VK_BACK,
-            ["BACKSPACE"] = VK_BACK,
-            ["UP"] = VK_UP,
-            ["DOWN"] = VK_DOWN,
-            ["LEFT"] = VK_LEFT,
-            ["RIGHT"] = VK_RIGHT,
-            ["HOME"] = VK_HOME,
-            ["END"] = VK_END,
-            ["PGUP"] = VK_PRIOR,
-            ["PAGEUP"] = VK_PRIOR,
-            ["PGDN"] = VK_NEXT,
-            ["PAGEDOWN"] = VK_NEXT,
-            ["DELETE"] = VK_DELETE,
-            ["DEL"] = VK_DELETE,
-            ["INSERT"] = VK_INSERT,
-            ["INS"] = VK_INSERT,
-            ["F1"] = VK_F1,
-            ["F2"] = VK_F2,
-            ["F3"] = VK_F3,
-            ["F4"] = VK_F4,
-            ["F5"] = VK_F5,
-            ["F6"] = VK_F6,
-            ["F7"] = VK_F7,
-            ["F8"] = VK_F8,
-            ["F9"] = VK_F9,
-            ["F10"] = VK_F10,
-            ["F11"] = VK_F11,
-            ["F12"] = VK_F12,
-            ["F13"] = VK_F13,
-            ["F14"] = VK_F14,
-            ["F15"] = VK_F15,
-            ["F16"] = VK_F16,
-            ["F17"] = VK_F17,
-            ["F18"] = VK_F18,
-            ["F19"] = VK_F19,
-            ["F20"] = VK_F20,
-            ["F21"] = VK_F21,
-            ["F22"] = VK_F22,
-            ["F23"] = VK_F23,
-            ["F24"] = VK_F24,
-            ["CAPSLOCK"] = VK_CAPITAL,
-            ["SCROLLLOCK"] = VK_SCROLL,
-            ["PAUSE"] = VK_PAUSE,
-            ["BREAK"] = VK_PAUSE,
-            ["PRINTSCREEN"] = VK_SNAPSHOT,
-            ["PRTSC"] = VK_SNAPSHOT,
-            ["APPS"] = VK_APPS,
-            ["MENU"] = VK_APPS,
-            ["NUMLOCK"] = VK_NUMLOCK,
-            ["NUM0"] = VK_NUMPAD0,
-            ["NUM1"] = VK_NUMPAD1,
-            ["NUM2"] = VK_NUMPAD2,
-            ["NUM3"] = VK_NUMPAD3,
-            ["NUM4"] = VK_NUMPAD4,
-            ["NUM5"] = VK_NUMPAD5,
-            ["NUM6"] = VK_NUMPAD6,
-            ["NUM7"] = VK_NUMPAD7,
-            ["NUM8"] = VK_NUMPAD8,
-            ["NUM9"] = VK_NUMPAD9,
-            ["MULTIPLY"] = VK_MULTIPLY,
-            ["ADD"] = VK_ADD,
-            ["SUBTRACT"] = VK_SUBTRACT,
-            ["MINUS"] = VK_OEM_MINUS,
-            ["DIVIDE"] = VK_DIVIDE,
-            ["SEPARATOR"] = VK_SEPARATOR,
-            ["DECIMAL"] = VK_DECIMAL,
-            ["OEM1"] = VK_OEM_1,
-            ["OEMPLUS"] = VK_OEM_PLUS,
-            ["OEMCOMMA"] = VK_OEM_COMMA,
-            ["OEMMINUS"] = VK_OEM_MINUS,
-            ["OEMPERIOD"] = VK_OEM_PERIOD,
-            ["OEM2"] = VK_OEM_2,
-            ["OEM3"] = VK_OEM_3,
-            ["OEM4"] = VK_OEM_4,
-            ["OEM5"] = VK_OEM_5,
-            ["OEM6"] = VK_OEM_6,
-            ["OEM7"] = VK_OEM_7
-        };
-
-        for (char c = 'A'; c <= 'Z'; c++)
-        {
-            map[c.ToString()] = (ushort)c;
-        }
-
-        for (char c = '0'; c <= '9'; c++)
-        {
-            map[c.ToString()] = (ushort)c;
-        }
-
-        return map;
     }
 
     private static bool IsExtendedKey(ushort vk) =>
