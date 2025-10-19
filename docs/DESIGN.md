@@ -8,22 +8,28 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
-- MainWindow: 2x2 スロット UI、レイヤー切替、ドロップ/クリック/メニュー操作、設定保存を統括する。
-- AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置などを保持。
-- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 4 までのマイグレーションを実装。
+- MainWindow: 2〜4 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター・設定保存を統括する。
+- AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey を保持。
+- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 7 までのマイグレーションを実装し、行列分のスロット容量を保証する。
 - LauncherService: `{args}` プレースホルダを展開して `ProcessStartInfo` を構築し、シェル実行する。失敗時はメッセージ付きで返却。
 - KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。再入防止にセマフォを使用。
+- ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。
+- KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
+- RegisterDialog / PrefixDialog: スロット情報および Prefix の編集 UI。KeyChordParser で入力を検証し、正規化された結果を反映する。
 - LoggerService: UTF-8 でログを追記し、1MB 超でタイムスタンプ付きへローテーション。7日より古いファイルを起動時に削除する。
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
 ## DES-003 UI Flows
-1) 起動: App が ConfigService で設定を読み込み、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し、成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示する。
+1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、それ以外は LauncherService で `{args}` を展開し実行。失敗時はエラーダイアログ表示とログ出力。
 4) スロットクリック: ClickEnabled が有効な場合、KeyboardMacroService により直前の外部ウィンドウへスクリプトを送信し、成功すれば LauncherService でコマンドを起動。Any エラーはメッセージ表示でユーザーへ通知。
-5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログはコマンドまたはマクロのいずれかが必須。保存すると config を更新し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
-6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
-7) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面を保存し、KeyboardMacroService を破棄する。
+5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、KeyChordParser でショートカット書式を検証・正規化。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
+6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
+7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
+8) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
+9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、1.5 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。マクロ実行中はキャンセル要求または警告ダイアログを提示。
+10) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 
 ## DES-004 API Contracts (examples)
 - LauncherService
@@ -37,6 +43,11 @@
   - `Initialize(WindowInteropHelper)`: フォアグラウンド変更フックを登録し、直近外部ウィンドウを追跡。
   - `RunMacroAsync(script)`: セマフォで逐次実行し、マクロスクリプトを解釈して SendInput を発行。結果に成功/失敗/スキップを含める。
   - `Dispose()`: WinEventHook の解除・ロック解放。
+- ShortcutService
+  - `Initialize(string? prefixExpression)`: Prefix を解析・正規化し、低レベルフックをセットアップする。失敗時は既定 Prefix へフォールバックする。
+  - `UpdatePrefix(string? prefixExpression)`: 実行中に Prefix を再解析し、armed 状態をリセットする。
+  - `UpdateAvailableShortcuts(IEnumerable<string>)`: ショートカット文字列を解析・正規化して内部リストを更新する。不正値はログ警告。
+  - `Dispose()`: キーボード/マウスフックを解除する。
 - WindowPlacementService
   - `Clamp(left, top, bounds, width, height)` → 複数モニターを考慮した座標を返す。
 - LoggerService
@@ -45,16 +56,17 @@
   - `LogDirectory`: Open Logs メニュー向けに公開。
 
 ## DES-005 Errors/Timeout/Telemetry
-- Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。
-- UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。
+- Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。`ShortcutService` は Prefix/ショートカット解析失敗を警告ログに記録し、Prefix 解析失敗時は既定値へフォールバックする。
+- UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。Prefix フォールバック時もメッセージで通知する。
 - Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロエラー・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコード。
 - Telemetry: 専用メトリクスは未実装。必要な診断はログで代替。
 
 ## DES-006 Trade-offs
 - WPF 採用で Windows 専用だが UI 制御が容易。WinUI3 への移行余地は保つ。
 - マクロ送信は Win32 API（SendInput、SetWinEventHook）に依存し、UAC やフォーカス制御の制約を受けるが、他プロセスに依存せず完結する。
+- グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 1.5 秒タイムアウトなど UX 配慮が必要。
 
 ## Traceability (excerpt)
-- DES-002 ← SP-001/002/006/009 → TC-010/025/080/090
-- DES-003 ← SP-001/003 → TC-040/050/060
-- DES-005 ← SP-004/007 → TC-030/095
+- DES-002 ← SP-001/002/006/009/010 → TC-010/025/065/080/085/090
+- DES-003 ← SP-001/003/006/010 → TC-040/050/060/065/085
+- DES-005 ← SP-004/007/010 → TC-030/035/095/085
