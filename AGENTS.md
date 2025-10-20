@@ -17,6 +17,7 @@
   - Test: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet test"`
   - Format: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet format"`
   - 動作確認例: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "dotnet --version"`
+  - 注意: Codex 環境では `powershell.exe` による初回呼び出し時に `Permission denied` が返る場合があります。Codex 側のアクセス制御が原因のため、同様のエラーが出た場合はユーザに実行許可を求めてから再実行してください。
 
 ## Coding Style & Naming Conventions
 - Language: C# 12, .NET 8, Windows-only APIs allowed.
