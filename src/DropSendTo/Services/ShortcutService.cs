@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Threading;
 
 namespace DropSendTo.Services;
@@ -42,7 +43,7 @@ internal sealed class PrefixStateChangedEventArgs : EventArgs
 
 internal sealed class ShortcutService : IDisposable
 {
-    private const int PrefixTimeoutMilliseconds = 1500;
+    private const int PrefixTimeoutMilliseconds = 4_000;
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
     private readonly Dispatcher _dispatcher;
@@ -59,11 +60,14 @@ internal sealed class ShortcutService : IDisposable
     private IReadOnlyList<ModifierKind> _prefixModifiers = Array.Empty<ModifierKind>();
     private readonly Dictionary<ushort, int> _suppressedKeyUps = new();
     private readonly List<KeyChord> _availableShortcuts = new();
+    private readonly HashSet<ushort> _activeModifiers = new();
+    private readonly Timer _prefixTimeoutTimer;
     private bool _usingFallbackPrefix;
 
     public ShortcutService()
     {
         _dispatcher = ApplicationDispatcherProvider.GetDispatcher();
+        _prefixTimeoutTimer = new Timer(OnPrefixTimeout, null, Timeout.Infinite, Timeout.Infinite);
     }
 
     public event EventHandler<ShortcutTriggeredEventArgs>? ShortcutTriggered;
@@ -156,12 +160,14 @@ internal sealed class ShortcutService : IDisposable
             if (armed)
             {
                 _prefixArmedAtUtc = timestampUtc;
+                SchedulePrefixTimeoutLocked();
             }
             return;
         }
 
         _prefixArmed = armed;
         _prefixArmedAtUtc = armed ? timestampUtc : DateTime.MinValue;
+        SchedulePrefixTimeoutLocked();
         NotifyPrefixState(armed);
     }
 
@@ -218,12 +224,13 @@ internal sealed class ShortcutService : IDisposable
         suppress = false;
         var chord = _prefixChord!;
         var now = DateTime.UtcNow;
+        var vk = (ushort)vkCode;
+        TrackModifierKeyDownLocked(vk);
         if (_prefixArmed && (now - _prefixArmedAtUtc).TotalMilliseconds > PrefixTimeoutMilliseconds)
         {
             ResetPrefixStateLocked();
         }
 
-        var vk = (ushort)vkCode;
         if (!_prefixArmed)
         {
             if (vk != chord.MainKey)
@@ -252,12 +259,12 @@ internal sealed class ShortcutService : IDisposable
 
         if (IsModifierVirtualKey(vk))
         {
-            MarkKeyForSuppression(vk);
+            // Modifiers should not remain latched system-wide, so we only block the key down event.
             suppress = true;
             return ShortcutAction.None;
         }
 
-        var modifiers = CollectActiveModifierKeys();
+        var modifiers = CollectActiveModifierKeysLocked();
         RemovePrefixModifiers(modifiers, _prefixModifiers);
         SetPrefixArmedLocked(false, now);
 
@@ -275,6 +282,7 @@ internal sealed class ShortcutService : IDisposable
     private bool ProcessKeyUp(uint vkCode)
     {
         var vk = (ushort)vkCode;
+        TrackModifierKeyUpLocked(vk);
         if (ConsumeSuppressedKey(vk))
         {
             return true;
@@ -396,6 +404,7 @@ internal sealed class ShortcutService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _prefixTimeoutTimer.Change(Timeout.Infinite, Timeout.Infinite);
         if (_hookHandle != IntPtr.Zero)
         {
             UnhookWindowsHookEx(_hookHandle);
@@ -405,6 +414,43 @@ internal sealed class ShortcutService : IDisposable
         {
             UnhookWindowsHookEx(_mouseHookHandle);
             _mouseHookHandle = IntPtr.Zero;
+        }
+        _prefixTimeoutTimer.Dispose();
+    }
+
+    private void TrackModifierKeyDownLocked(ushort vk)
+    {
+        if (IsModifierVirtualKey(vk))
+        {
+            _activeModifiers.Add(vk);
+        }
+    }
+
+    private void TrackModifierKeyUpLocked(ushort vk)
+    {
+        if (IsModifierVirtualKey(vk))
+        {
+            _activeModifiers.Remove(vk);
+        }
+    }
+
+    private void SchedulePrefixTimeoutLocked()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_prefixArmed)
+        {
+            var elapsed = (int)(DateTime.UtcNow - _prefixArmedAtUtc).TotalMilliseconds;
+            var remaining = PrefixTimeoutMilliseconds - elapsed;
+            if (remaining < 1) remaining = 1;
+            _prefixTimeoutTimer.Change(remaining, Timeout.Infinite);
+        }
+        else
+        {
+            _prefixTimeoutTimer.Change(Timeout.Infinite, Timeout.Infinite);
         }
     }
 
@@ -419,29 +465,12 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
-    private static HashSet<ushort> CollectActiveModifierKeys()
+    private HashSet<ushort> CollectActiveModifierKeysLocked()
     {
-        var set = new HashSet<ushort>();
-        AddIfDown(set, VK_LCONTROL);
-        AddIfDown(set, VK_RCONTROL);
-        AddIfDown(set, VK_LSHIFT);
-        AddIfDown(set, VK_RSHIFT);
-        AddIfDown(set, VK_LMENU);
-        AddIfDown(set, VK_RMENU);
-        AddIfDown(set, VK_LWIN);
-        AddIfDown(set, VK_RWIN);
-        return set;
+        return new HashSet<ushort>(_activeModifiers);
     }
 
-    private static void AddIfDown(HashSet<ushort> set, ushort vk)
-    {
-        if ((GetAsyncKeyState(vk) & 0x8000) != 0)
-        {
-            set.Add(vk);
-        }
-    }
-
-    private static bool AreModifiersSatisfied(IReadOnlyList<ModifierKind> modifiers)
+    private bool AreModifiersSatisfied(IReadOnlyList<ModifierKind> modifiers)
     {
         if (modifiers.Count == 0) return true;
         foreach (var modifier in modifiers)
@@ -454,22 +483,53 @@ internal sealed class ShortcutService : IDisposable
         return true;
     }
 
-    private static bool IsModifierGroupDown(ModifierKind modifier) =>
+    private bool IsModifierGroupDown(ModifierKind modifier) =>
         modifier switch
         {
-            ModifierKind.Control => IsKeyDown(VK_LCONTROL) || IsKeyDown(VK_RCONTROL),
-            ModifierKind.Shift => IsKeyDown(VK_LSHIFT) || IsKeyDown(VK_RSHIFT),
-            ModifierKind.Alt => IsKeyDown(VK_LMENU) || IsKeyDown(VK_RMENU),
-            ModifierKind.Win => IsKeyDown(VK_LWIN) || IsKeyDown(VK_RWIN),
-            ModifierKind.LeftWin => IsKeyDown(VK_LWIN),
-            ModifierKind.RightWin => IsKeyDown(VK_RWIN),
+            ModifierKind.Control => IsAnyModifierDown(VK_LCONTROL, VK_RCONTROL),
+            ModifierKind.Shift => IsAnyModifierDown(VK_LSHIFT, VK_RSHIFT),
+            ModifierKind.Alt => IsAnyModifierDown(VK_LMENU, VK_RMENU),
+            ModifierKind.Win => IsAnyModifierDown(VK_LWIN, VK_RWIN),
+            ModifierKind.LeftWin => _activeModifiers.Contains(VK_LWIN),
+            ModifierKind.RightWin => _activeModifiers.Contains(VK_RWIN),
             _ => false
         };
 
-    private static bool IsKeyDown(ushort vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
+    private bool IsAnyModifierDown(params ushort[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (_activeModifiers.Contains(key))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static bool IsModifierVirtualKey(ushort vk) =>
         vk is VK_LCONTROL or VK_RCONTROL or VK_LSHIFT or VK_RSHIFT or VK_LMENU or VK_RMENU or VK_LWIN or VK_RWIN;
+
+    private void OnPrefixTimeout(object? state)
+    {
+        lock (_stateLock)
+        {
+            if (_disposed || !_prefixArmed)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            if ((now - _prefixArmedAtUtc).TotalMilliseconds >= PrefixTimeoutMilliseconds)
+            {
+                SetPrefixArmedLocked(false, now);
+            }
+            else
+            {
+                SchedulePrefixTimeoutLocked();
+            }
+        }
+    }
 
     private void MarkKeyForSuppression(ushort vk)
     {
@@ -594,10 +654,6 @@ internal sealed class ShortcutService : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int vKey);
-
-    private static short GetAsyncKeyState(ushort vKey) => GetAsyncKeyState((int)vKey);
 }
 
 internal static class ApplicationDispatcherProvider

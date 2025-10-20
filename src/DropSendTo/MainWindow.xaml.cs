@@ -24,12 +24,29 @@ public partial class MainWindow : Window
     private readonly ShortcutService _shortcutService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
+    private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
+    private static readonly SolidColorBrush PrefixArmedBorderBrush;
+    private static readonly SolidColorBrush PrefixArmedForegroundBrush;
     private static readonly (int rows, int columns)[] SlotLayoutOptions =
     {
         (2, 2), (2, 3), (2, 4),
         (3, 2), (3, 3), (3, 4),
         (4, 2), (4, 3), (4, 4)
     };
+    static MainWindow()
+    {
+        PrefixArmedBackgroundBrush = CreateFrozenBrush(Color.FromRgb(0x1E, 0x82, 0x4C));
+        PrefixArmedBorderBrush = CreateFrozenBrush(Color.FromRgb(0x7C, 0xFF, 0xB0));
+        PrefixArmedForegroundBrush = CreateFrozenBrush(Colors.White);
+    }
+
+    private static SolidColorBrush CreateFrozenBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
     private const double BaseWindowWidth = 234;
     private const double BaseWindowHeight = 148;
     private const double ColumnWidthStep = 95;
@@ -813,12 +830,18 @@ public partial class MainWindow : Window
 
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
-        PrefixIndicatorText.Text = $"PREFIX {_shortcutService.CurrentPrefixText}";
+        if (PrefixIndicator == null || PrefixIndicatorText == null)
+        {
+            return;
+        }
+
         if (e.IsArmed)
         {
             PrefixIndicator.Visibility = Visibility.Visible;
-            PrefixIndicator.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1E, 0x82, 0x4C));
-            PrefixIndicator.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+            PrefixIndicator.Background = PrefixArmedBackgroundBrush;
+            PrefixIndicator.BorderBrush = PrefixArmedBorderBrush;
+            PrefixIndicatorText.Foreground = PrefixArmedForegroundBrush;
+            PrefixIndicatorText.Text = "PREFIX";
         }
         else
         {
@@ -900,7 +923,10 @@ public partial class MainWindow : Window
 
         _shortcutBindings.AddRange(orderedBindings);
         _shortcutService.UpdateAvailableShortcuts(_shortcutBindings.Select(b => b.NormalizedKey));
-        PrefixIndicatorText.Text = $"PREFIX {_shortcutService.CurrentPrefixText}";
+        if (PrefixIndicatorText != null)
+        {
+            PrefixIndicatorText.Text = "PREFIX";
+        }
     }
 
     private void UpdateLayerButtonVisuals()
