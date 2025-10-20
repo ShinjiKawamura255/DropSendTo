@@ -25,7 +25,7 @@ public class KeyboardMacroServiceKeyParsingTests
     }
 
     [Fact]
-    public void TryAppendCombination_ShouldAllowSingleAltKey()
+    public void TryAppendCombination_ShouldRejectModifierWithoutMainKey()
     {
         var method = GetCombinationMethod();
         var buffer = CreateInputBuffer();
@@ -33,8 +33,8 @@ public class KeyboardMacroServiceKeyParsingTests
 
         var result = (bool)method.Invoke(null, args)!;
 
-        result.Should().BeTrue();
-        args[2].Should().BeNull();
-        buffer.Count.Should().Be(2, "Alt 単体のキー入力が押下と解放で構成されること");
+        result.Should().BeFalse();
+        args[2].Should().BeOfType<string>().Which.Should().NotBeNullOrEmpty();
+        buffer.Count.Should().Be(0, "修飾キーのみの KEY 指示は拒否されること");
     }
 }

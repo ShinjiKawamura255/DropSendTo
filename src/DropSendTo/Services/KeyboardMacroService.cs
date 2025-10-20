@@ -272,6 +272,15 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "MOUSE"))
+                {
+                    if (!TryHandleMouseCommand(line, buffer, out var mouseError))
+                    {
+                        return MacroExecutionResult.Fail(mouseError ?? $"MOUSE コマンドの書式が不正です: \"{line}\"");
+                    }
+                    continue;
+                }
+
                 return MacroExecutionResult.Fail($"未知のマクロ命令です: \"{line}\"");
             }
 
@@ -476,6 +485,24 @@ public sealed class KeyboardMacroService : IDisposable
         };
     }
 
+    private static INPUT CreateMouseInput(int dx, int dy, uint mouseData, uint flags) =>
+        new()
+        {
+            type = INPUT_MOUSE,
+            u = new InputUnion
+            {
+                mi = new MOUSEINPUT
+                {
+                    dx = dx,
+                    dy = dy,
+                    mouseData = mouseData,
+                    dwFlags = flags,
+                    time = 0,
+                    dwExtraInfo = GetMessageExtraInfo()
+                }
+            }
+        };
+
     private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp)
     {
         buffer.Add(CreateVirtualKeyInput(vk, keyUp));
@@ -577,6 +604,301 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    private static bool TryHandleMouseCommand(string line, List<INPUT> buffer, out string? error)
+    {
+        error = null;
+        string command = line;
+        string args = string.Empty;
+
+        int spaceIndex = line.IndexOf(' ', StringComparison.Ordinal);
+        if (spaceIndex >= 0)
+        {
+            command = line[..spaceIndex];
+            args = line[(spaceIndex + 1)..].Trim();
+        }
+
+        if (command.Equals("MOUSEMOVEABS", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseIntArguments(args, 2, "MOUSEMOVEABS", out var values, out error))
+            {
+                return false;
+            }
+            return TryAppendMouseMoveAbsolute(values[0], values[1], buffer, out error);
+        }
+
+        if (command.Equals("MOUSEMOVEREL", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseIntArguments(args, 2, "MOUSEMOVEREL", out var values, out error))
+            {
+                return false;
+            }
+            AppendMouseMoveRelative(values[0], values[1], buffer);
+            return true;
+        }
+
+        if (command.Equals("MOUSELEFTDOWN", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSELEFTDOWN", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_LEFTDOWN);
+            return true;
+        }
+
+        if (command.Equals("MOUSELEFTUP", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSELEFTUP", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_LEFTUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSERIGHTDOWN", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSERIGHTDOWN", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_RIGHTDOWN);
+            return true;
+        }
+
+        if (command.Equals("MOUSERIGHTUP", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSERIGHTUP", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_RIGHTUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSEMIDDLEDOWN", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSEMIDDLEDOWN", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_MIDDLEDOWN);
+            return true;
+        }
+
+        if (command.Equals("MOUSEMIDDLEUP", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSEMIDDLEUP", out error)) return false;
+            AppendMouseButton(buffer, MOUSEEVENTF_MIDDLEUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSELEFTCLICK", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSELEFTCLICK", out error)) return false;
+            AppendMouseClick(buffer, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSERIGHTCLICK", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSERIGHTCLICK", out error)) return false;
+            AppendMouseClick(buffer, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSEMIDDLECLICK", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSEMIDDLECLICK", out error)) return false;
+            AppendMouseClick(buffer, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSELEFTDOUBLECLICK", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!ValidateNoArguments(args, "MOUSELEFTDOUBLECLICK", out error)) return false;
+            AppendMouseClick(buffer, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
+            AppendMouseClick(buffer, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
+            return true;
+        }
+
+        if (command.Equals("MOUSESCROLLUP", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseOptionalIntArgument(args, "MOUSESCROLLUP", out var steps, 1, out error))
+            {
+                return false;
+            }
+            if (steps <= 0)
+            {
+                error = "MOUSESCROLLUP のスクロール量には 1 以上の整数を指定してください。";
+                return false;
+            }
+            AppendMouseWheel(buffer, Math.Clamp(steps, 1, 100) * WHEEL_DELTA);
+            return true;
+        }
+
+        if (command.Equals("MOUSESCROLLDOWN", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseOptionalIntArgument(args, "MOUSESCROLLDOWN", out var steps, 1, out error))
+            {
+                return false;
+            }
+            if (steps <= 0)
+            {
+                error = "MOUSESCROLLDOWN のスクロール量には 1 以上の整数を指定してください。";
+                return false;
+            }
+            AppendMouseWheel(buffer, -Math.Clamp(steps, 1, 100) * WHEEL_DELTA);
+            return true;
+        }
+
+        if (command.Equals("MOUSESCROLLLEFT", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseOptionalIntArgument(args, "MOUSESCROLLLEFT", out var steps, 1, out error))
+            {
+                return false;
+            }
+            if (steps <= 0)
+            {
+                error = "MOUSESCROLLLEFT のスクロール量には 1 以上の整数を指定してください。";
+                return false;
+            }
+            AppendMouseHWheel(buffer, -Math.Clamp(steps, 1, 100) * WHEEL_DELTA);
+            return true;
+        }
+
+        if (command.Equals("MOUSESCROLLRIGHT", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseOptionalIntArgument(args, "MOUSESCROLLRIGHT", out var steps, 1, out error))
+            {
+                return false;
+            }
+            if (steps <= 0)
+            {
+                error = "MOUSESCROLLRIGHT のスクロール量には 1 以上の整数を指定してください。";
+                return false;
+            }
+            AppendMouseHWheel(buffer, Math.Clamp(steps, 1, 100) * WHEEL_DELTA);
+            return true;
+        }
+
+        error = $"未知のマウスコマンドです: \"{command}\"";
+        return false;
+    }
+
+    private static bool TryAppendMouseMoveAbsolute(int x, int y, List<INPUT> buffer, out string? error)
+    {
+        error = null;
+        if (!TryNormalizeAbsoluteCoordinates(x, y, out var normalizedX, out var normalizedY, out error))
+        {
+            return false;
+        }
+        buffer.Add(CreateMouseInput(normalizedX, normalizedY, 0, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK));
+        return true;
+    }
+
+    private static void AppendMouseMoveRelative(int dx, int dy, List<INPUT> buffer)
+    {
+        buffer.Add(CreateMouseInput(dx, dy, 0, MOUSEEVENTF_MOVE));
+    }
+
+    private static void AppendMouseButton(List<INPUT> buffer, uint flag)
+    {
+        buffer.Add(CreateMouseInput(0, 0, 0, flag));
+    }
+
+    private static void AppendMouseClick(List<INPUT> buffer, uint downFlag, uint upFlag)
+    {
+        AppendMouseButton(buffer, downFlag);
+        AppendMouseButton(buffer, upFlag);
+    }
+
+    private static void AppendMouseWheel(List<INPUT> buffer, int amount)
+    {
+        buffer.Add(CreateMouseInput(0, 0, unchecked((uint)amount), MOUSEEVENTF_WHEEL));
+    }
+
+    private static void AppendMouseHWheel(List<INPUT> buffer, int amount)
+    {
+        buffer.Add(CreateMouseInput(0, 0, unchecked((uint)amount), MOUSEEVENTF_HWHEEL));
+    }
+
+    private static bool TryNormalizeAbsoluteCoordinates(int x, int y, out int normalizedX, out int normalizedY, out string? error)
+    {
+        error = null;
+        int virtualWidth = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        int virtualHeight = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        int virtualLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        int virtualTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
+
+        if (virtualWidth <= 0 || virtualHeight <= 0)
+        {
+            normalizedX = 0;
+            normalizedY = 0;
+            error = "画面サイズの取得に失敗しました。";
+            return false;
+        }
+
+        double width = Math.Max(virtualWidth - 1, 1);
+        double height = Math.Max(virtualHeight - 1, 1);
+        double nx = ((double)(x - virtualLeft) * NormalizedCoordinateMax) / width;
+        double ny = ((double)(y - virtualTop) * NormalizedCoordinateMax) / height;
+        normalizedX = Math.Clamp((int)Math.Round(nx), 0, 65535);
+        normalizedY = Math.Clamp((int)Math.Round(ny), 0, 65535);
+        return true;
+    }
+
+    private static bool TryParseIntArguments(string args, int expectedCount, string commandName, out int[] values, out string? error)
+    {
+        error = null;
+        var tokens = SplitArguments(args);
+        values = Array.Empty<int>();
+        if (tokens.Length != expectedCount)
+        {
+            error = $"{commandName} には {expectedCount} 個の整数引数を指定してください。";
+            return false;
+        }
+
+        values = new int[expectedCount];
+        for (int i = 0; i < expectedCount; i++)
+        {
+            if (!int.TryParse(tokens[i], out values[i]))
+            {
+                error = $"{commandName} の引数は整数で指定してください。";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryParseOptionalIntArgument(string args, string commandName, out int value, int defaultValue, out string? error)
+    {
+        error = null;
+        value = defaultValue;
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            return true;
+        }
+
+        var tokens = SplitArguments(args);
+        if (tokens.Length != 1)
+        {
+            error = $"{commandName} には 1 個の整数引数のみ指定できます。";
+            return false;
+        }
+
+        if (!int.TryParse(tokens[0], out value))
+        {
+            error = $"{commandName} の引数は整数で指定してください。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool ValidateNoArguments(string args, string commandName, out string? error)
+    {
+        error = null;
+        if (!string.IsNullOrWhiteSpace(args))
+        {
+            error = $"{commandName} に追加の引数は指定できません。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string[] SplitArguments(string args) =>
+        string.IsNullOrWhiteSpace(args)
+            ? Array.Empty<string>()
+            : args.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
     private sealed class RepeatFrame
     {
         public RepeatFrame(int count)
@@ -662,14 +984,32 @@ public sealed class KeyboardMacroService : IDisposable
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+    private const uint INPUT_MOUSE = 0;
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const uint KEYEVENTF_UNICODE = 0x0004;
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_SCANCODE = 0x0008;
+    private const uint MOUSEEVENTF_MOVE = 0x0001;
+    private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    private const uint MOUSEEVENTF_MIDDLEDOWN = 0x0020;
+    private const uint MOUSEEVENTF_MIDDLEUP = 0x0040;
+    private const uint MOUSEEVENTF_WHEEL = 0x0800;
+    private const uint MOUSEEVENTF_HWHEEL = 0x01000;
+    private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
+    private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
+    private const int WHEEL_DELTA = 120;
+    private const double NormalizedCoordinateMax = 65535.0;
     private const int SW_RESTORE = 9;
 
     private const uint MAPVK_VK_TO_VSC = 0x0;
+    private const int SM_CXVIRTUALSCREEN = 78;
+    private const int SM_CYVIRTUALSCREEN = 79;
+    private const int SM_XVIRTUALSCREEN = 76;
+    private const int SM_YVIRTUALSCREEN = 77;
 
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_SHIFT = 0x10;
@@ -822,6 +1162,9 @@ public sealed class KeyboardMacroService : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);

@@ -60,7 +60,6 @@
         <TextBox x:Name="MacroBox"
                  Grid.Row="5"
                  Grid.Column="1"
-                 Grid.ColumnSpan="2"
                  Margin="6,2"
                  AcceptsReturn="True"
                  VerticalScrollBarVisibility="Auto"
@@ -69,13 +68,14 @@
                  MinHeight="110"
                  MinLines="5"
                  MaxLines="50"/>
+        <Button Content="?" Grid.Row="5" Grid.Column="2" Margin="6,6,6,0" Width="28" Height="26" VerticalAlignment="Top" Click="OnShowMacroTips" ToolTip="マクロスクリプトの書き方ヒントを表示"/>
 
         <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="3"
                    Margin="6,8,0,0"
                    Foreground="#CCCCCC"
                    FontSize="11"
                    TextWrapping="Wrap"
-                   Text="コマンド一覧:&#x0a;  KEY &lt;組み合わせ&gt;   例: KEY Ctrl+Shift+S / KEY Alt+F4&#x0a;  KEYDOWN &lt;キー&gt;    押しっぱなしにする（例: KEYDOWN Ctrl）&#x0a;  KEYUP &lt;キー&gt;      離す（例: KEYUP Ctrl）&#x0a;  TEXT &lt;文字列&gt;     Unicode文字列をそのまま送信（例: TEXT こんにちは）&#x0a;  CLIPTEXT &lt;文字列&gt;  文字列をクリップボードへ設定して貼り付け&#x0a;  WAIT &lt;ミリ秒&gt;     指定時間待機（例: WAIT 250）&#x0a;  REPEAT &lt;回数&gt;     ENDREPEAT までを繰り返す（入れ子可）&#x0a;&#x0a;ヒント: 修飾キーは Ctrl, Shift, Alt, Win, LWin, RWin。複数行は上から順に実行。行頭が # の行と空行はスキップされます。"/>
+                   Text="ヒント: マクロの詳細は「?」から開く Tips で確認できます。行頭が # の行と空行はスキップされます。"/>
 
         <StackPanel Orientation="Horizontal" Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>

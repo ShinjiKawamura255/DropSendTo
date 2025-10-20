@@ -110,4 +110,13 @@ public partial class RegisterDialog : Window
         TitleBox.CaretIndex = idx + System.Environment.NewLine.Length;
         TitleBox.Focus();
     }
+
+    private void OnShowMacroTips(object sender, RoutedEventArgs e)
+    {
+        var tips = new MacroTipsWindow
+        {
+            Owner = this
+        };
+        tips.ShowDialog();
+    }
 }

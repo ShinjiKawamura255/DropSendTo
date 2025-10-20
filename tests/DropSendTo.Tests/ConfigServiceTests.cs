@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using DropSendTo.Models;
 using DropSendTo.Services;
 using FluentAssertions;
 using Xunit;
@@ -8,6 +9,8 @@ namespace DropSendTo.Tests;
 
 public class ConfigServiceTests
 {
+    private static int CurrentConfigVersion => new AppConfig().Version;
+
     [Fact]
     public void LoadOrCreate_Should_Create_Default_Config_When_Missing()
     {
@@ -25,7 +28,7 @@ public class ConfigServiceTests
             }
         }
         cfg.AlwaysOnTop.Should().BeTrue();
-        cfg.Version.Should().Be(5);
+        cfg.Version.Should().Be(CurrentConfigVersion);
     }
 
     [Fact]
@@ -40,7 +43,7 @@ public class ConfigServiceTests
 
         var reloaded = svc.LoadOrCreate();
         reloaded.AlwaysOnTop.Should().BeFalse();
-        reloaded.Version.Should().Be(5);
+        reloaded.Version.Should().Be(CurrentConfigVersion);
     }
 
     [Fact]
@@ -86,7 +89,7 @@ public class ConfigServiceTests
 
         var svc = new ConfigService(temp);
         var cfg = svc.LoadOrCreate();
-        cfg.Version.Should().Be(5);
+        cfg.Version.Should().Be(CurrentConfigVersion);
         foreach (var layer in cfg.Layers)
         foreach (var slot in layer.Slots)
         {

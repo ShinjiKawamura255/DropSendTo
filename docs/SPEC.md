@@ -27,6 +27,8 @@
 - MUST: スロットクリック時は、設定されていればマクロスクリプトを最初に実行し、成功した場合のみコマンドを起動する。マクロのみ／コマンドのみも許容する。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。
+- MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
+- MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモーダル表示する。
 - MUST: CLI 起動時は現在レイヤー内で最初に登録されたスロットを優先し、存在しない場合は全レイヤーから最初の登録スロットを選んで引数を渡す。失敗時はエラーダイアログを表示し UI を継続する。
 - SHOULD: コマンド未登録スロットへドロップした場合は情報メッセージで通知する。
 
@@ -58,6 +60,9 @@
 - MUST: `KEYDOWN <キー>` / `KEYUP <キー>` で個別に押下/解放を制御できる。キー名は VK 名（例: `A`, `F4`, `Enter`, `Tab`）を受け付ける。
 - MUST: `TEXT <文字列>` は Unicode 文字列をそのまま送信する。
 - MUST: `WAIT <ミリ秒>` は 0〜60000 の整数のみ受け付け、マクロ実行を一時停止する。
+- MUST: `MOUSEMOVEABS <X> <Y>` は仮想スクリーン座標（ピクセル）を絶対移動として送出し、範囲外指定は仮想スクリーン内へクランプする。`MOUSEMOVEREL <dX> <dY>` は相対移動を送出する。
+- MUST: `MOUSELEFTDOWN/UP`・`MOUSERIGHTDOWN/UP`・`MOUSEMIDDLEDOWN/UP` で各ボタンの押下/解放を制御し、`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK` は押下と解放をセットで送出する。`MOUSELEFTDOUBLECLICK` はダブルクリック相当の 2 回押下を送出する。
+- MUST: `MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` はホイール量を 1 ステップ=120 として扱い、引数省略時は 1 ステップ送出する。0 以下の値はエラーとする。
 - MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は 0〜1000。入れ子構造もサポートする。
 
 ## SP-010 Shortcut Prefix & Global Shortcuts
