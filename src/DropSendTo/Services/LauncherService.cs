@@ -2,13 +2,15 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Windows;
 using DropSendTo.Models;
 
 namespace DropSendTo.Services;
 
 public class LauncherService
 {
+    private readonly LoggerService _logger = LoggerService.Instance;
+
     public LaunchResult Launch(SlotModel slot, string[] paths)
     {
         try
@@ -32,17 +34,52 @@ public class LauncherService
         }
     }
 
-    private static string BuildArguments(string template, string[] paths)
+    private string BuildArguments(string template, string[] paths)
     {
-        string joined = string.Join(" ", paths.Select(Quote));
-        return template.Replace("{args}", joined);
+        return ArgumentTemplateExpander.Expand(template, paths, TryReadClipboardText);
     }
 
-    private static string Quote(string path)
+    private string? TryReadClipboardText()
     {
-        if (string.IsNullOrEmpty(path)) return "\"\"";
-        if (path.Contains(' ') || path.Contains('\t')) return $"\"{path}\"";
-        return path;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            return null;
+        }
+
+        string? clipboardText = null;
+        Exception? operationError = null;
+
+        void ReadClipboard()
+        {
+            try
+            {
+                if (Clipboard.ContainsText())
+                {
+                    clipboardText = Clipboard.GetText();
+                }
+            }
+            catch (Exception ex)
+            {
+                operationError = ex;
+            }
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            ReadClipboard();
+        }
+        else
+        {
+            dispatcher.Invoke(ReadClipboard);
+        }
+
+        if (operationError != null)
+        {
+            _logger.Warn($"Failed to read clipboard text: {operationError.Message}");
+        }
+
+        return clipboardText;
     }
 }
 
@@ -51,4 +88,3 @@ public record LaunchResult(bool Success, string Message)
     public static LaunchResult Ok() => new(true, "");
     public static LaunchResult Fail(string message) => new(false, message);
 }
-

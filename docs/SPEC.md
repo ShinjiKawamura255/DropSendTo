@@ -29,6 +29,7 @@
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
+- MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（クリップボード内のパス群を引用付きで展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
 - MUST: CLI 起動時は現在レイヤー内で最初に登録されたスロットを優先し、存在しない場合は全レイヤーから最初の登録スロットを選んで引数を渡す。失敗時はエラーダイアログを表示し UI を継続する。
 - SHOULD: コマンド未登録スロットへドロップした場合は情報メッセージで通知する。
 
@@ -80,6 +81,7 @@
 - 登録: Edit 選択 → ダイアログの `...` ボタンで Windows ファイル選択ダイアログを開きコマンドを指定 → タイトルへファイル名が自動反映される。
 - マクロ: スロットに `KEY Ctrl+C`, `WAIT 200`, `TEXT processed` を設定 → クリックすると直前の外部ウィンドウに Ctrl+C が送信され、200ms 後に `processed` が入力された上でコマンドが起動する。
 - ショートカット: Prefix（例: `Ctrl+Q`）押下でインジケーターが点灯し、Ctrl を押し直さずに `X` を入力すると `Ctrl+X` ショートカットが実行されレイヤーが自動切替される。必要であれば修飾キーを離して押し直しても成功する。
+- クリップボード: エクスプローラーで `C:\data\report.xlsx` をコピー → `ArgumentsTemplate` に `{clipboard_args}` を指定したスロットを起動すると `"C:\data\report.xlsx"` が展開されコマンドに渡される。
 
 ### Invariants / Boundaries
 - スロット数は各レイヤーで SlotRows×SlotColumns（2〜4 行×2〜4 列）に一致し、空スロットは「未登録」表示。
@@ -91,7 +93,7 @@
 
 ## Traceability (excerpt)
 - SP-001 → DES-002/003 → TC-040/045/065
-- SP-004 → DES-002/004 → TC-020/021/025/080
+- SP-004 → DES-002/004 → TC-020/021/025/080/087
 - SP-006 → DES-002/003 → TC-065/090
 - SP-007 → DES-005 → TC-030/095
 - SP-010 → DES-002/003/005 → TC-035/085/086

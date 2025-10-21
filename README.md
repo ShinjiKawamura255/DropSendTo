@@ -39,6 +39,12 @@ src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
 - Macro Script 欄の `?` ボタンで Tips を別ウィンドウ表示 → 編集ダイアログを閉じずに参照できます
 - マクロ実行後にコマンド起動（マクロのみ・コマンドのみも可）
 
+### 引数テンプレートのプレースホルダ
+- `{args}`: ドロップ/CLI で渡されたパスをスペース区切り + 必要に応じて引用付きで展開
+- `{clipboard}`: クリップボードの文字列をそのまま挿入（前後の空白は自動トリム）
+- `{clipboard_args}`: クリップボードにコピーしたパス（複数行可）を引用付きで展開
+  - 例) エクスプローラーでファイルをコピー → `{clipboard_args}` を引数に指定するとコピーしたパスを用いてアプリを起動
+
 ## 設定とログ
 - 設定: `%AppData%/DropSendTo/config.json`（保存時に `.bak` へバックアップ）
 - ログ: `%AppData%/DropSendTo/logs/app.log`（約 1MB でローテーション、7 日保持）
