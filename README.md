@@ -1,36 +1,64 @@
 # DropSendTo
 
-A lightweight, always-on-top Windows launcher built with .NET 8. Drag and drop files/folders onto a 2x2 grid (with 4 layers → 16 slots) to launch registered apps/shortcuts, passing dropped paths as arguments. Behaves like SendTo; also accepts target paths via command-line.
+DropSendTo は .NET 8 (WPF) 製の常駐ランチャです。半透明のコンパクトなウィンドウにファイル/フォルダをドラッグ＆ドロップするだけで、登録済みコマンドやマクロを実行できます。エクスプローラーの「送る」同様に CLI 引数でも起動でき、グローバル Prefix+ショートカット入力で任意スロットを呼び出せます。
 
-## Features
-- 2x2 slots × 4 layers (16 registrations)
-- Drag-and-drop to launch with arguments
-- Always-on-top, black-themed, semi-transparent window (text remains readable)
-- Right-click context menu for register/edit/remove/exit
-- Config stored under `%AppData%/DropSendTo`
+## 主要機能
+- 4 レイヤー × 2〜4 行・2〜4 列のグリッド（最大 4×4×4 = 64 スロット）と常時最前面ウィンドウ
+- ドロップ/クリック/CLI 引数/Prefix+ショートカットから共通のスロット起動フロー（マクロ → コマンド）
+- Prefix インジケーターをウィンドウ左上に表示し、CTRL 押しっぱなしなど Prefix と同じ修飾キーを再度押し直さなくてもショートカットを検出
+- Slot Edit ダイアログでタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、マクロ Tips をモードレスで参照可能
+- `%AppData%/DropSendTo/config.json` への設定保存、`.bak` バックアップ、7 日保持のローテーションログ
+- 送るフォルダへのショートカット配置による SendTo 連携
 
-## Requirements
-- Windows 10 22H2+ / 11
-- .NET SDK 8.x installed on Windows (not WSL)
+## 対応環境
+- Windows 10 22H2 以降 / Windows 11
+- .NET SDK 8.x（Windows 側でインストール済みであること）
 
-## Build & Run
+## クイックスタート
+1. リポジトリをクローン (`git clone ...`)
+2. PowerShell または Windows ターミナルでビルド  
+   `dotnet build`
+3. UI を起動  
+   `dotnet run --project src/DropSendTo`
+4. ファイル/フォルダを任意スロットにドロップ → Slot Edit で設定したコマンドへ `{args}` を展開して渡します。
+
+### CLI 起動
+```
+src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
+```
+最初にマッチした登録スロットを実行し、成功時は UI を開かず終了します。
+
+### Prefix ショートカットの使い方
+1. `Change Prefix...` メニューで Prefix を設定 (既定は `Ctrl+Q`)
+2. Prefix を押すとウィンドウ左上のインジケーターが点灯し、1.5 秒以内に登録済みショートカットを入力すると該当スロットが発火します。
+3. Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → ショートカット `Ctrl+X`）は、Ctrl を押しっぱなしのまま `X` を押せば実行可能です。押し直しても動作します。
+4. Prefix を再入力すると armed 状態を解除しつつ、Prefix キーを前面アプリへ送出します。
+
+### マクロの概要
+- `KEY`, `KEYDOWN`, `KEYUP`, `TEXT`, `WAIT`, `REPEAT`、各種マウス操作 (`MOUSELEFTCLICK` 等) に対応
+- Macro Script 欄の `?` ボタンで Tips を別ウィンドウ表示 → 編集ダイアログを閉じずに参照できます
+- マクロ実行後にコマンド起動（マクロのみ・コマンドのみも可）
+
+## 設定とログ
+- 設定: `%AppData%/DropSendTo/config.json`（保存時に `.bak` へバックアップ）
+- ログ: `%AppData%/DropSendTo/logs/app.log`（約 1MB でローテーション、7 日保持）
+
+## ビルド / テスト / 配布
 - Build: `dotnet build`
-- Run (UI): `dotnet run --project src/DropSendTo`
-- Run (CLI launch): `src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\\path\\to\\file.txt"`
 - Test: `dotnet test`
+- Release ビルド & ZIP 生成:  
+  `powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64 -SelfContained:$false -Version vX.Y.Z`
+- テスト込みワークフロー（実行中プロセスを終了）:  
+  `powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1 -KillRunning`
 
-## Release Build
-- Debug/Tests/Build (with kill):
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1 -KillRunning`
-- Publish artifacts (zip in `dist/`):
-  - `powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1`
-  - Options: `-Rid win-x64` (default), `-SelfContained` (include runtime), `-Version v0.1.0`
+## SendTo 連携（任意）
+ビルド済み `DropSendTo.exe` のショートカットを `%AppData%\Microsoft\Windows\SendTo` に配置すると、エクスプローラーの「送る」から DropSendTo に対象パスを送信できます。
 
-## SendTo Integration (optional)
-Create a shortcut to the built EXE and place it in `%AppData%\Microsoft\Windows\SendTo`. Then you can right-click a file → Send to → DropSendTo to forward paths as arguments.
+## プロジェクトドキュメント
+- 機能要件: `docs/REQUIREMENTS.md`
+- 仕様: `docs/SPEC.md`
+- 設計: `docs/DESIGN.md`
+- テスト計画: `docs/TESTPLAN.md`
 
-## Repo Docs
-See `docs/REQUIREMENTS.md`, `docs/SPEC.md`, `docs/DESIGN.md`, and `docs/TESTPLAN.md` for details.
-
-## Contributing
-Read `AGENTS.md` for structure, coding style, testing, and PR conventions.
+## コントリビュート
+コーディング規約・テスト方針・PR テンプレートは `AGENTS.md` を参照してください。プルリクエストは Conventional Commits 形式、`dotnet build/test/format` 合格が必須です。
