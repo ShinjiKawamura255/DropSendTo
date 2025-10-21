@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using Microsoft.Win32;
 using DropSendTo.Models;
@@ -14,6 +15,7 @@ public partial class RegisterDialog : Window
     public string ShortcutChord { get; private set; } = string.Empty;
 
     private bool IsMacroMode => MacroModeToggle?.IsChecked == true;
+    private MacroTipsWindow? _tipsWindow;
 
     public RegisterDialog()
     {
@@ -113,10 +115,37 @@ public partial class RegisterDialog : Window
 
     private void OnShowMacroTips(object sender, RoutedEventArgs e)
     {
-        var tips = new MacroTipsWindow
+        if (_tipsWindow is { IsVisible: true })
+        {
+            _tipsWindow.Activate();
+            return;
+        }
+
+        _tipsWindow = new MacroTipsWindow
         {
             Owner = this
         };
-        tips.ShowDialog();
+        _tipsWindow.Closed += OnTipsWindowClosed;
+        _tipsWindow.Show();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        if (_tipsWindow is { })
+        {
+            _tipsWindow.Closed -= OnTipsWindowClosed;
+            _tipsWindow.Close();
+            _tipsWindow = null;
+        }
+        base.OnClosed(e);
+    }
+
+    private void OnTipsWindowClosed(object? sender, EventArgs e)
+    {
+        if (_tipsWindow != null)
+        {
+            _tipsWindow.Closed -= OnTipsWindowClosed;
+        }
+        _tipsWindow = null;
     }
 }

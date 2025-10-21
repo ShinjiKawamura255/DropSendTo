@@ -168,9 +168,9 @@ internal static class KeyChordParser
     public static IReadOnlyList<ushort> GetCandidateModifierVirtualKeys(ModifierKind kind) =>
         kind switch
         {
-            ModifierKind.Control => new[] { VK_LCONTROL, VK_RCONTROL },
-            ModifierKind.Shift => new[] { VK_LSHIFT, VK_RSHIFT },
-            ModifierKind.Alt => new[] { VK_LMENU, VK_RMENU },
+            ModifierKind.Control => new[] { VK_CONTROL, VK_LCONTROL, VK_RCONTROL },
+            ModifierKind.Shift => new[] { VK_SHIFT, VK_LSHIFT, VK_RSHIFT },
+            ModifierKind.Alt => new[] { VK_MENU, VK_LMENU, VK_RMENU },
             ModifierKind.Win => new[] { VK_LWIN, VK_RWIN },
             ModifierKind.LeftWin => new[] { VK_LWIN },
             ModifierKind.RightWin => new[] { VK_RWIN },

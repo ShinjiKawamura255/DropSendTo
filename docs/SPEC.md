@@ -28,7 +28,7 @@
 - MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
-- MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモーダル表示する。
+- MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
 - MUST: CLI 起動時は現在レイヤー内で最初に登録されたスロットを優先し、存在しない場合は全レイヤーから最初の登録スロットを選んで引数を渡す。失敗時はエラーダイアログを表示し UI を継続する。
 - SHOULD: コマンド未登録スロットへドロップした場合は情報メッセージで通知する。
 
@@ -67,17 +67,19 @@
 
 ## SP-010 Shortcut Prefix & Global Shortcuts
 - MUST: Prefix は修飾キーとメインキーの組み合わせで構成され、入力値を正規化して保存する。解析できない場合は Ctrl+Q にフォールバックし、ユーザーへ警告する。
-- MUST: Prefix を押下すると最長 1.5 秒間 armed 状態になり、ウィンドウ右上のインジケーターに Prefix 文字列と armed 状態を表示する。マウス操作やタイムアウトで自動解除する。
+- MUST: Prefix を押下すると最長 1.5 秒間 armed 状態になり、ウィンドウ左上のインジケーターに Prefix 文字列と armed 状態をオーバーレイ表示する。マウス操作やタイムアウトで自動解除する。
 - MUST: Armed 中に Prefix を再度押下すると解除しつつ前面ウィンドウへ Prefix のキー入力を送る（Prefix パススルー）。
+- MUST: Prefix と同じ修飾キーを含むショートカットは、修飾キーを押し直さずに Prefix 入力直後から検出でき、必要に応じて再押下しても正常に動作する。
 - MUST: Armed 中に登録済みショートカットが押下された場合、該当スロットをレイヤー自動切替後にトリガーし、クリックと同一フロー（マクロ→コマンド）で実行する。
 - MUST: 設定ファイルのショートカット文字列はトリム後に解析し、不正なエントリは警告ログを残して無視する。
 - SHOULD: ショートカット起動はマクロ実行中のスロットと競合しないよう制御し、競合時はユーザーへ通知する。
+- SHOULD: スリープ復帰やセッション切替後は内部状態をクリアし、Prefix/ショートカットのラッチを残さない。
 ### Examples
 - 入力: `C:\path\file.txt` をスロット A（`notepad.exe {args}`）へドロップ → 出力: `notepad.exe "C:\path\file.txt"` が起動。
 - 入力: `DropSendTo.exe "C:\path\file.txt"` → 現在レイヤーで最初に登録されたスロットが同等に起動し、成功すれば UI は終了する。
 - 登録: Edit 選択 → ダイアログの `...` ボタンで Windows ファイル選択ダイアログを開きコマンドを指定 → タイトルへファイル名が自動反映される。
 - マクロ: スロットに `KEY Ctrl+C`, `WAIT 200`, `TEXT processed` を設定 → クリックすると直前の外部ウィンドウに Ctrl+C が送信され、200ms 後に `processed` が入力された上でコマンドが起動する。
-- ショートカット: Prefix（例: `Ctrl+Q`）押下でインジケーターが点灯し、1.5 秒以内に登録ショートカット（例: `Alt+1`）を押すと該当スロットが実行されレイヤーが自動切替される。
+- ショートカット: Prefix（例: `Ctrl+Q`）押下でインジケーターが点灯し、Ctrl を押し直さずに `X` を入力すると `Ctrl+X` ショートカットが実行されレイヤーが自動切替される。必要であれば修飾キーを離して押し直しても成功する。
 
 ### Invariants / Boundaries
 - スロット数は各レイヤーで SlotRows×SlotColumns（2〜4 行×2〜4 列）に一致し、空スロットは「未登録」表示。
@@ -92,4 +94,4 @@
 - SP-004 → DES-002/004 → TC-020/021/025/080
 - SP-006 → DES-002/003 → TC-065/090
 - SP-007 → DES-005 → TC-030/095
-- SP-010 → DES-002/003/005 → TC-035/085
+- SP-010 → DES-002/003/005 → TC-035/085/086
