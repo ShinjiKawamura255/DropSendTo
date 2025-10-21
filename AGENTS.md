@@ -35,6 +35,7 @@
 - Commits: Conventional Commits (e.g., `feat(ui): add slot grid`).
 - PRs: Include purpose, linked issues, Before/After, and screenshots/GIFs for UI.
 - All checks must pass (`build`, `test`, `format`). Update docs with behavior changes.
+- ユーザー向けドキュメント（`USER_GUIDE.md`）は機能追加・仕様変更時に必ず更新し、必要ならリリースノートにも反映する。
 
 ## Security & Configuration
 - No secrets in repo. Store user config at `%AppData%/DropSendTo/config.json`.
