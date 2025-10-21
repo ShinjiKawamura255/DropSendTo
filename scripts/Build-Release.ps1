@@ -132,6 +132,10 @@ try {
         }
 
         $exePath = Join-Path $variantDir 'DropSendTo.exe'
+        $userGuidePath = Join-Path $repoRoot 'USER_GUIDE.md'
+        if (Test-Path $userGuidePath) {
+            Copy-Item $userGuidePath -Destination (Join-Path $variantDir 'USER_GUIDE.md') -Force
+        }
 
         if ($CertificatePath) {
             if (-not (Test-Path $CertificatePath)) {
