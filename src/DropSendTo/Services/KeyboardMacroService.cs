@@ -915,7 +915,7 @@ public sealed class KeyboardMacroService : IDisposable
                     wVk = useVirtualKey ? vk : (ushort)0,
                     wScan = useVirtualKey ? (ushort)0 : scanCode,
                     dwFlags = useVirtualKey ? (keyUp ? KEYEVENTF_KEYUP : 0) : flags,
-                    dwExtraInfo = GetMessageExtraInfo()
+                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
                 }
             }
         };
@@ -934,7 +934,7 @@ public sealed class KeyboardMacroService : IDisposable
                     mouseData = mouseData,
                     dwFlags = flags,
                     time = 0,
-                    dwExtraInfo = GetMessageExtraInfo()
+                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
                 }
             }
         };
@@ -981,7 +981,7 @@ public sealed class KeyboardMacroService : IDisposable
                     wVk = 0,
                     wScan = ch,
                     dwFlags = keyUp ? (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP) : KEYEVENTF_UNICODE,
-                    dwExtraInfo = GetMessageExtraInfo()
+                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
                 }
             }
         };
@@ -1580,9 +1580,6 @@ public sealed class KeyboardMacroService : IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetMessageExtraInfo();
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();

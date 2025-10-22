@@ -24,12 +24,12 @@
 1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、それ以外は LauncherService で `ArgumentsTemplate` を展開（`{args}` / `{clipboard}` / `{clipboard_args}`）して実行。失敗時はエラーダイアログ表示とログ出力。
-4) スロットクリック: ClickEnabled が有効な場合、KeyboardMacroService により直前の外部ウィンドウへスクリプトを送信し、成功すれば LauncherService でコマンドを起動。Any エラーはメッセージ表示でユーザーへ通知。
+4) スロットクリック: ClickEnabled が有効な場合、KeyboardMacroService により直前の外部ウィンドウへスクリプトを送信し、成功すれば LauncherService でコマンドを起動。マクロのみが設定されたスロットは逐次実行、コマンドのみのスロットはマクロ実行中でも即時に起動する。Any エラーはメッセージ表示でユーザーへ通知。
 5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、KeyChordParser でショートカット書式を検証・正規化。Macro Script 欄には `?` ボタンを配置し、クリックで MacroTipsWindow をモードレス表示（単一インスタンス再利用）してサポートされる命令と例を参照できる。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
 6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
-9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中はキャンセル要求または警告ダイアログを提示。
+9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
 10) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 
 ## DES-004 API Contracts (examples)

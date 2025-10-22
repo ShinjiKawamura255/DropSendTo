@@ -206,7 +206,8 @@ internal sealed class ShortcutService : IDisposable
 
         var msg = (int)wParam;
         var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-        if ((info.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0)
+        bool isInjected = (info.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
+        if (isInjected && !InputExtraInfo.IsMacroInjection(info.dwExtraInfo))
         {
             return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }

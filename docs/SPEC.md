@@ -25,6 +25,7 @@
 ## SP-004 Launch & Macro Behavior
 - MUST: ドロップされたパス（複数可）は登録先のコマンドへ `{args}` を展開して渡される。
 - MUST: スロットクリック時は、設定されていればマクロスクリプトを最初に実行し、成功した場合のみコマンドを起動する。マクロのみ／コマンドのみも許容する。
+- MUST: マクロ実行中は別スロットのマクロをブロックし、警告を表示する。ただしコマンドのみのスロット起動は並列に許可する。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。

@@ -754,7 +754,9 @@ public partial class MainWindow : Window
 
         if (!hasMacro && !hasCommand) return;
 
-        if (_macroService.IsMacroRunning)
+        bool isCommandOnly = hasCommand && !hasMacro;
+
+        if (_macroService.IsMacroRunning && !isCommandOnly)
         {
             if (_runningSlotLayerIndex.HasValue &&
                 _runningSlotLayerIndex.Value == layerIndex &&
@@ -774,6 +776,10 @@ public partial class MainWindow : Window
                 MessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             return;
+        }
+        if (_macroService.IsMacroRunning && isCommandOnly)
+        {
+            _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
         }
 
         if (hasMacro)
