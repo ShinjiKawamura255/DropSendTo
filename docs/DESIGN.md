@@ -29,7 +29,7 @@
 6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
-9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、1.5 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中はキャンセル要求または警告ダイアログを提示。
+9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中はキャンセル要求または警告ダイアログを提示。
 10) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 
 ## DES-004 API Contracts (examples)
@@ -66,7 +66,7 @@
 ## DES-006 Trade-offs
 - WPF 採用で Windows 専用だが UI 制御が容易。WinUI3 への移行余地は保つ。
 - マクロ送信は Win32 API（SendInput、SetWinEventHook）に依存し、UAC やフォーカス制御の制約を受けるが、他プロセスに依存せず完結する。
-- グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 1.5 秒タイムアウトなど UX 配慮が必要。
+- グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 4 秒タイムアウトなど UX 配慮が必要。
 
 ## Traceability (excerpt)
 - DES-002 ← SP-001/002/006/009/010 → TC-010/025/065/080/085/086/087/090

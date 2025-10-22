@@ -8,7 +8,6 @@ DropSendTo は .NET 8 (WPF) 製の常駐ランチャです。半透明のコン�
 - Prefix インジケーターをウィンドウ左上に表示し、CTRL 押しっぱなしなど Prefix と同じ修飾キーを再度押し直さなくてもショートカットを検出
 - Slot Edit ダイアログでタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、マクロ Tips をモードレスで参照可能
 - `%AppData%/DropSendTo/config.json` への設定保存、`.bak` バックアップ、7 日保持のローテーションログ
-- 送るフォルダへのショートカット配置による SendTo 連携
 
 ## 対応環境
 - Windows 10 22H2 以降 / Windows 11
@@ -30,7 +29,7 @@ src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
 
 ### Prefix ショートカットの使い方
 1. `Change Prefix...` メニューで Prefix を設定 (既定は `Ctrl+Q`)
-2. Prefix を押すとウィンドウ左上のインジケーターが点灯し、1.5 秒以内に登録済みショートカットを入力すると該当スロットが発火します。
+2. Prefix を押すとウィンドウ左上のインジケーターが点灯し、4 秒以内に登録済みショートカットを入力すると該当スロットが発火します。
 3. Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → ショートカット `Ctrl+X`）は、Ctrl を押しっぱなしのまま `X` を押せば実行可能です。押し直しても動作します。
 4. Prefix を再入力すると armed 状態を解除しつつ、Prefix キーを前面アプリへ送出します。
 
@@ -57,8 +56,6 @@ src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
 - テスト込みワークフロー（実行中プロセスを終了）:  
   `powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1 -KillRunning`
 
-## SendTo 連携（任意）
-ビルド済み `DropSendTo.exe` のショートカットを `%AppData%\Microsoft\Windows\SendTo` に配置すると、エクスプローラーの「送る」から DropSendTo に対象パスを送信できます。
 
 ## プロジェクトドキュメント
 - 機能要件: `docs/REQUIREMENTS.md`

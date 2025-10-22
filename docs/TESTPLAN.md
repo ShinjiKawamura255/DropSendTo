@@ -25,7 +25,7 @@
 - TC-065 LayoutMenu: Slot Layout メニューで各行列候補を選択でき、即時 UI が再構成され、再起動後も構成が保持される。
 - TC-070 SlotStates: hover/drag/クリックで視覚状態が変化する（UI レベル）。
 - TC-080 ClickExec: クリック実行が有効なときのみマクロ→コマンドが動く。無効設定は保存される。
-- TC-085 ShortcutTrigger: Prefix 押下でインジケーターが点灯し、1.5 秒以内の登録ショートカットでスロットがレイヤー自動切替込みで起動する。Prefix 再入力で前面ウィンドウへ送出される。
+- TC-085 ShortcutTrigger: Prefix 押下でインジケーターが点灯し、4 秒以内の登録ショートカットでスロットがレイヤー自動切替込みで起動する。Prefix 再入力で前面ウィンドウへ送出される。
 - TC-086 ShortcutSharedModifier: Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → `Ctrl+X`）は修飾キーを押し直さなくても発火し、再押下でも動作する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` がクリップボード文字列/パスを期待通り展開し、引用が適切に付与される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
