@@ -65,6 +65,7 @@ internal sealed class ShortcutService : IDisposable
     private readonly Dictionary<ushort, DateTime> _modifierLastPressedUtc = new();
     private readonly Timer _prefixTimeoutTimer;
     private bool _usingFallbackPrefix;
+    private bool _prefixDisabled;
 
     public ShortcutService()
     {
@@ -81,10 +82,12 @@ internal sealed class ShortcutService : IDisposable
     public string CurrentPrefixText => _prefixText;
     public bool IsUsingFallbackPrefix => _usingFallbackPrefix;
 
-    public void Initialize(string? prefixExpression)
+    public bool IsPrefixDisabled => _prefixDisabled;
+
+    public void Initialize(string? prefixExpression, bool prefixDisabled)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
-        UpdatePrefix(prefixExpression);
+        UpdatePrefix(prefixExpression, prefixDisabled);
         if (_hookHandle != IntPtr.Zero) return;
 
         _hookCallback = KeyboardHookProc;
@@ -106,11 +109,25 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
-    public void UpdatePrefix(string? prefixExpression)
+    public void UpdatePrefix(string? prefixExpression, bool prefixDisabled)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        _prefixDisabled = prefixDisabled;
+        string target = prefixExpression?.Trim() ?? string.Empty;
+        if (_prefixDisabled)
+        {
+            lock (_stateLock)
+            {
+                _prefixChord = null;
+                _prefixText = target;
+                _prefixModifiers = Array.Empty<ModifierKind>();
+                ResetPrefixStateLocked();
+            }
+            _usingFallbackPrefix = false;
+            return;
+        }
+
         KeyChord? chord = null;
-        string target = prefixExpression ?? string.Empty;
         if (!KeyChordParser.TryParse(target, out chord!, out var error))
         {
             _logger.Warn($"Prefix parse failed ({error ?? "unknown error"}). Fallback to default Ctrl+Q.");

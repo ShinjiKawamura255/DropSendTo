@@ -242,8 +242,12 @@ public partial class MainWindow : Window
             _shortcutService.ShortcutTriggered += OnShortcutTriggered;
             _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
-            _shortcutService.Initialize(_config.ShortcutPrefix);
-            if (!_shortcutService.IsUsingFallbackPrefix)
+            _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
+            if (_shortcutService.IsPrefixDisabled)
+            {
+                // 無効化時は設定値の正規化は行わない。
+            }
+            else if (!_shortcutService.IsUsingFallbackPrefix)
             {
                 var normalized = _shortcutService.CurrentPrefixText;
                 if (!string.Equals(_config.ShortcutPrefix, normalized, StringComparison.Ordinal))
@@ -595,16 +599,18 @@ public partial class MainWindow : Window
 
     private void OnChangePrefix(object sender, RoutedEventArgs e)
     {
-        var dlg = new PrefixDialog(_config.ShortcutPrefix) { Owner = this };
+        var dlg = new PrefixDialog(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled) { Owner = this };
         if (dlg.ShowDialog() == true)
         {
             var newPrefix = dlg.NormalizedPrefix;
             bool prefixChanged = !string.Equals(_config.ShortcutPrefix, newPrefix, StringComparison.Ordinal);
+            bool disableChanged = _config.ShortcutPrefixDisabled != dlg.IsPrefixDisabled;
 
-            _shortcutService.UpdatePrefix(newPrefix);
-            if (prefixChanged)
+            _shortcutService.UpdatePrefix(newPrefix, dlg.IsPrefixDisabled);
+            if (prefixChanged || disableChanged)
             {
                 _config.ShortcutPrefix = newPrefix;
+                _config.ShortcutPrefixDisabled = dlg.IsPrefixDisabled;
                 _configService.Save(_config);
             }
 
@@ -736,9 +742,15 @@ public partial class MainWindow : Window
         var slot = layer.Slots[slotIndex];
         if (source == SlotTriggerSource.Mouse && !slot.ClickEnabled) return;
 
+        var slotTitle = slot.Title?.ReplaceLineEndings(" ").Trim() ?? string.Empty;
+        if (slotTitle.Length == 0)
+        {
+            slotTitle = "(untitled)";
+        }
         var script = slot.KeyboardMacroScript ?? string.Empty;
         var hasMacro = !string.IsNullOrWhiteSpace(script);
         var hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
+        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={source}, macro={hasMacro}, command={hasCommand})");
 
         if (!hasMacro && !hasCommand) return;
 
@@ -752,11 +764,13 @@ public partial class MainWindow : Window
             {
                 if (_macroService.CancelCurrentMacro())
                 {
+                    _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
                     MarkSlotMacroCanceling(layerIndex, slotIndex);
                 }
             }
             else
             {
+                _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
                 MessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             return;
@@ -770,16 +784,25 @@ public partial class MainWindow : Window
                 var macroResult = await _macroService.RunMacroAsync(script);
                 if (!macroResult.Success)
                 {
+                    if (macroResult.IsCanceled)
+                    {
+                        _logger.Info($"Macro canceled (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                    }
+                    else
+                    {
+                        _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {macroResult.Message}");
+                    }
                     if (!macroResult.IsCanceled)
                     {
                         MessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                     return;
                 }
+                _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
             }
             catch (Exception ex)
             {
-                _logger.Error($"Macro execution failed: {ex}");
+                _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {ex}");
                 MessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -791,10 +814,16 @@ public partial class MainWindow : Window
 
         if (hasCommand)
         {
+            _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
             var result = _launcher.Launch(slot, Array.Empty<string>());
             if (!result.Success)
             {
+                _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {result.Message}");
                 MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            else
+            {
+                _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
             }
         }
     }
@@ -891,6 +920,13 @@ public partial class MainWindow : Window
     private void UpdateShortcutRegistrations()
     {
         if (_config == null) return;
+
+        if (_shortcutService.IsPrefixDisabled)
+        {
+            _shortcutBindings.Clear();
+            _shortcutService.UpdateAvailableShortcuts(Array.Empty<string>());
+            return;
+        }
 
         _shortcutBindings.Clear();
         var orderedBindings = new List<ShortcutBinding>();

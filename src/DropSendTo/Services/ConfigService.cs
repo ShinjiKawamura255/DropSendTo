@@ -9,6 +9,7 @@ namespace DropSendTo.Services;
 public class ConfigService
 {
     private readonly string _baseDir;
+    private readonly LoggerService _logger = LoggerService.Instance;
     public ConfigService(string? baseDir = null)
     {
         _baseDir = baseDir ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -22,17 +23,26 @@ public class ConfigService
     {
         try
         {
-            if (!Directory.Exists(ConfigDir)) Directory.CreateDirectory(ConfigDir);
+            if (!Directory.Exists(ConfigDir))
+            {
+                Directory.CreateDirectory(ConfigDir);
+                _logger.Info($"Config directory created: {ConfigDir}");
+            }
             if (File.Exists(ConfigPath))
             {
                 var json = File.ReadAllText(ConfigPath);
                 var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
                 Validate(cfg);
-                if (Migrate(cfg)) Save(cfg);
+                if (Migrate(cfg))
+                {
+                    _logger.Info($"Config migrated to version {cfg.Version}.");
+                    Save(cfg);
+                }
+                _logger.Info($"Config loaded from {ConfigPath} (version={cfg.Version}).");
                 return cfg;
             }
         }
-        catch
+        catch (Exception ex)
         {
             if (File.Exists(BackupPath))
             {
@@ -41,24 +51,43 @@ public class ConfigService
                     var json = File.ReadAllText(BackupPath);
                     var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
                     Validate(cfg);
-                    if (Migrate(cfg)) Save(cfg);
+                    if (Migrate(cfg))
+                    {
+                        _logger.Info($"Config migrated from backup to version {cfg.Version}.");
+                        Save(cfg);
+                    }
+                    _logger.Warn($"Config restored from backup {BackupPath}.");
                     return cfg;
                 }
-                catch { /* fall through */ }
+                catch (Exception backupEx)
+                {
+                    _logger.Error($"Failed to load backup config from {BackupPath}: {backupEx}");
+                }
             }
+            _logger.Warn($"Failed to load config from {ConfigPath}: {ex}");
         }
         var fresh = new AppConfig();
         Save(fresh);
+        _logger.Info($"Created new default config at {ConfigPath}.");
         return fresh;
     }
 
     public void Save(AppConfig config)
     {
         Validate(config);
-        if (!Directory.Exists(ConfigDir)) Directory.CreateDirectory(ConfigDir);
-        if (File.Exists(ConfigPath)) File.Copy(ConfigPath, BackupPath, overwrite: true);
+        if (!Directory.Exists(ConfigDir))
+        {
+            Directory.CreateDirectory(ConfigDir);
+            _logger.Info($"Config directory created: {ConfigDir}");
+        }
+        if (File.Exists(ConfigPath))
+        {
+            File.Copy(ConfigPath, BackupPath, overwrite: true);
+            _logger.Info($"Config backup updated at {BackupPath}.");
+        }
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(ConfigPath, json);
+        _logger.Info($"Config saved to {ConfigPath}.");
     }
 
     private const int MinSlotDimension = 2;
@@ -78,16 +107,24 @@ public class ConfigService
     private static void Validate(AppConfig cfg)
     {
         if (cfg.Layers.Count != 4) throw new InvalidDataException("Config must have 4 layers.");
+        cfg.ShortcutPrefix ??= string.Empty;
         cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
         cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
-        if (string.IsNullOrWhiteSpace(cfg.ShortcutPrefix))
+        if (cfg.ShortcutPrefixDisabled)
         {
-            cfg.ShortcutPrefix = "CTRL+Q";
+            cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
         }
         else
         {
-            cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
+            if (string.IsNullOrWhiteSpace(cfg.ShortcutPrefix))
+            {
+                cfg.ShortcutPrefix = "CTRL+Q";
+            }
+            else
+            {
+                cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
+            }
         }
 
         int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
@@ -201,6 +238,14 @@ public class ConfigService
                 EnsureSlotCapacity(layer, requiredSlots);
             }
             cfg.Version = 7;
+            changed = true;
+        }
+
+        if (cfg.Version < 8)
+        {
+            // 新しいフラグが追加されたバージョン。既存設定ではプレフィックス無効化をオフとして扱う。
+            cfg.ShortcutPrefixDisabled = false;
+            cfg.Version = 8;
             changed = true;
         }
 

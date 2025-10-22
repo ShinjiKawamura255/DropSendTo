@@ -15,6 +15,7 @@
 - TC-021 LaunchCli: CLI 引数で現在レイヤー優先→全レイヤー検索が行われる。失敗時は UI 表示とログ出力。
 - TC-025 MacroScriptHappy: `KEY`/`WAIT`/`TEXT`/`REPEAT` など代表的な命令が期待通り展開・送信される。
 - TC-026 MacroScriptValidation: 不正なキー名/REPEAT 上限超過/未閉鎖ブロックでエラーが返る。
+- TC-027 MacroScriptVariables: `SET`/`UNSET`/`ADD`/`SUB`/`MUL`/`DIV`/`APPEND`/`PREPEND` で変数を操作し、`{{Var}}` 展開が成功する。未定義・不正名・整数でない値・0 除算は失敗およびログ記録となる。
 - TC-030 Errors: 実行不可パスやマクロエラーでメッセージが表示され、ログに ERROR が残る。
 - TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。
 - TC-040 UiTheme: 常時最前面が既定で ON、黒基調・半透明・角丸・ボタンスタイルが維持される。
@@ -37,7 +38,7 @@
   2) スロットを Edit で登録（Browse 使用、タイトル反映、ショートカットとマクロ設定）→再起動後も設定/ショートカット/クリック有効が保持されることを確認。
   3) ファイル/フォルダをドロップして `{args}` が正しく渡ることを確認。
   4) CLI 引数で起動し、優先スロットが実行され UI が終了することを確認。登録なしの場合は UI 継続とメッセージ表示。
-  5) マクロスクリプト（例: `KEY Ctrl+C` → `WAIT 200` → `TEXT processed`）が直前ウィンドウへ送信された後にコマンドが実行されることを確認し、マウスコマンド（例: `MOUSEMOVEABS 200 300` → `MOUSELEFTCLICK` → `MOUSESCROLLDOWN 2`）も意図した操作になることを確認。Macro Script 欄の「?」ボタンで Tips を開き、ダイアログ操作を継続しながら内容を参照できることを確認。
+  5) マクロスクリプト（例: `KEY Ctrl+C` → `WAIT 200` → `TEXT processed`）が直前ウィンドウへ送信された後にコマンドが実行されることを確認し、マウスコマンド（例: `MOUSEMOVEABS 200 300` → `MOUSELEFTCLICK` → `MOUSESCROLLDOWN 2`）も意図した操作になることを確認。`SET Count 0` → `ADD Count 1` → `TEXT {{Count}}` や `SET Message Hello` → `APPEND Message !` → `TEXT {{Message}}` を実行して演算結果が展開されること、0 除算などはエラーになることを確認。Macro Script 欄の「?」ボタンで Tips を開き、ダイアログ操作を継続しながら内容を参照できることを確認。
   6) 常に最前面トグルを OFF/ON し、切替直後と再起動後の状態を確認。
   7) レイヤーボタン/ホイールで循環切替し、ドラッグ中 0.8s で自動切替されることを確認。
   8) Slot Layout メニューで別の行列（例: 3x3）を選択し、即時に UI が再構成され再起動後も構成が保持されることを確認。元のレイアウトへ戻す。
@@ -63,7 +64,7 @@
 ## Traceability (excerpt)
 - FR-001 → SP-001 → DES-002/003 → TC-010/065
 - FR-002 → SP-004 → DES-004 → TC-020/021
-- FR-019 → SP-004/009 → DES-002/004 → TC-025/080
+- FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
 - FR-023 → SP-010 → DES-002/003 → TC-085/086

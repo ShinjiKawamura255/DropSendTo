@@ -16,20 +16,57 @@ public class LauncherService
         try
         {
             if (string.IsNullOrWhiteSpace(slot.Command))
+            {
+                _logger.Warn("Launch requested but command is not set.");
                 return LaunchResult.Fail("Command is not set.");
+            }
+
+            var slotTitle = slot.Title?.ReplaceLineEndings(" ").Trim() ?? string.Empty;
+            if (slotTitle.Length == 0)
+            {
+                slotTitle = "(untitled)";
+            }
 
             var startInfo = new ProcessStartInfo
             {
                 FileName = slot.Command,
                 UseShellExecute = true,
                 WorkingDirectory = Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
-                Arguments = BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths)
+                Arguments = string.Empty
             };
+            var arguments = BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
+            startInfo.Arguments = arguments;
+            _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{arguments}\" (paths={paths.Length}).");
             var p = Process.Start(startInfo);
-            return p != null ? LaunchResult.Ok() : LaunchResult.Fail("Failed to start process.");
+            if (p != null)
+            {
+                int pid = 0;
+                try
+                {
+                    pid = p.Id;
+                }
+                catch
+                {
+                    pid = 0;
+                }
+
+                if (pid > 0)
+                {
+                    _logger.Info($"Launch succeeded (pid={pid}).");
+                }
+                else
+                {
+                    _logger.Info("Launch succeeded (pid unavailable).");
+                }
+                return LaunchResult.Ok();
+            }
+
+            _logger.Warn("Process.Start returned null.");
+            return LaunchResult.Fail("Failed to start process.");
         }
         catch (Exception ex)
         {
+            _logger.Error($"Launch failed with exception: {ex}");
             return LaunchResult.Fail(ex.Message);
         }
     }

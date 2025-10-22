@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Interop;
 using System.Windows;
+using System.Text;
+using System.Globalization;
 
 namespace DropSendTo.Services;
 
@@ -64,6 +66,7 @@ public sealed class KeyboardMacroService : IDisposable
         try
         {
             cts.Cancel();
+            _logger.Info("Macro execution cancel requested.");
             return true;
         }
         catch (ObjectDisposedException)
@@ -124,6 +127,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(KeyboardMacroService));
         if (string.IsNullOrWhiteSpace(script))
             return MacroExecutionResult.Skip("No macro script configured.");
+        var scriptToRun = script!;
 
         bool lockTaken = false;
         try
@@ -141,14 +145,44 @@ public sealed class KeyboardMacroService : IDisposable
         {
             linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             SetMacroRunning(linkedCts);
+            MacroExecutionResult result;
             try
             {
-                return await Task.Run(() => RunMacroInternal(script!, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
+                _logger.Info($"Macro execution started (length={scriptToRun.Length} chars).");
+                result = await Task.Run(() => RunMacroInternal(scriptToRun, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
-                return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
+                result = MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
             }
+
+            if (result.Success)
+            {
+                if (result.Executed)
+                {
+                    _logger.Info("Macro execution completed successfully.");
+                }
+                else if (!string.IsNullOrEmpty(result.Message))
+                {
+                    _logger.Info($"Macro execution skipped: {result.Message}");
+                }
+                else
+                {
+                    _logger.Info("Macro execution skipped.");
+                }
+            }
+            else if (result.IsCanceled)
+            {
+                _logger.Info("Macro execution canceled.");
+            }
+            else
+            {
+                _logger.Warn(string.IsNullOrEmpty(result.Message)
+                    ? "Macro execution failed."
+                    : $"Macro execution failed: {result.Message}");
+            }
+
+            return result;
         }
         finally
         {
@@ -166,7 +200,10 @@ public sealed class KeyboardMacroService : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         IntPtr target = ResolveTargetWindow();
         if (target == IntPtr.Zero)
+        {
+            _logger.Warn("Macro execution aborted: no target window available.");
             return MacroExecutionResult.Fail("ターゲットとなる直前のウィンドウが見つかりません。");
+        }
 
         try
         {
@@ -181,15 +218,82 @@ public sealed class KeyboardMacroService : IDisposable
                 return MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。");
             }
             var buffer = new List<INPUT>(16);
+            var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var rawLine in expandedLines)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var line = rawLine.Trim();
                 if (line.Length == 0 || line.StartsWith('#')) continue;
 
+                if (StartsWithCommand(line, "SET"))
+                {
+                    if (!TryApplySetDirective(line, variables, out var setName, out var setValue, out var setError))
+                    {
+                        return MacroExecutionResult.Fail(setError ?? $"SET コマンドの解釈に失敗しました: \"{line}\"");
+                    }
+                    if (!string.IsNullOrEmpty(setName))
+                    {
+                        _logger.Info($"Macro variable set: {setName} (length={setValue?.Length ?? 0})");
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "UNSET"))
+                {
+                    if (!TryApplyUnsetDirective(line, variables, out var unsetName, out var removed, out var unsetError))
+                    {
+                        return MacroExecutionResult.Fail(unsetError ?? $"UNSET コマンドの解釈に失敗しました: \"{line}\"");
+                    }
+                    if (!string.IsNullOrEmpty(unsetName))
+                    {
+                        if (removed)
+                        {
+                            _logger.Info($"Macro variable removed: {unsetName}");
+                        }
+                        else
+                        {
+                            _logger.Info($"Macro variable unset requested but not defined: {unsetName}");
+                        }
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "ADD") || StartsWithCommand(line, "SUB") ||
+                    StartsWithCommand(line, "MUL") || StartsWithCommand(line, "DIV"))
+                {
+                    if (!TryApplyMathDirective(line, variables, out var mathName, out var beforeValue, out var operandValue, out var resultValue, out var mathError))
+                    {
+                        return MacroExecutionResult.Fail(mathError ?? $"数値演算の解釈に失敗しました: \"{line}\"");
+                    }
+                    if (!string.IsNullOrEmpty(mathName))
+                    {
+                        _logger.Info($"Macro variable math: {mathName} ({beforeValue}) -> {resultValue} (operand={operandValue}, op={ExtractCommandName(line)})");
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "APPEND") || StartsWithCommand(line, "PREPEND"))
+                {
+                    bool prepend = StartsWithCommand(line, "PREPEND");
+                    if (!TryApplyConcatDirective(line, variables, prepend, out var concatName, out var newValue, out var concatError))
+                    {
+                        return MacroExecutionResult.Fail(concatError ?? $"文字列結合の解釈に失敗しました: \"{line}\"");
+                    }
+                    if (!string.IsNullOrEmpty(concatName))
+                    {
+                        _logger.Info($"Macro variable {(prepend ? "prepend" : "append")}: {concatName} -> \"{TruncateForLog(newValue)}\"");
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "WAIT"))
                 {
-                    if (!int.TryParse(line.AsSpan(4).Trim(), out var waitMs) || waitMs < 0 || waitMs > 60000)
+                    var waitToken = line.Length > 4 ? line[4..].Trim() : string.Empty;
+                    if (!TryExpandVariables(waitToken, variables, out var expandedWait, out var waitExpandError))
+                    {
+                        return MacroExecutionResult.Fail(waitExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
+                    if (!int.TryParse(expandedWait, out var waitMs) || waitMs < 0 || waitMs > 60000)
                     {
                         return MacroExecutionResult.Fail($"WAIT に指定できる時間は 0〜60000 ミリ秒です: \"{line}\"");
                     }
@@ -207,11 +311,15 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "TEXT"))
                 {
                     var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
+                    if (!TryExpandVariables(text, variables, out var expandedText, out var textExpandError))
+                    {
+                        return MacroExecutionResult.Fail(textExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
                     if (!TryFlushInputs(buffer, out var flushBeforeTextError))
                     {
                         return MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。");
                     }
-                    if (!TrySendUnicodeText(text, cancellationToken, out var textError))
+                    if (!TrySendUnicodeText(expandedText, cancellationToken, out var textError))
                     {
                         return MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。");
                     }
@@ -221,11 +329,15 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "CLIPTEXT"))
                 {
                     var text = line.Length > 8 ? line[8..].TrimStart() : string.Empty;
+                    if (!TryExpandVariables(text, variables, out var clipText, out var clipExpandError))
+                    {
+                        return MacroExecutionResult.Fail(clipExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
                     if (!TryFlushInputs(buffer, out var flushBeforeClipError))
                     {
                         return MacroExecutionResult.Fail(flushBeforeClipError ?? "SendInput の実行に失敗しました。");
                     }
-                    if (!TrySetClipboardText(text, out var clipboardError))
+                    if (!TrySetClipboardText(clipText, out var clipboardError))
                     {
                         return MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。");
                     }
@@ -247,8 +359,13 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYDOWN"))
                 {
                     var token = line.Length > 7 ? line[7..].Trim() : string.Empty;
-                    if (!KeyChordParser.TryResolveKeyToken(token, out var key))
-                        return MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{token}\"");
+                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
+                    {
+                        return MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
+                    var resolvedToken = expandedToken.Trim();
+                    if (!KeyChordParser.TryResolveKeyToken(resolvedToken, out var key))
+                        return MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{resolvedToken}\"");
                     AppendKey(buffer, key, false);
                     continue;
                 }
@@ -256,8 +373,13 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYUP"))
                 {
                     var token = line.Length > 5 ? line[5..].Trim() : string.Empty;
-                    if (!KeyChordParser.TryResolveKeyToken(token, out var key))
-                        return MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{token}\"");
+                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
+                    {
+                        return MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
+                    var resolvedToken = expandedToken.Trim();
+                    if (!KeyChordParser.TryResolveKeyToken(resolvedToken, out var key))
+                        return MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{resolvedToken}\"");
                     AppendKey(buffer, key, true);
                     continue;
                 }
@@ -265,18 +387,26 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEY"))
                 {
                     var combo = line.Length > 3 ? line[3..].Trim() : string.Empty;
-                    if (!TryAppendCombination(combo, buffer, out var error))
+                    if (!TryExpandVariables(combo, variables, out var expandedCombo, out var comboExpandError))
                     {
-                        return MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{combo}\"");
+                        return MacroExecutionResult.Fail(comboExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
+                    if (!TryAppendCombination(expandedCombo.Trim(), buffer, out var error))
+                    {
+                        return MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{expandedCombo}\"");
                     }
                     continue;
                 }
 
                 if (StartsWithCommand(line, "MOUSE"))
                 {
-                    if (!TryHandleMouseCommand(line, buffer, out var mouseError))
+                    if (!TryExpandVariables(line, variables, out var expandedMouse, out var mouseExpandError))
                     {
-                        return MacroExecutionResult.Fail(mouseError ?? $"MOUSE コマンドの書式が不正です: \"{line}\"");
+                        return MacroExecutionResult.Fail(mouseExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                    }
+                    if (!TryHandleMouseCommand(expandedMouse, buffer, out var mouseError))
+                    {
+                        return MacroExecutionResult.Fail(mouseError ?? $"MOUSE コマンドの書式が不正です: \"{expandedMouse}\"");
                     }
                     continue;
                 }
@@ -373,6 +503,312 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         return true;
+    }
+
+    internal static bool TryExpandVariables(string input, IReadOnlyDictionary<string, string> variables, out string result, out string? error)
+    {
+        result = input;
+        error = null;
+        if (string.IsNullOrEmpty(input))
+        {
+            return true;
+        }
+
+        if (input.IndexOf("{{", StringComparison.Ordinal) < 0)
+        {
+            return true;
+        }
+
+        var sb = new StringBuilder(input.Length);
+        for (int i = 0; i < input.Length;)
+        {
+            if (input[i] == '{' && i + 1 < input.Length && input[i + 1] == '{')
+            {
+                int end = input.IndexOf("}}", i + 2, StringComparison.Ordinal);
+                if (end < 0)
+                {
+                    error = $"変数プレースホルダーの閉じ括弧が見つかりません: \"{input}\"";
+                    return false;
+                }
+
+                var token = input.Substring(i + 2, end - i - 2);
+                var name = token.Trim();
+                if (!IsValidVariableName(name))
+                {
+                    error = $"変数名が不正です: \"{token}\"";
+                    return false;
+                }
+
+                if (!variables.TryGetValue(name, out var value))
+                {
+                    error = $"変数 \"{name}\" は定義されていません。";
+                    return false;
+                }
+
+                sb.Append(value);
+                i = end + 2;
+                continue;
+            }
+
+            if (input[i] == '}' && i + 1 < input.Length && input[i + 1] == '}')
+            {
+                error = $"閉じ括弧が余分です: \"{input}\"";
+                return false;
+            }
+
+            sb.Append(input[i]);
+            i++;
+        }
+
+        result = sb.ToString();
+        return true;
+    }
+
+    internal static bool TryApplySetDirective(string line, Dictionary<string, string> variables, out string? name, out string? value, out string? error)
+    {
+        name = null;
+        value = null;
+        error = null;
+        var content = line.Length > 3 ? line[3..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = "SET に変数名を指定してください。";
+            return false;
+        }
+
+        int separatorIndex = -1;
+        for (int i = 0; i < content.Length; i++)
+        {
+            if (char.IsWhiteSpace(content[i]))
+            {
+                separatorIndex = i;
+                break;
+            }
+        }
+
+        var nameCandidate = separatorIndex < 0 ? content : content[..separatorIndex];
+        if (!IsValidVariableName(nameCandidate))
+        {
+            error = $"変数名が不正です: \"{nameCandidate}\"";
+            return false;
+        }
+
+        var rawValue = separatorIndex < 0 ? string.Empty : content[(separatorIndex + 1)..];
+        var trimmedValue = rawValue.Length == 0 ? string.Empty : rawValue.TrimStart();
+        if (!TryExpandVariables(trimmedValue, variables, out var expandedValue, out var expandError))
+        {
+            error = expandError;
+            return false;
+        }
+
+        variables[nameCandidate] = expandedValue;
+        name = nameCandidate;
+        value = expandedValue;
+        return true;
+    }
+
+    internal static bool TryApplyUnsetDirective(string line, Dictionary<string, string> variables, out string? name, out bool removed, out string? error)
+    {
+        name = null;
+        error = null;
+        removed = false;
+        var content = line.Length > 5 ? line[5..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = "UNSET に変数名を指定してください。";
+            return false;
+        }
+
+        if (!IsValidVariableName(content))
+        {
+            error = $"変数名が不正です: \"{content}\"";
+            return false;
+        }
+
+        removed = variables.Remove(content);
+        name = content;
+        return true;
+    }
+
+    internal static bool IsValidVariableName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        name = name.Trim();
+        if (!char.IsLetter(name[0]) && name[0] != '_')
+        {
+            return false;
+        }
+
+        for (int i = 1; i < name.Length; i++)
+        {
+            var ch = name[i];
+            if (!char.IsLetterOrDigit(ch) && ch != '_')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    internal static bool TryApplyMathDirective(string line, Dictionary<string, string> variables, out string? name, out long beforeValue, out long operandValue, out long resultValue, out string? error)
+    {
+        name = null;
+        beforeValue = 0;
+        operandValue = 0;
+        resultValue = 0;
+        error = null;
+
+        var command = ExtractCommandName(line);
+        if (command is not ("ADD" or "SUB" or "MUL" or "DIV"))
+        {
+            error = "未知の演算コマンドです。";
+            return false;
+        }
+
+        var content = line.Length > command.Length ? line[command.Length..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = $"{command} には変数名と値を指定してください。";
+            return false;
+        }
+
+        var firstSpace = FindFirstWhitespace(content);
+        var nameToken = firstSpace < 0 ? content : content[..firstSpace];
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        if (!variables.TryGetValue(nameToken, out var currentRaw))
+        {
+            error = $"変数 \"{nameToken}\" は定義されていません。";
+            return false;
+        }
+
+        var operandRaw = firstSpace < 0 ? string.Empty : content[(firstSpace + 1)..].Trim();
+        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError))
+        {
+            error = expandError;
+            return false;
+        }
+        if (!long.TryParse(expandedOperand.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out operandValue))
+        {
+            error = $"{command} の値は整数で指定してください: \"{expandedOperand}\"";
+            return false;
+        }
+
+        if (!long.TryParse(currentRaw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out beforeValue))
+        {
+            error = $"変数 \"{nameToken}\" の値を整数として解釈できません: \"{currentRaw}\"";
+            return false;
+        }
+
+        try
+        {
+            checked
+            {
+                resultValue = command switch
+                {
+                    "ADD" => beforeValue + operandValue,
+                    "SUB" => beforeValue - operandValue,
+                    "MUL" => beforeValue * operandValue,
+                    "DIV" => operandValue switch
+                    {
+                        0 => throw new DivideByZeroException(),
+                        _ => beforeValue / operandValue
+                    },
+                    _ => beforeValue
+                };
+            }
+        }
+        catch (DivideByZeroException)
+        {
+            error = "DIV の値に 0 は指定できません。";
+            return false;
+        }
+        catch (OverflowException)
+        {
+            error = "演算結果が整数の範囲を超えました。";
+            return false;
+        }
+
+        variables[nameToken] = resultValue.ToString(CultureInfo.InvariantCulture);
+        name = nameToken;
+        return true;
+    }
+
+    internal static bool TryApplyConcatDirective(string line, Dictionary<string, string> variables, bool prepend, out string? name, out string? newValue, out string? error)
+    {
+        name = null;
+        newValue = null;
+        error = null;
+
+        var command = ExtractCommandName(line);
+        if (command is not ("APPEND" or "PREPEND"))
+        {
+            error = "未知の結合コマンドです。";
+            return false;
+        }
+
+        var content = line.Length > command.Length ? line[command.Length..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = $"{command} には変数名と値を指定してください。";
+            return false;
+        }
+
+        var firstSpace = FindFirstWhitespace(content);
+        var nameToken = firstSpace < 0 ? content : content[..firstSpace];
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        var operandRaw = firstSpace < 0 ? string.Empty : content[(firstSpace + 1)..].TrimStart();
+        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError))
+        {
+            error = expandError;
+            return false;
+        }
+
+        var current = variables.TryGetValue(nameToken, out var currentValue) ? currentValue ?? string.Empty : string.Empty;
+        newValue = prepend ? (expandedOperand + current) : (current + expandedOperand);
+        variables[nameToken] = newValue;
+        name = nameToken;
+        return true;
+    }
+
+    private static int FindFirstWhitespace(string input)
+    {
+        for (int i = 0; i < input.Length; i++)
+        {
+            if (char.IsWhiteSpace(input[i]))
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static string ExtractCommandName(string line)
+    {
+        int idx = FindFirstWhitespace(line);
+        return (idx < 0 ? line : line[..idx]).Trim().ToUpperInvariant();
+    }
+
+    private static string TruncateForLog(string? value)
+    {
+        if (value == null) return string.Empty;
+        const int MaxLength = 48;
+        if (value.Length <= MaxLength) return value;
+        return value[..MaxLength] + "...";
     }
 
     private bool TrySetClipboardText(string text, out string? error)

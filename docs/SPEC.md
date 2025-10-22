@@ -61,6 +61,11 @@
 - MUST: `KEYDOWN <キー>` / `KEYUP <キー>` で個別に押下/解放を制御できる。キー名は VK 名（例: `A`, `F4`, `Enter`, `Tab`）を受け付ける。
 - MUST: `TEXT <文字列>` は Unicode 文字列をそのまま送信する。
 - MUST: `WAIT <ミリ秒>` は 0〜60000 の整数のみ受け付け、マクロ実行を一時停止する。
+- MUST: `SET <名前> <値>` は変数を定義し、値の中で `{{Name}}` 形式の他変数を参照できる。変数名は英数字と `_` のみで構成し、先頭は文字または `_` とする。大文字小文字は区別しない。
+- MUST: `UNSET <名前>` は変数を削除し、未定義の名前が指定されてもエラーとはせず実行ログに通知を残す。
+- MUST: `ADD`/`SUB`/`MUL`/`DIV <名前> <整数>` は対象変数を 64bit 整数として読み出し、指定した整数を加算・減算・乗算・除算する。`DIV` の除数に 0 は指定できず、演算結果が範囲外の場合はエラーとする。
+- MUST: `APPEND`/`PREPEND <名前> <値>` は対象変数に文字列を末尾/先頭へ結合する。変数が未定義の場合は空文字列として扱う。
+- MUST: 任意のコマンド引数内で `{{名前}}` を使用すると変数を展開し、未定義または閉じ括弧の欠落はマクロ失敗として扱う。展開後の文字列は既存コマンドの書式に従い検証する。
 - MUST: `MOUSEMOVEABS <X> <Y>` は仮想スクリーン座標（ピクセル）を絶対移動として送出し、範囲外指定は仮想スクリーン内へクランプする。`MOUSEMOVEREL <dX> <dY>` は相対移動を送出する。
 - MUST: `MOUSELEFTDOWN/UP`・`MOUSERIGHTDOWN/UP`・`MOUSEMIDDLEDOWN/UP` で各ボタンの押下/解放を制御し、`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK` は押下と解放をセットで送出する。`MOUSELEFTDOUBLECLICK` はダブルクリック相当の 2 回押下を送出する。
 - MUST: `MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` はホイール量を 1 ステップ=120 として扱い、引数省略時は 1 ステップ送出する。0 以下の値はエラーとする。

@@ -38,13 +38,17 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        _logger.Info($"DropSendTo starting (args={e.Args.Length}).");
+
         try
         {
             _logger.CleanupOldLogs();
             var cfg = _configService.LoadOrCreate();
+            _logger.Info($"Configuration ready (path={_configService.GetConfigPath()}, rows={cfg.SlotRows}, cols={cfg.SlotColumns}, currentLayer={cfg.CurrentLayer + 1}).");
             var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
             if (args.Length > 0)
             {
+                _logger.Info($"CLI launch requested with {args.Length} argument(s).");
                 // Choose first registered slot in current layer, otherwise across layers
                 var layer = Math.Clamp(cfg.CurrentLayer, 0, 3);
                 var slot = cfg.Layers[layer].Slots.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command))
@@ -79,5 +83,6 @@ public partial class App : Application
 
         var win = new MainWindow();
         win.Show();
+        _logger.Info("Main window shown.");
     }
 }
