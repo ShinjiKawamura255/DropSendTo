@@ -28,6 +28,7 @@ public sealed class KeyboardMacroService : IDisposable
     private WinEventDelegate? _winEventCallback;
     private bool _disposed;
     private uint _ownerThreadId;
+    private Func<KeyChord?>? _prefixChordAccessor;
 
     public void Initialize(WindowInteropHelper helper)
     {
@@ -49,6 +50,11 @@ public sealed class KeyboardMacroService : IDisposable
         {
             Volatile.Write(ref _lastExternalWindow, fg);
         }
+    }
+
+    internal void SetPrefixChordAccessor(Func<KeyChord?>? accessor)
+    {
+        _prefixChordAccessor = accessor;
     }
 
     public bool IsMacroRunning => Volatile.Read(ref _macroRunningFlag) == 1;
@@ -308,6 +314,32 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "PREFIX"))
+                {
+                    var token = line.Length > 6 ? line[6..].Trim() : string.Empty;
+                    bool passthrough = false;
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        if (token.Equals("PASSTHROUGH", StringComparison.OrdinalIgnoreCase))
+                        {
+                            passthrough = true;
+                        }
+                        else if (token.Equals("SEND", StringComparison.OrdinalIgnoreCase) || token.Equals("ARM", StringComparison.OrdinalIgnoreCase))
+                        {
+                            passthrough = false;
+                        }
+                        else
+                        {
+                            return MacroExecutionResult.Fail($"PREFIX コマンドの書式が不正です: \"{line}\"");
+                        }
+                    }
+                    if (!TryAppendPrefixSequence(buffer, passthrough, out var prefixError))
+                    {
+                        return MacroExecutionResult.Fail(prefixError ?? "PREFIX コマンドの実行に失敗しました。");
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "TEXT"))
                 {
                     var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
@@ -341,7 +373,7 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。");
                     }
-                    if (!TryAppendCombination("CTRL+V", buffer, out var pasteError))
+                    if (!TryAppendCombination("CTRL+V", buffer, InputExtraInfo.MacroPassthroughPointer, out var pasteError))
                     {
                         return MacroExecutionResult.Fail(pasteError ?? "Ctrl+V の送信に失敗しました。");
                     }
@@ -391,7 +423,7 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return MacroExecutionResult.Fail(comboExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
                     }
-                    if (!TryAppendCombination(expandedCombo.Trim(), buffer, out var error))
+                    if (!TryAppendCombination(expandedCombo.Trim(), buffer, InputExtraInfo.MacroPassthroughPointer, out var error))
                     {
                         return MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{expandedCombo}\"");
                     }
@@ -892,7 +924,7 @@ public sealed class KeyboardMacroService : IDisposable
         return TrySendInputArray(arr, arr.Length, out error);
     }
 
-    private static INPUT CreateVirtualKeyInput(ushort vk, bool keyUp)
+    private static INPUT CreateVirtualKeyInput(ushort vk, bool keyUp, IntPtr extraInfo)
     {
         ushort scanCode = (ushort)MapVirtualKey(vk, MAPVK_VK_TO_VSC);
         uint flags = KEYEVENTF_SCANCODE;
@@ -915,7 +947,7 @@ public sealed class KeyboardMacroService : IDisposable
                     wVk = useVirtualKey ? vk : (ushort)0,
                     wScan = useVirtualKey ? (ushort)0 : scanCode,
                     dwFlags = useVirtualKey ? (keyUp ? KEYEVENTF_KEYUP : 0) : flags,
-                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
+                    dwExtraInfo = extraInfo
                 }
             }
         };
@@ -934,15 +966,16 @@ public sealed class KeyboardMacroService : IDisposable
                     mouseData = mouseData,
                     dwFlags = flags,
                     time = 0,
-                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
+                    dwExtraInfo = InputExtraInfo.MacroPassthroughPointer
                 }
             }
         };
 
-    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp)
-    {
-        buffer.Add(CreateVirtualKeyInput(vk, keyUp));
-    }
+    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp) =>
+        AppendKey(buffer, vk, keyUp, InputExtraInfo.MacroPassthroughPointer);
+
+    private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp, IntPtr extraInfo) =>
+        buffer.Add(CreateVirtualKeyInput(vk, keyUp, extraInfo));
 
     private bool TrySendUnicodeText(string text, CancellationToken cancellationToken, out string? error)
     {
@@ -981,7 +1014,7 @@ public sealed class KeyboardMacroService : IDisposable
                     wVk = 0,
                     wScan = ch,
                     dwFlags = keyUp ? (KEYEVENTF_UNICODE | KEYEVENTF_KEYUP) : KEYEVENTF_UNICODE,
-                    dwExtraInfo = InputExtraInfo.MacroInjectionPointer
+                    dwExtraInfo = InputExtraInfo.MacroPassthroughPointer
                 }
             }
         };
@@ -1007,7 +1040,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private static bool TryAppendCombination(string combo, List<INPUT> buffer, out string? error)
+    private static bool TryAppendCombination(string combo, List<INPUT> buffer, IntPtr extraInfo, out string? error)
     {
         error = null;
         if (!KeyChordParser.TryParse(combo, out var chord, out error))
@@ -1028,15 +1061,59 @@ public sealed class KeyboardMacroService : IDisposable
 
         foreach (var mod in modifierKeys)
         {
-            AppendKey(buffer, mod, keyUp: false);
+            AppendKey(buffer, mod, keyUp: false, extraInfo);
         }
-        AppendKey(buffer, chord.MainKey, keyUp: false);
-        AppendKey(buffer, chord.MainKey, keyUp: true);
+        AppendKey(buffer, chord.MainKey, keyUp: false, extraInfo);
+        AppendKey(buffer, chord.MainKey, keyUp: true, extraInfo);
         for (int i = modifierKeys.Count - 1; i >= 0; i--)
         {
-            AppendKey(buffer, modifierKeys[i], keyUp: true);
+            AppendKey(buffer, modifierKeys[i], keyUp: true, extraInfo);
         }
 
+        return true;
+    }
+
+    private bool TryAppendPrefixSequence(List<INPUT> buffer, bool passthrough, out string? error)
+    {
+        error = null;
+        var resolver = _prefixChordAccessor;
+        if (resolver == null)
+        {
+            error = "PREFIX コマンドは現在利用できません。";
+            return false;
+        }
+
+        var chord = resolver();
+        if (chord == null)
+        {
+            error = "Prefix が無効化されているため PREFIX コマンドを使用できません。";
+            return false;
+        }
+
+        var extraInfo = passthrough ? InputExtraInfo.MacroPassthroughPointer : InputExtraInfo.MacroInjectionPointer;
+        var modifierKeys = new List<ushort>(chord.Modifiers.Count);
+        foreach (var modifier in chord.Modifiers)
+        {
+            if (!KeyChordParser.TryGetModifierVirtualKey(modifier, out var vk))
+            {
+                error = $"PREFIX コマンドで修飾キーを解決できません: \"{modifier}\"";
+                return false;
+            }
+            modifierKeys.Add(vk);
+        }
+
+        foreach (var mod in modifierKeys)
+        {
+            AppendKey(buffer, mod, keyUp: false, extraInfo);
+        }
+        AppendKey(buffer, chord.MainKey, keyUp: false, extraInfo);
+        AppendKey(buffer, chord.MainKey, keyUp: true, extraInfo);
+        for (int i = modifierKeys.Count - 1; i >= 0; i--)
+        {
+            AppendKey(buffer, modifierKeys[i], keyUp: true, extraInfo);
+        }
+
+        _logger.Info($"Macro PREFIX {(passthrough ? "passthrough" : "arm")} sequence enqueued.");
         return true;
     }
 

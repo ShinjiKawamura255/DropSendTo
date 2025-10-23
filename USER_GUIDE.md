@@ -51,6 +51,8 @@ DropSendTo は、Windows 上で常時表示される軽量ランチャです。�
 
 ## 8. マクロスクリプトの基本
 - `KEY Ctrl+C` のように記述するとキーボード操作を送信します。
+- `PREFIX` / `PREFIX SEND` / `PREFIX ARM` と書くと、DropSendTo の Prefix（例: `Ctrl+Q`）を擬似入力してショートカット待機状態を起動できます。
+- `PREFIX PASSTHROUGH` と書くと、Prefix をそのまま前面アプリケーションへ送信します。
 - `WAIT 200` で 200 ミリ秒待機、`TEXT processed` で任意文字列を入力できます。
 - マウス操作 (`MOUSELEFTCLICK`, `MOUSEMOVEABS`, `MOUSESCROLLDOWN 2` 等) にも対応しています。
 - `REPEAT 3` 〜 `ENDREPEAT` でブロックを繰り返し実行できます（最大 1000 回）。

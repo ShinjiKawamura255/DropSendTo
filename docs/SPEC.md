@@ -27,7 +27,7 @@
 - MUST: スロットクリック時は、設定されていればマクロスクリプトを最初に実行し、成功した場合のみコマンドを起動する。マクロのみ／コマンドのみも許容する。
 - MUST: マクロ実行中は別スロットのマクロをブロックし、警告を表示する。ただしコマンドのみのスロット起動は並列に許可する。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
-- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。
+- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
 - MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（クリップボード内のパス群を引用付きで展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。

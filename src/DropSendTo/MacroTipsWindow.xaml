@@ -43,6 +43,8 @@
                         <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="TEXT &lt;文字列&gt;         : Unicode 文字列を送信" TextWrapping="Wrap"/>
                         <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="CLIPTEXT &lt;文字列&gt;      : 文字列をクリップボードに設定→自動で Ctrl+V" TextWrapping="Wrap"/>
                         <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="Wrap"/>
+                        <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="Wrap"/>
+                        <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="Wrap"/>
                         <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5) - 単独で 1 行に記述" TextWrapping="Wrap"/>
                         <TextBlock FontFamily="Consolas" Foreground="#F0F0F0" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="Wrap"/>
                     </StackPanel>

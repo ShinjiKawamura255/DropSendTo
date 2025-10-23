@@ -29,12 +29,12 @@ public class KeyboardMacroServiceKeyParsingTests
     {
         var method = GetCombinationMethod();
         var buffer = CreateInputBuffer();
-        var args = new object?[] { "ALT", buffer, null };
+        var args = new object?[] { "ALT", buffer, IntPtr.Zero, null };
 
         var result = (bool)method.Invoke(null, args)!;
 
         result.Should().BeFalse();
-        args[2].Should().BeOfType<string>().Which.Should().NotBeNullOrEmpty();
+        args[3].Should().BeOfType<string>().Which.Should().NotBeNullOrEmpty();
         buffer.Count.Should().Be(0, "修飾キーのみの KEY 指示は拒否されること");
     }
 }

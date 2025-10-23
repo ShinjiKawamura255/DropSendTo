@@ -243,6 +243,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
+            _macroService.SetPrefixChordAccessor(() => _shortcutService.CurrentPrefixChord);
             if (_shortcutService.IsPrefixDisabled)
             {
                 // 無効化時は設定値の正規化は行わない。
@@ -893,7 +894,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var result = await _macroService.RunMacroAsync("KEY " + prefixText);
+            var result = await _macroService.RunMacroAsync("PREFIX PASSTHROUGH");
             if (!result.Success && !result.IsCanceled)
             {
                 _logger.Warn($"Prefix passthrough failed: {result.Message}");

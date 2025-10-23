@@ -80,6 +80,16 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler<PrefixStateChangedEventArgs>? PrefixStateChanged;
 
     public string CurrentPrefixText => _prefixText;
+    public KeyChord? CurrentPrefixChord
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _prefixChord;
+            }
+        }
+    }
     public bool IsUsingFallbackPrefix => _usingFallbackPrefix;
 
     public bool IsPrefixDisabled => _prefixDisabled;
@@ -207,8 +217,16 @@ internal sealed class ShortcutService : IDisposable
         var msg = (int)wParam;
         var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
         bool isInjected = (info.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
-        if (isInjected && !InputExtraInfo.IsMacroInjection(info.dwExtraInfo))
+        bool isMacroInjection = InputExtraInfo.IsMacroInjection(info.dwExtraInfo);
+        bool isMacroPassthrough = InputExtraInfo.IsMacroPassthrough(info.dwExtraInfo);
+        if (isMacroPassthrough && !_prefixArmed)
         {
+            return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+        }
+
+        if (isInjected && !isMacroInjection && !isMacroPassthrough)
+        {
+            // マクロが送出したキーや他プロセスによる合成入力は監視対象外とし、OSへそのまま渡す
             return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
         }
 
