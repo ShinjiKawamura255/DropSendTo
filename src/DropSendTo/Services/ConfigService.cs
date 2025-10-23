@@ -110,6 +110,10 @@ public class ConfigService
         cfg.ShortcutPrefix ??= string.Empty;
         cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
         cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
+        if (!Enum.IsDefined(typeof(SlotSize), cfg.SlotSize))
+        {
+            cfg.SlotSize = SlotSize.Large;
+        }
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
         if (cfg.ShortcutPrefixDisabled)
         {
@@ -246,6 +250,16 @@ public class ConfigService
             // 新しいフラグが追加されたバージョン。既存設定ではプレフィックス無効化をオフとして扱う。
             cfg.ShortcutPrefixDisabled = false;
             cfg.Version = 8;
+            changed = true;
+        }
+
+        if (cfg.Version < 9)
+        {
+            if (!Enum.IsDefined(typeof(SlotSize), cfg.SlotSize))
+            {
+                cfg.SlotSize = SlotSize.Large;
+            }
+            cfg.Version = 9;
             changed = true;
         }
 

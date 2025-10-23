@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 8;
+    public int Version { get; set; } = 9;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
@@ -14,6 +14,7 @@ public class AppConfig
     public bool ShortcutPrefixDisabled { get; set; }
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;
+    public SlotSize SlotSize { get; set; } = SlotSize.Large;
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()

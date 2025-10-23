@@ -33,6 +33,39 @@ public partial class MainWindow : Window
         (3, 2), (3, 3), (3, 4),
         (4, 2), (4, 3), (4, 4)
     };
+
+    private static readonly (SlotSize size, string header)[] SlotSizeOptions =
+    {
+        (SlotSize.Large, "Large"),
+        (SlotSize.Small, "Small")
+    };
+
+    private readonly record struct SlotSizeMetrics(
+        double BaseWidth,
+        double BaseHeight,
+        double ColumnStep,
+        double RowStep,
+        double SlotHeight,
+        double TitleFontSize,
+        double StatusFontSize);
+
+    private static readonly SlotSizeMetrics LargeSlotMetrics = new(
+        BaseWidth: 234,
+        BaseHeight: 148,
+        ColumnStep: 95,
+        RowStep: 60,
+        SlotHeight: 48,
+        TitleFontSize: 12,
+        StatusFontSize: 11);
+
+    private static readonly SlotSizeMetrics SmallSlotMetrics = new(
+        BaseWidth: 210,
+        BaseHeight: 126,
+        ColumnStep: 80,
+        RowStep: 50,
+        SlotHeight: 40,
+        TitleFontSize: 11,
+        StatusFontSize: 10);
     static MainWindow()
     {
         PrefixArmedBackgroundBrush = CreateFrozenBrush(Color.FromRgb(0x1E, 0x82, 0x4C));
@@ -47,10 +80,6 @@ public partial class MainWindow : Window
         return brush;
     }
 
-    private const double BaseWindowWidth = 234;
-    private const double BaseWindowHeight = 148;
-    private const double ColumnWidthStep = 95;
-    private const double RowHeightStep = 60;
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
@@ -154,8 +183,14 @@ public partial class MainWindow : Window
 
     private void UpdateWindowSize(int rows, int columns)
     {
-        Width = BaseWindowWidth + (columns - 2) * ColumnWidthStep;
-        Height = BaseWindowHeight + (rows - 2) * RowHeightStep;
+        var metrics = GetSlotSizeMetrics();
+        Width = metrics.BaseWidth + (columns - 2) * metrics.ColumnStep;
+        Height = metrics.BaseHeight + (rows - 2) * metrics.RowStep;
+    }
+
+    private SlotSizeMetrics GetSlotSizeMetrics()
+    {
+        return _config?.SlotSize == SlotSize.Small ? SmallSlotMetrics : LargeSlotMetrics;
     }
 
     private static void EnsureLayerSlotCapacity(Layer layer, int requiredSlots)
@@ -169,6 +204,7 @@ public partial class MainWindow : Window
 
     private SlotVisual CreateSlotVisual(int index)
     {
+        var metrics = GetSlotSizeMetrics();
         var border = new Border
         {
             Margin = new Thickness(2),
@@ -176,7 +212,7 @@ public partial class MainWindow : Window
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11)),
-            Height = 48,
+            Height = metrics.SlotHeight,
             AllowDrop = true,
             Tag = index
         };
@@ -191,6 +227,7 @@ public partial class MainWindow : Window
         var title = new TextBlock
         {
             Text = $"Slot {index + 1}",
+            FontSize = metrics.TitleFontSize,
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -200,7 +237,7 @@ public partial class MainWindow : Window
         var status = new TextBlock
         {
             Text = "マクロ実行中...",
-            FontSize = 11,
+            FontSize = metrics.StatusFontSize,
             Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0)),
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -515,6 +552,7 @@ public partial class MainWindow : Window
         {
             AlwaysOnTopMenuItem.IsChecked = this.Topmost;
             PopulateLayoutMenu(LayoutMenuItem);
+            PopulateSlotSizeMenu(SlotSizeMenuItem);
             this.ContextMenu.PlacementTarget = (UIElement)sender;
             this.ContextMenu.IsOpen = true;
         }
@@ -553,6 +591,42 @@ public partial class MainWindow : Window
                 Tag = option
             };
             item.Click += OnLayoutOptionSelected;
+            menuItem.Items.Add(item);
+        }
+    }
+
+    private void OnSlotSizeMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem) return;
+        PopulateSlotSizeMenu(menuItem);
+    }
+
+    private void OnSlotSizeOptionSelected(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item || item.Tag is not SlotSize size) return;
+        if (_config.SlotSize == size) return;
+
+        _config.SlotSize = size;
+        ApplySlotLayout();
+        RefreshUi();
+        ClampWindowWithinBounds();
+        _configService.Save(_config);
+    }
+
+    private void PopulateSlotSizeMenu(MenuItem menuItem)
+    {
+        if (menuItem == null) return;
+        menuItem.Items.Clear();
+        foreach (var (size, header) in SlotSizeOptions)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = true,
+                IsChecked = _config.SlotSize == size,
+                Tag = size
+            };
+            item.Click += OnSlotSizeOptionSelected;
             menuItem.Items.Add(item);
         }
     }
@@ -631,6 +705,7 @@ public partial class MainWindow : Window
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
         PopulateLayoutMenu(LayoutMenuItem);
+        PopulateSlotSizeMenu(SlotSizeMenuItem);
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)

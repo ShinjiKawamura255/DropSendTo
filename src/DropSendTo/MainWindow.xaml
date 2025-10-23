@@ -18,6 +18,9 @@
             <MenuItem x:Name="LayoutMenuItem"
                       Header="Slot Layout"
                       SubmenuOpened="OnLayoutMenuOpened"/>
+            <MenuItem x:Name="SlotSizeMenuItem"
+                      Header="Slot Size"
+                      SubmenuOpened="OnSlotSizeMenuOpened"/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
                       IsCheckable="True"
