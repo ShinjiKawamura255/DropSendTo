@@ -480,17 +480,23 @@ public partial class MainWindow : Window
     {
         int idx = GetSlotIndex(fe);
         var slot = _config.Layers[_currentLayer].Slots[idx];
-        var dlg = new RegisterDialog(slot);
-        if (dlg.ShowDialog() == true)
+        var dlg = new RegisterDialog(slot)
         {
-            slot.Title = dlg.AppTitle;
-            slot.Command = dlg.CommandPath;
-            slot.ArgumentsTemplate = dlg.ArgumentsTemplate;
-            slot.KeyboardMacroScript = dlg.MacroScript;
-            slot.ShortcutKey = dlg.ShortcutChord;
+            Owner = this
+        };
+
+        dlg.SlotSaved += (_, args) =>
+        {
+            slot.Title = args.AppTitle;
+            slot.Command = args.CommandPath;
+            slot.ArgumentsTemplate = args.ArgumentsTemplate;
+            slot.KeyboardMacroScript = args.MacroScript;
+            slot.ShortcutKey = args.ShortcutChord;
             _configService.Save(_config);
             RefreshUi();
-        }
+        };
+
+        dlg.Show();
     }
 
     private void ClearSlot(FrameworkElement fe)

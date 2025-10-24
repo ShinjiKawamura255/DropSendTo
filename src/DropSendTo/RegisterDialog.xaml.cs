@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Win32;
 using DropSendTo.Models;
 using DropSendTo.Services;
@@ -13,6 +14,7 @@ public partial class RegisterDialog : Window
     public string ArgumentsTemplate => IsMacroMode ? "{args}" : ArgsBox.Text;
     public string MacroScript => IsMacroMode ? MacroBox.Text : string.Empty;
     public string ShortcutChord { get; private set; } = string.Empty;
+    public event EventHandler<SlotSavedEventArgs>? SlotSaved;
 
     private bool IsMacroMode => MacroModeToggle?.IsChecked == true;
     private MacroTipsWindow? _tipsWindow;
@@ -72,7 +74,8 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        DialogResult = true;
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord));
+        Close();
     }
 
     private void OnModeToggleChanged(object sender, RoutedEventArgs e)
@@ -148,4 +151,39 @@ public partial class RegisterDialog : Window
         }
         _tipsWindow = null;
     }
+
+    private void OnCancel(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+            return;
+        }
+
+        base.OnPreviewKeyDown(e);
+    }
+}
+
+public sealed class SlotSavedEventArgs : EventArgs
+{
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord)
+    {
+        AppTitle = appTitle;
+        CommandPath = commandPath;
+        ArgumentsTemplate = argumentsTemplate;
+        MacroScript = macroScript;
+        ShortcutChord = shortcutChord;
+    }
+
+    public string AppTitle { get; }
+    public string CommandPath { get; }
+    public string ArgumentsTemplate { get; }
+    public string MacroScript { get; }
+    public string ShortcutChord { get; }
 }
