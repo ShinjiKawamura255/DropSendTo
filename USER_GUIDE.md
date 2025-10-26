@@ -56,11 +56,13 @@ DropSendTo は、Windows 上で常時表示される軽量ランチャです。�
 - `PREFIX PASSTHROUGH` と書くと、Prefix をそのまま前面アプリケーションへ送信します。
 - `WAIT 200` で 200 ミリ秒待機、`TEXT processed` で任意文字列を入力できます。
 - マウス操作 (`MOUSELEFTCLICK`, `MOUSEMOVEABS`, `MOUSESCROLLDOWN 2` 等) にも対応しています。
-- `MOUSEMOVEABS` では `WIN_TOPLEFT` や `WIN_CENTER` などの予約語でアクティブウィンドウ（マクロ途中で Alt+Tab した場合は直後のアクティブウィンドウ）の隅・辺中央・中央座標へ移動できます。予約語に `_X` / `_Y` を付けると、その成分を数値として `SET` / `ADD` などで扱えるため、`SET BaseX WIN_TOPLEFT_X` → `ADD BaseX 40` → `MOUSEMOVEABS {{BaseX}} {{BaseY}}` のようにオフセットを加えた座標へ移動できます。
+- `MOUSEMOVEABS` では `WIN_TOPLEFT` や `WIN_CENTER` などの予約語でアクティブウィンドウ（マクロ途中で Alt+Tab した場合は直後のアクティブウィンドウ）の隅・辺中央・中央座標へ移動できます。
+- `MOUSEMOVEWIN <dX> <dY>` はアクティブウィンドウ左上からの相対座標へ移動します。予約語に `_X` / `_Y` を付けると、その成分を数値として `SET` / `ADD` などで扱えるため、`SET BaseX WIN_TOPLEFT_X` → `ADD BaseX 40` → `MOUSEMOVEWIN {{BaseX}} {{BaseY}}` のようにオフセットを加えた座標へ移動できます。
 - `REPEAT 3` 〜 `ENDREPEAT` でブロックを繰り返し実行できます（最大 1000 回）。
 - `SET Name Value` で変数を定義し、任意のコマンド引数に `{{Name}}` と書くと展開されます。`UNSET Name` で削除できます。
 - `ADD`/`SUB`/`MUL`/`DIV Name 1` のように記述すると 64bit 整数として四則演算を行えます。`APPEND`/`PREPEND` で文字列を末尾/先頭に結合できます。
 - マクロ実行中にエラーが発生した場合、処理は中断されログに記録されます。
+- Macro Script モード右側の「記録開始」「記録停止」を使うと、開始～停止の間に行ったキーボード・マウス操作がリアルタイムで Macro Script に追記されます（録音対象は登録ダイアログ以外が前面のときに限られます）。
 
 ## 9. 設定・ログの保存場所
 - 設定: `%AppData%\DropSendTo\config.json`（編集後はアプリを再起動すると反映されます）

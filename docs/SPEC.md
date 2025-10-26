@@ -28,6 +28,7 @@
 - MUST: マクロ実行中は別スロットのマクロをブロックし、警告を表示する。ただしコマンドのみのスロット起動は並列に許可する。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
+- MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
 - MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（クリップボード内のパス群を引用付きで展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
@@ -67,7 +68,7 @@
 - MUST: `ADD`/`SUB`/`MUL`/`DIV <名前> <整数>` は対象変数を 64bit 整数として読み出し、指定した整数を加算・減算・乗算・除算する。`DIV` の除数に 0 は指定できず、演算結果が範囲外の場合はエラーとする。
 - MUST: `APPEND`/`PREPEND <名前> <値>` は対象変数に文字列を末尾/先頭へ結合する。変数が未定義の場合は空文字列として扱う。
 - MUST: 任意のコマンド引数内で `{{名前}}` を使用すると変数を展開し、未定義または閉じ括弧の欠落はマクロ失敗として扱う。展開後の文字列は既存コマンドの書式に従い検証する。
-- MUST: `MOUSEMOVEABS <X> <Y>` は仮想スクリーン座標（ピクセル）を絶対移動として送出し、範囲外指定は仮想スクリーン内へクランプする。引数として `WIN_TOPLEFT` / `WIN_TOPCENTER` / `WIN_TOPRIGHT` / `WIN_LEFTCENTER` / `WIN_RIGHTCENTER` / `WIN_BOTTOMLEFT` / `WIN_BOTTOMCENTER` / `WIN_BOTTOMRIGHT` / `WIN_CENTER` のいずれか 1 個を指定した場合は、その時点のアクティブウィンドウ境界から座標を算出する。`*_X` / `*_Y` サフィックスを付けた場合（例: `WIN_TOPLEFT_X`）は座標成分を整数として解決し、`SET` / `ADD` / `SUB` / `MUL` / `DIV` のオペランドや変数格納に利用できる。`MOUSEMOVEREL <dX> <dY>` は相対移動を送出する。
+- MUST: `MOUSEMOVEABS <X> <Y>` は仮想スクリーン座標（ピクセル）を絶対移動として送出し、範囲外指定は仮想スクリーン内へクランプする。引数として `WIN_TOPLEFT` / `WIN_TOPCENTER` / `WIN_TOPRIGHT` / `WIN_LEFTCENTER` / `WIN_RIGHTCENTER` / `WIN_BOTTOMLEFT` / `WIN_BOTTOMCENTER` / `WIN_BOTTOMRIGHT` / `WIN_CENTER` のいずれか 1 個を指定した場合は、その時点のアクティブウィンドウ境界から座標を算出する。`*_X` / `*_Y` サフィックスを付けた場合（例: `WIN_TOPLEFT_X`）は座標成分を整数として解決し、`SET` / `ADD` / `SUB` / `MUL` / `DIV` のオペランドや変数格納に利用できる。`MOUSEMOVEWIN <dX> <dY>` はアクティブウィンドウ左上からの相対座標を解決して絶対移動を送出する。`MOUSEMOVEREL <dX> <dY>` は現在位置からの相対移動を送出する。
 - MUST: `MOUSELEFTDOWN/UP`・`MOUSERIGHTDOWN/UP`・`MOUSEMIDDLEDOWN/UP` で各ボタンの押下/解放を制御し、`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK` は押下と解放をセットで送出する。`MOUSELEFTDOUBLECLICK` はダブルクリック相当の 2 回押下を送出する。
 - MUST: `MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` はホイール量を 1 ステップ=120 として扱い、引数省略時は 1 ステップ送出する。0 以下の値はエラーとする。
 - MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は 0〜1000。入れ子構造もサポートする。

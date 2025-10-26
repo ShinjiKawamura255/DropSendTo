@@ -175,6 +175,26 @@ public class KeyboardMacroServiceMouseCommandTests
     }
 
     [Fact]
+    public void TryHandleMouseCommand_ShouldMoveRelativeToWindow()
+    {
+        using var _ = UseActiveWindowBounds(50, 60, 250, 260);
+        var method = GetMouseCommandMethod();
+        var buffer = CreateInputBuffer();
+        var args = new object?[] { "MOUSEMOVEWIN 20 30", buffer, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue();
+        args[2].Should().BeNull();
+        ((IList)buffer).Count.Should().Be(1);
+        var input = GetFirstInput(buffer);
+        ReadMouseFlags(input).Should().Be(
+            GetFlag("MOUSEEVENTF_MOVE") |
+            GetFlag("MOUSEEVENTF_ABSOLUTE") |
+            GetFlag("MOUSEEVENTF_VIRTUALDESK"));
+    }
+
+    [Fact]
     public void TryHandleMouseCommand_ShouldAddWheelDownWithDefaultSteps()
     {
         var method = GetMouseCommandMethod();

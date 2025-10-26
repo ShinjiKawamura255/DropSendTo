@@ -68,7 +68,32 @@
                  MinHeight="110"
                  MinLines="5"
                  MaxLines="50"/>
-        <Button Content="?" Grid.Row="5" Grid.Column="2" Margin="6,6,6,0" Width="28" Height="26" VerticalAlignment="Top" Click="OnShowMacroTips" ToolTip="マクロスクリプトの書き方ヒントを表示"/>
+        <StackPanel Grid.Row="5" Grid.Column="2" Margin="6,6,6,0" VerticalAlignment="Top">
+            <Button Content="?" Width="32" Height="26" Click="OnShowMacroTips" ToolTip="マクロスクリプトの書き方ヒントを表示"/>
+            <Separator Margin="0,6,0,6"/>
+            <Button x:Name="RecordStartButton"
+                    Content="記録開始"
+                    Margin="0,0,0,4"
+                    Width="90"
+                    Click="OnRecordStart"
+                    ToolTip="Macro Script へ入力を記録します"/>
+            <Button x:Name="RecordStopButton"
+                    Content="記録停止"
+                    Width="90"
+                    Click="OnRecordStop"
+                    IsEnabled="False"
+                    ToolTip="記録を終了し、取得した操作を Macro Script に追加します"/>
+        </StackPanel>
+
+        <TextBlock x:Name="RecordingStatusText"
+                   Grid.Row="6"
+                   Grid.Column="0"
+                   Grid.ColumnSpan="3"
+                   Margin="6,2,6,0"
+                   Foreground="#DDDDDD"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Text=""/>
 
         <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="3"
                    Margin="6,8,0,0"

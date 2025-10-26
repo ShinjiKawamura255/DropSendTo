@@ -1155,6 +1155,15 @@ public sealed class KeyboardMacroService : IDisposable
             return TryAppendMouseMoveAbsolute(x, y, buffer, out error);
         }
 
+        if (command.Equals("MOUSEMOVEWIN", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseIntArguments(args, 2, "MOUSEMOVEWIN", out var values, out error))
+            {
+                return false;
+            }
+            return TryAppendMouseMoveRelativeToWindow(values[0], values[1], buffer, out error);
+        }
+
         if (command.Equals("MOUSEMOVEREL", StringComparison.OrdinalIgnoreCase))
         {
             if (!TryParseIntArguments(args, 2, "MOUSEMOVEREL", out var values, out error))
@@ -1309,6 +1318,22 @@ public sealed class KeyboardMacroService : IDisposable
         }
         buffer.Add(CreateMouseInput(normalizedX, normalizedY, 0, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK));
         return true;
+    }
+
+    private static bool TryAppendMouseMoveRelativeToWindow(int offsetX, int offsetY, List<INPUT> buffer, out string? error)
+    {
+        error = null;
+        if (!TryGetActiveWindowBounds(out var rect, out var boundsError))
+        {
+            error = boundsError ?? "アクティブウィンドウの取得に失敗しました。";
+            return false;
+        }
+
+        long targetX = (long)rect.Left + offsetX;
+        long targetY = (long)rect.Top + offsetY;
+        targetX = Math.Clamp(targetX, int.MinValue, int.MaxValue);
+        targetY = Math.Clamp(targetY, int.MinValue, int.MaxValue);
+        return TryAppendMouseMoveAbsolute((int)targetX, (int)targetY, buffer, out error);
     }
 
     private static void AppendMouseMoveRelative(int dx, int dy, List<INPUT> buffer)

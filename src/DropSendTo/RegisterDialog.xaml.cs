@@ -1,9 +1,11 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
 using DropSendTo.Models;
 using DropSendTo.Services;
+using System.Windows.Interop;
 
 namespace DropSendTo;
 
@@ -18,10 +20,25 @@ public partial class RegisterDialog : Window
 
     private bool IsMacroMode => MacroModeToggle?.IsChecked == true;
     private MacroTipsWindow? _tipsWindow;
+    private readonly MacroRecordingService _recordingService = new();
+    private int _recordedLineCount;
 
     public RegisterDialog()
     {
         InitializeComponent();
+        _recordingService.LineRecorded += OnRecordingLineGenerated;
+        if (RecordStartButton != null)
+        {
+            RecordStartButton.PreviewMouseDown += OnRecordStartPreviewMouseDown;
+        }
+        if (RecordStopButton != null)
+        {
+            RecordStopButton.PreviewMouseDown += OnRecordStopPreviewMouseDown;
+        }
+        if (RecordingStatusText != null)
+        {
+            RecordingStatusText.Text = "「記録開始」を押すと操作が Macro Script に追記されます。";
+        }
         UpdateModeState();
     }
 
@@ -90,6 +107,19 @@ public partial class RegisterDialog : Window
         ArgsBox.IsEnabled = !macroMode;
         CommandBrowseButton.IsEnabled = !macroMode;
         MacroBox.IsEnabled = macroMode;
+
+        if (!macroMode && _recordingService.IsRecording)
+        {
+            _recordingService.StopRecording();
+            _recordedLineCount = 0;
+        }
+
+        RefreshRecordingControls();
+
+        if (!macroMode && RecordingStatusText != null)
+        {
+            RecordingStatusText.Text = string.Empty;
+        }
     }
 
     private void OnBrowse(object sender, RoutedEventArgs e)
@@ -140,6 +170,20 @@ public partial class RegisterDialog : Window
             _tipsWindow.Close();
             _tipsWindow = null;
         }
+        if (RecordStartButton != null)
+        {
+            RecordStartButton.PreviewMouseDown -= OnRecordStartPreviewMouseDown;
+        }
+        if (RecordStopButton != null)
+        {
+            RecordStopButton.PreviewMouseDown -= OnRecordStopPreviewMouseDown;
+        }
+        _recordingService.LineRecorded -= OnRecordingLineGenerated;
+        if (_recordingService.IsRecording)
+        {
+            _recordingService.StopRecording();
+        }
+        _recordingService.Dispose();
         base.OnClosed(e);
     }
 
@@ -155,6 +199,119 @@ public partial class RegisterDialog : Window
     private void OnCancel(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void OnRecordStart(object sender, RoutedEventArgs e)
+    {
+        if (!IsMacroMode)
+        {
+            MessageBox.Show("Macro Script モードでのみ記録を利用できます。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_recordingService.IsRecording) return;
+
+        var helper = new WindowInteropHelper(this);
+        if (helper.Handle == IntPtr.Zero)
+        {
+            helper.EnsureHandle();
+        }
+
+        if (!_recordingService.StartRecording(helper.Handle, out var error))
+        {
+            MessageBox.Show(error ?? "入力記録の開始に失敗しました。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Error);
+            RefreshRecordingControls();
+            return;
+        }
+
+        _recordedLineCount = 0;
+        RefreshRecordingControls();
+        _recordingService.SuppressNextLeftButtonUp();
+        if (RecordingStatusText != null)
+        {
+            RecordingStatusText.Text = "記録中... Macro Script に追記する操作を行ってください。";
+        }
+    }
+
+    private void OnRecordStop(object sender, RoutedEventArgs e)
+    {
+        if (!_recordingService.IsRecording) return;
+
+        var lines = _recordingService.StopRecording();
+        if (lines.Count > _recordedLineCount)
+        {
+            foreach (var line in lines.Skip(_recordedLineCount))
+            {
+                AppendMacroLine(line);
+                _recordedLineCount++;
+            }
+        }
+        RefreshRecordingControls();
+        if (RecordingStatusText != null)
+        {
+            RecordingStatusText.Text = _recordedLineCount > 0
+                ? $"記録停止 - {_recordedLineCount} 行を追加しました。"
+                : "記録を開始すると操作が Macro Script に追記されます。";
+        }
+    }
+
+    private void RefreshRecordingControls()
+    {
+        bool macroMode = IsMacroMode;
+        bool recording = _recordingService.IsRecording;
+        if (RecordStartButton != null)
+        {
+            RecordStartButton.IsEnabled = macroMode && !recording;
+        }
+        if (RecordStopButton != null)
+        {
+            RecordStopButton.IsEnabled = macroMode && recording;
+        }
+        if (MacroBox != null)
+        {
+            MacroBox.IsReadOnly = recording;
+        }
+    }
+
+    private void OnRecordingLineGenerated(object? sender, string line)
+    {
+        if (string.IsNullOrWhiteSpace(line)) return;
+        Dispatcher.Invoke(() =>
+        {
+            AppendMacroLine(line);
+            _recordedLineCount++;
+            if (RecordingStatusText != null)
+            {
+                RecordingStatusText.Text = $"記録中... ({_recordedLineCount} 行)";
+            }
+        });
+    }
+
+    private void AppendMacroLine(string line)
+    {
+        if (MacroBox == null) return;
+
+        if (MacroBox.Text.Length > 0 && !MacroBox.Text.EndsWith(Environment.NewLine, StringComparison.Ordinal))
+        {
+            MacroBox.AppendText(Environment.NewLine);
+        }
+
+        MacroBox.AppendText(line);
+        MacroBox.AppendText(Environment.NewLine);
+        MacroBox.CaretIndex = MacroBox.Text.Length;
+        MacroBox.ScrollToEnd();
+    }
+
+    private void OnRecordStartPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _recordingService.SuppressNextLeftButtonDown();
+        _recordingService.SuppressNextLeftButtonUp();
+    }
+
+    private void OnRecordStopPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _recordingService.SuppressNextLeftButtonDown();
+        _recordingService.SuppressNextLeftButtonUp();
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
