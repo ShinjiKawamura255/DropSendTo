@@ -8,6 +8,30 @@ namespace DropSendTo.Tests;
 
 public class KeyboardMacroServiceVariableTests
 {
+    private static IDisposable UseActiveWindowBounds(int left, int top, int right, int bottom)
+    {
+        KeyboardMacroService.SetActiveWindowBoundsForTesting(left, top, right, bottom);
+        return new DelegateDisposable(KeyboardMacroService.ClearActiveWindowBoundsForTesting);
+    }
+
+    private sealed class DelegateDisposable : IDisposable
+    {
+        private readonly Action _onDispose;
+        private bool _disposed;
+
+        public DelegateDisposable(Action onDispose)
+        {
+            _onDispose = onDispose;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _onDispose();
+        }
+    }
+
     [Fact]
     public void TryExpandVariables_ShouldReplacePlaceholders()
     {
@@ -145,5 +169,40 @@ public class KeyboardMacroServiceVariableTests
         ok.Should().BeFalse();
         error.Should().NotBeNull();
         error.Should().Contain("変数名");
+    }
+
+    [Fact]
+    public void TryApplySetDirective_ShouldResolveWindowCoordinateComponent()
+    {
+        using var _ = UseActiveWindowBounds(100, 200, 300, 400);
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var ok = KeyboardMacroService.TryApplySetDirective("SET TargetX WIN_TOPLEFT_X", variables, out var name, out var value, out var error);
+
+        ok.Should().BeTrue();
+        name.Should().Be("TargetX");
+        value.Should().Be("100");
+        variables.Should().ContainKey("TargetX").WhoseValue.Should().Be("100");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryApplyMathDirective_ShouldUseWindowCoordinateOperand()
+    {
+        using var _ = UseActiveWindowBounds(100, 200, 300, 400);
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PosX"] = "0"
+        };
+
+        var ok = KeyboardMacroService.TryApplyMathDirective("ADD PosX WIN_BOTTOMCENTER_X", variables, out var name, out var before, out var operand, out var result, out var error);
+
+        ok.Should().BeTrue();
+        name.Should().Be("PosX");
+        before.Should().Be(0);
+        operand.Should().Be(199); // left 100, right 299 -> midpoint 199
+        result.Should().Be(199);
+        variables.Should().ContainKey("PosX").WhoseValue.Should().Be("199");
+        error.Should().BeNull();
     }
 }

@@ -73,6 +73,30 @@ public class KeyboardMacroServiceMouseCommandTests
         return (uint)mouseValue.GetType().GetField("mouseData", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)!.GetValue(mouseValue)!;
     }
 
+    private static IDisposable UseActiveWindowBounds(int left, int top, int right, int bottom)
+    {
+        KeyboardMacroService.SetActiveWindowBoundsForTesting(left, top, right, bottom);
+        return new DelegateDisposable(KeyboardMacroService.ClearActiveWindowBoundsForTesting);
+    }
+
+    private sealed class DelegateDisposable : IDisposable
+    {
+        private readonly Action _onDispose;
+        private bool _disposed;
+
+        public DelegateDisposable(Action onDispose)
+        {
+            _onDispose = onDispose;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _onDispose();
+        }
+    }
+
     [Fact]
     public void TryHandleMouseCommand_ShouldAppendRelativeMove()
     {
@@ -101,6 +125,46 @@ public class KeyboardMacroServiceMouseCommandTests
         var result = (bool)method.Invoke(null, args)!;
 
         result.Should().BeTrue("画面座標が取得できれば正しく処理できること");
+        args[2].Should().BeNull();
+        ((IList)buffer).Count.Should().Be(1);
+        var input = GetFirstInput(buffer);
+        ReadMouseFlags(input).Should().Be(
+            GetFlag("MOUSEEVENTF_MOVE") |
+            GetFlag("MOUSEEVENTF_ABSOLUTE") |
+            GetFlag("MOUSEEVENTF_VIRTUALDESK"));
+    }
+
+    [Fact]
+    public void TryHandleMouseCommand_ShouldAcceptWindowToken()
+    {
+        using var _ = UseActiveWindowBounds(100, 200, 300, 400);
+        var method = GetMouseCommandMethod();
+        var buffer = CreateInputBuffer();
+        var args = new object?[] { "MOUSEMOVEABS WIN_TOPCENTER", buffer, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue();
+        args[2].Should().BeNull();
+        ((IList)buffer).Count.Should().Be(1);
+        var input = GetFirstInput(buffer);
+        ReadMouseFlags(input).Should().Be(
+            GetFlag("MOUSEEVENTF_MOVE") |
+            GetFlag("MOUSEEVENTF_ABSOLUTE") |
+            GetFlag("MOUSEEVENTF_VIRTUALDESK"));
+    }
+
+    [Fact]
+    public void TryHandleMouseCommand_ShouldAcceptWindowCenterToken()
+    {
+        using var _ = UseActiveWindowBounds(10, 10, 110, 210);
+        var method = GetMouseCommandMethod();
+        var buffer = CreateInputBuffer();
+        var args = new object?[] { "MOUSEMOVEABS WIN_CENTER", buffer, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue();
         args[2].Should().BeNull();
         ((IList)buffer).Count.Should().Be(1);
         var input = GetFirstInput(buffer);
@@ -166,6 +230,21 @@ public class KeyboardMacroServiceMouseCommandTests
 
         result.Should().BeFalse();
         args[2].Should().BeOfType<string>().Which.Should().NotBeNullOrEmpty();
+        ((IList)buffer).Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void TryHandleMouseCommand_ShouldRejectUnknownWindowToken()
+    {
+        using var _ = UseActiveWindowBounds(0, 0, 100, 100);
+        var method = GetMouseCommandMethod();
+        var buffer = CreateInputBuffer();
+        var args = new object?[] { "MOUSEMOVEABS WIN_DIAGONAL", buffer, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeFalse();
+        args[2].Should().BeOfType<string>().Which.Should().Contain("予約語");
         ((IList)buffer).Count.Should().Be(0);
     }
 }
