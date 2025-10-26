@@ -31,6 +31,17 @@
 - Naming: File `ClassName.Tests.cs`; method `Method_ShouldExpectedBehavior_WhenCondition`.
 - Run locally on Windows; avoid tests requiring UI focus when possible.
 
+## Control Flow Cheat Sheet
+- 全体設計は `docs/DESIGN.md`、API 仕様とコマンド一覧は `docs/SPEC.md`、試験観点は `docs/TESTPLAN.md` を参照。
+- UI 起点: `src/DropSendTo/MainWindow.xaml(.cs)`。スロット操作と Prefix 状態を制御し、マクロの呼び出しは `KeyboardMacroService` へ委譲。
+- マクロ処理: `src/DropSendTo/Services/KeyboardMacroService.cs`。検索トークンは `RunMacroInternal`, `TryHandleMouseCommand`, `TryParseInt64OrWindowToken`。座標予約語の解決は `TryResolveWindowCoordinatePoint`/`*_ComponentToken`。
+- 設定 I/O: `src/DropSendTo/Services/ConfigService.cs` が JSON を読み書きし、`SlotModel` がデータ構造を保持。
+- 代表テスト:  
+  - マクロ入力系 → `tests/DropSendTo.Tests/KeyboardMacroServiceMouseCommandTests.cs` / `KeyboardMacroServiceVariableTests.cs`  
+  - 設定永続化 → `tests/DropSendTo.Tests/ConfigServiceTests.cs`  
+  - UI ロジック → `tests/DropSendTo.Tests/MainWindow*` 系
+- 新機能追加時は上記テストに追記しつつ、必要があれば `docs/` 配下の SPEC/DESIGN/TESTPLAN を更新する。
+
 ## Commit & Pull Request Guidelines
 - Commits: Conventional Commits (e.g., `feat(ui): add slot grid`).
 - PRs: Include purpose, linked issues, Before/After, and screenshots/GIFs for UI.
