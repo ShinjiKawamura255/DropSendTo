@@ -24,6 +24,7 @@ public sealed class KeyboardMacroService : IDisposable
     private int _macroRunningFlag;
     private IntPtr _windowHandle;
     private IntPtr _lastExternalWindow;
+    private static readonly AsyncLocal<MacroCursorContext?> CurrentMacroCursor = new();
     private static int _useTestActiveWindowBounds;
     private static RECT _testActiveWindowRect;
     private IntPtr _winEventHook;
@@ -215,6 +216,16 @@ public sealed class KeyboardMacroService : IDisposable
 
         var buffer = new List<INPUT>(16);
         var keyTracker = new KeyHoldTracker();
+        var cursorScope = default(MacroCursorScope);
+
+        if (TryGetCursorPosition(out var cursorX, out var cursorY))
+        {
+            cursorScope = new MacroCursorScope(cursorX, cursorY);
+        }
+        else
+        {
+            _logger.Warn("Failed to capture initial cursor position for macro execution.");
+        }
 
         MacroExecutionResult CompleteResult(MacroExecutionResult result)
         {
@@ -480,6 +491,10 @@ public sealed class KeyboardMacroService : IDisposable
         catch (OperationCanceledException)
         {
             return CompleteResult(MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。"));
+        }
+        finally
+        {
+            cursorScope.Dispose();
         }
     }
 
@@ -1384,6 +1399,20 @@ public sealed class KeyboardMacroService : IDisposable
         buffer.Add(CreateMouseInput(0, 0, unchecked((uint)amount), MOUSEEVENTF_HWHEEL));
     }
 
+    private static bool TryGetCursorPosition(out int x, out int y)
+    {
+        if (GetCursorPos(out var point))
+        {
+            x = point.X;
+            y = point.Y;
+            return true;
+        }
+
+        x = 0;
+        y = 0;
+        return false;
+    }
+
     private static bool TryNormalizeAbsoluteCoordinates(int x, int y, out int normalizedX, out int normalizedY, out string? error)
     {
         error = null;
@@ -1534,6 +1563,18 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     {
         error = "座標予約語が空です。";
         return false;
+    }
+
+    if (TryResolveCursorCoordinate(token, out var cursorX, out var cursorY, out error))
+    {
+        if (error != null)
+        {
+            return false;
+        }
+
+        x = cursorX;
+        y = cursorY;
+        return true;
     }
 
     if (!TryGetActiveWindowBounds(out var rect, out error))
@@ -1743,6 +1784,16 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         return false;
     }
 
+    internal static void SetMacroCursorStartForTesting(int x, int y)
+    {
+        CurrentMacroCursor.Value = new MacroCursorContext(x, y);
+    }
+
+    internal static void ClearMacroCursorForTesting()
+    {
+        CurrentMacroCursor.Value = null;
+    }
+
     internal static void SetActiveWindowBoundsForTesting(int left, int top, int right, int bottom)
     {
         _testActiveWindowRect = new RECT
@@ -1758,6 +1809,39 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     internal static void ClearActiveWindowBoundsForTesting()
     {
         Volatile.Write(ref _useTestActiveWindowBounds, 0);
+    }
+
+    private readonly struct MacroCursorScope : IDisposable
+    {
+        private readonly MacroCursorContext? _previous;
+        private readonly bool _active;
+
+        public MacroCursorScope(int x, int y)
+        {
+            _previous = CurrentMacroCursor.Value;
+            CurrentMacroCursor.Value = new MacroCursorContext(x, y);
+            _active = true;
+        }
+
+        public void Dispose()
+        {
+            if (_active)
+            {
+                CurrentMacroCursor.Value = _previous;
+            }
+        }
+    }
+
+    private readonly struct MacroCursorContext
+    {
+        public MacroCursorContext(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+
+        public int X { get; }
+        public int Y { get; }
     }
 
     private sealed class KeyHoldTracker
@@ -1873,6 +1957,46 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         }
 
         return true;
+    }
+
+    private static bool TryGetMacroCursor(out MacroCursorContext context)
+    {
+        var current = CurrentMacroCursor.Value;
+        if (current.HasValue)
+        {
+            context = current.Value;
+            return true;
+        }
+
+        context = default;
+        return false;
+    }
+
+    private static bool TryResolveCursorCoordinate(string token, out long x, out long y, out string? error)
+    {
+        x = 0;
+        y = 0;
+        error = null;
+
+        var normalized = token.Replace("_", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        switch (normalized)
+        {
+            case "CURSORSTART":
+            case "CURSORORIGIN":
+            case "CURSORHOME":
+            case "CURSORSTARTPOSITION":
+                if (TryGetMacroCursor(out var context))
+                {
+                    x = context.X;
+                    y = context.Y;
+                    return true;
+                }
+
+                error = "マクロ開始時のマウス座標が利用できません。";
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static bool IsExtendedKey(ushort vk) =>
@@ -1991,6 +2115,13 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     private const ushort VK_OEM_7 = 0xDE;
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct RECT
     {
         public int Left;
@@ -2072,6 +2203,9 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetCursorPos(out POINT lpPoint);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);

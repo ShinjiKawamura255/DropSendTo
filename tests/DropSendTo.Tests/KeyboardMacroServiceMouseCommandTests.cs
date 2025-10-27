@@ -79,6 +79,26 @@ public class KeyboardMacroServiceMouseCommandTests
         return new DelegateDisposable(KeyboardMacroService.ClearActiveWindowBoundsForTesting);
     }
 
+    private static IDisposable UseMacroCursor(int x, int y)
+    {
+        KeyboardMacroService.SetMacroCursorStartForTesting(x, y);
+        return new DelegateDisposable(KeyboardMacroService.ClearMacroCursorForTesting);
+    }
+
+    private static MethodInfo GetResolvePointMethod()
+    {
+        var method = typeof(KeyboardMacroService).GetMethod("TryResolveWindowCoordinatePoint", BindingFlags.NonPublic | BindingFlags.Static);
+        method.Should().NotBeNull("座標予約語の解決メソッドが存在すること");
+        return method!;
+    }
+
+    private static MethodInfo GetParseInt64OrWindowTokenMethod()
+    {
+        var method = typeof(KeyboardMacroService).GetMethod("TryParseInt64OrWindowToken", BindingFlags.NonPublic | BindingFlags.Static);
+        method.Should().NotBeNull("座標部品の解決メソッドが存在すること");
+        return method!;
+    }
+
     private sealed class DelegateDisposable : IDisposable
     {
         private readonly Action _onDispose;
@@ -266,5 +286,92 @@ public class KeyboardMacroServiceMouseCommandTests
         result.Should().BeFalse();
         args[2].Should().BeOfType<string>().Which.Should().Contain("予約語");
         ((IList)buffer).Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void TryResolveWindowCoordinatePoint_ShouldReturnMacroCursorOrigin()
+    {
+        using var _ = UseMacroCursor(640, 480);
+        var method = GetResolvePointMethod();
+        var args = new object?[] { "CURSOR_START", 0L, 0L, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue();
+        args[3].Should().BeNull();
+        ((long)args[1]!).Should().Be(640);
+        ((long)args[2]!).Should().Be(480);
+    }
+
+    [Fact]
+    public void TryParseInt64OrWindowToken_ShouldResolveCursorStartComponent()
+    {
+        using var _ = UseMacroCursor(123, 456);
+        var method = GetParseInt64OrWindowTokenMethod();
+        var args = new object?[] { "CURSOR_START_Y", 0L, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue();
+        args[2].Should().BeNull();
+        ((long)args[1]!).Should().Be(456);
+    }
+
+    [Fact]
+    public void TryResolveWindowCoordinatePoint_ShouldFailWithoutCursorContext()
+    {
+        KeyboardMacroService.ClearMacroCursorForTesting();
+        var method = GetResolvePointMethod();
+        var args = new object?[] { "CURSOR_START", 0L, 0L, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeFalse();
+        args[3].Should().BeOfType<string>().Which.Should().Contain("マクロ開始時のマウス座標");
+    }
+
+    [Theory]
+    [InlineData("WIN_TOPLEFT")]
+    [InlineData("WIN_TOPCENTER")]
+    [InlineData("WIN_TOPMIDDLE")]
+    [InlineData("WIN_TOPRIGHT")]
+    [InlineData("WIN_LEFTCENTER")]
+    [InlineData("WIN_LEFTMIDDLE")]
+    [InlineData("WIN_RIGHTCENTER")]
+    [InlineData("WIN_RIGHTMIDDLE")]
+    [InlineData("WIN_BOTTOMLEFT")]
+    [InlineData("WIN_BOTTOMCENTER")]
+    [InlineData("WIN_BOTTOMMIDDLE")]
+    [InlineData("WIN_BOTTOMRIGHT")]
+    [InlineData("WIN_CENTER")]
+    [InlineData("WIN_MIDDLE")]
+    [InlineData("WIN_MID")]
+    public void TryResolveWindowCoordinatePoint_ShouldAcceptDocumentedWindowTokens(string token)
+    {
+        using var _ = UseActiveWindowBounds(10, 10, 210, 410);
+        var method = GetResolvePointMethod();
+        var args = new object?[] { token, 0L, 0L, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue($"{token} はドキュメントで許容される座標予約語であること");
+        args[3].Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("WIN_RIGHTBOTTOM")]
+    [InlineData("WIN_BOTTOMRIGHT_XY")]
+    [InlineData("WIN_CENTERLEFT")]
+    [InlineData("WIN_TOPRIGHT_XY")]
+    public void TryResolveWindowCoordinatePoint_ShouldRejectUnknownWindowTokenVariants(string token)
+    {
+        using var _ = UseActiveWindowBounds(0, 0, 100, 100);
+        var method = GetResolvePointMethod();
+        var args = new object?[] { token, 0L, 0L, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeFalse();
+        args[3].Should().BeOfType<string>().Which.Should().Contain("予約語");
     }
 }
