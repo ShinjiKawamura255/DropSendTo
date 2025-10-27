@@ -1,4 +1,5 @@
 using System;
+using WpfClipboard = System.Windows.Clipboard;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -78,7 +79,7 @@ public class LauncherService
 
     private string? TryReadClipboardText()
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null)
         {
             return null;
@@ -91,9 +92,9 @@ public class LauncherService
         {
             try
             {
-                if (Clipboard.ContainsText())
+                if (WpfClipboard.ContainsText())
                 {
-                    clipboardText = Clipboard.GetText();
+                    clipboardText = WpfClipboard.GetText();
                 }
             }
             catch (Exception ex)

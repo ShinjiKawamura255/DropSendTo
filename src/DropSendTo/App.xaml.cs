@@ -1,12 +1,14 @@
 using System;
 using System.Linq;
-using System.Windows;
 using DropSendTo.Services;
 using DropSendTo.Models;
+using System.Windows;
+using WpfApplication = System.Windows.Application;
+using WpfMessageBox = System.Windows.MessageBox;
 
 namespace DropSendTo;
 
-public partial class App : Application
+public partial class App : WpfApplication
 {
     private readonly ConfigService _configService = new();
     private readonly LauncherService _launcher = new();
@@ -17,7 +19,7 @@ public partial class App : Application
         this.DispatcherUnhandledException += (_, e) =>
         {
             _logger.Error($"Unhandled (UI): {e.Exception}");
-            MessageBox.Show(
+            WpfMessageBox.Show(
                 e.Exception.Message,
                 "DropSendTo Error",
                 MessageBoxButton.OK,
@@ -27,7 +29,7 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             _logger.Error($"Unhandled (Domain): {e.ExceptionObject}");
-            MessageBox.Show(e.ExceptionObject?.ToString() ?? "Unhandled exception",
+            WpfMessageBox.Show(e.ExceptionObject?.ToString() ?? "Unhandled exception",
                 "DropSendTo Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -59,7 +61,7 @@ public partial class App : Application
                     if (!result.Success)
                     {
                         _logger.Error($"Launch failed: {result.Message}");
-                        MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                         // Fall through to show UI for manual drop
                     }
                     else
@@ -72,7 +74,7 @@ public partial class App : Application
                 else
                 {
                     _logger.Warn("No registered slot found for CLI launch");
-                    MessageBox.Show("No registered slot found. Please register a slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
+                    WpfMessageBox.Show("No registered slot found. Please register a slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
         }

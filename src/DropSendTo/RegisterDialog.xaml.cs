@@ -1,3 +1,6 @@
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using WpfMessageBox = System.Windows.MessageBox;
+using Win32OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using System;
 using System.Linq;
 using System.Windows;
@@ -60,7 +63,7 @@ public partial class RegisterDialog : Window
         {
             if (string.IsNullOrWhiteSpace(MacroBox.Text))
             {
-                MessageBox.Show("Macro Script モードでは Macro Script を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                WpfMessageBox.Show("Macro Script モードでは Macro Script を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             CommandBox.Text = string.Empty;
@@ -69,7 +72,7 @@ public partial class RegisterDialog : Window
         {
             if (string.IsNullOrWhiteSpace(CommandBox.Text))
             {
-                MessageBox.Show("Command モードでは Command を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                WpfMessageBox.Show("Command モードでは Command を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             MacroBox.Text = string.Empty;
@@ -80,7 +83,7 @@ public partial class RegisterDialog : Window
         {
             if (!KeyChordParser.TryParse(shortcutText, out var chord, out var error))
             {
-                MessageBox.Show(error ?? "ショートカットの書式が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                WpfMessageBox.Show(error ?? "ショートカットの書式が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             ShortcutChord = chord.NormalizedString;
@@ -124,7 +127,7 @@ public partial class RegisterDialog : Window
 
     private void OnBrowse(object sender, RoutedEventArgs e)
     {
-        var dlg = new OpenFileDialog
+        var dlg = new Win32OpenFileDialog
         {
             Filter = "All files (*.*)|*.*"
         };
@@ -205,7 +208,7 @@ public partial class RegisterDialog : Window
     {
         if (!IsMacroMode)
         {
-            MessageBox.Show("Macro Script モードでのみ記録を利用できます。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("Macro Script モードでのみ記録を利用できます。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -219,7 +222,7 @@ public partial class RegisterDialog : Window
 
         if (!_recordingService.StartRecording(helper.Handle, out var error))
         {
-            MessageBox.Show(error ?? "入力記録の開始に失敗しました。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(error ?? "入力記録の開始に失敗しました。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Error);
             RefreshRecordingControls();
             return;
         }

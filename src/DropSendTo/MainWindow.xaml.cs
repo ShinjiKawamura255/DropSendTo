@@ -6,10 +6,21 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using DropSendTo.Models;
 using DropSendTo.Services;
+using Forms = System.Windows.Forms;
+using MediaColor = System.Windows.Media.Color;
+using DragEventArgs = System.Windows.DragEventArgs;
+using WpfMessageBox = System.Windows.MessageBox;
+using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
+using WpfVerticalAlignment = System.Windows.VerticalAlignment;
+
+using WpfButton = System.Windows.Controls.Button;
+using WpfDataFormats = System.Windows.DataFormats;
+using WpfDragDropEffects = System.Windows.DragDropEffects;
 
 namespace DropSendTo;
 
@@ -24,6 +35,7 @@ public partial class MainWindow : Window
     private readonly ShortcutService _shortcutService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
+    private Forms.NotifyIcon? _notifyIcon;
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
@@ -68,12 +80,12 @@ public partial class MainWindow : Window
         StatusFontSize: 10);
     static MainWindow()
     {
-        PrefixArmedBackgroundBrush = CreateFrozenBrush(Color.FromRgb(0x1E, 0x82, 0x4C));
-        PrefixArmedBorderBrush = CreateFrozenBrush(Color.FromRgb(0x7C, 0xFF, 0xB0));
-        PrefixArmedForegroundBrush = CreateFrozenBrush(Colors.White);
+        PrefixArmedBackgroundBrush = CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x82, 0x4C));
+        PrefixArmedBorderBrush = CreateFrozenBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
+        PrefixArmedForegroundBrush = CreateFrozenBrush(System.Windows.Media.Colors.White);
     }
 
-    private static SolidColorBrush CreateFrozenBrush(Color color)
+    private static SolidColorBrush CreateFrozenBrush(MediaColor color)
     {
         var brush = new SolidColorBrush(color);
         brush.Freeze();
@@ -91,6 +103,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
+        InitializeNotifyIcon();
         _configService = new ConfigService();
        _launcher = new LauncherService();
        _config = _configService.LoadOrCreate();
@@ -123,6 +136,63 @@ public partial class MainWindow : Window
             }
             _layerHoverTimer.Stop();
         };
+    }
+
+    private void InitializeNotifyIcon()
+    {
+        _notifyIcon = new Forms.NotifyIcon
+        {
+            Text = "DropSendTo",
+            Visible = true
+        };
+
+        try
+        {
+            var resource = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Resources/AppIcon.ico"));
+            if (resource?.Stream != null)
+            {
+                using var iconStream = resource.Stream;
+                _notifyIcon.Icon = new System.Drawing.Icon(iconStream);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to load tray icon: {ex.Message}");
+        }
+
+        _notifyIcon.MouseClick += OnNotifyIconMouseClick;
+    }
+
+    private void OnNotifyIconMouseClick(object? sender, Forms.MouseEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (e.Button == Forms.MouseButtons.Left)
+            {
+                if (!IsVisible)
+                {
+                    Show();
+                }
+                if (WindowState == WindowState.Minimized)
+                {
+                    WindowState = WindowState.Normal;
+                }
+                Activate();
+                Focus();
+                bool desiredTopmost = _config?.AlwaysOnTop ?? true;
+                Topmost = true;
+                Topmost = desiredTopmost;
+            }
+            else if (e.Button == Forms.MouseButtons.Right)
+            {
+                if (ContextMenu != null)
+                {
+                    ContextMenu.PlacementTarget = this;
+                    ContextMenu.Placement = PlacementMode.MousePoint;
+                    ContextMenu.IsOpen = true;
+                }
+            }
+        });
     }
 
     private void ApplySlotLayout()
@@ -208,10 +278,10 @@ public partial class MainWindow : Window
         var border = new Border
         {
             Margin = new Thickness(2),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11)),
+            Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11)),
             Height = metrics.SlotHeight,
             AllowDrop = true,
             Tag = index
@@ -219,8 +289,8 @@ public partial class MainWindow : Window
 
         var stack = new StackPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Center,
+            VerticalAlignment = WpfVerticalAlignment.Center,
             Tag = index
         };
 
@@ -230,7 +300,7 @@ public partial class MainWindow : Window
             FontSize = metrics.TitleFontSize,
             TextWrapping = TextWrapping.Wrap,
             TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Center,
             Tag = index
         };
 
@@ -238,9 +308,9 @@ public partial class MainWindow : Window
         {
             Text = "マクロ実行中...",
             FontSize = metrics.StatusFontSize,
-            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0)),
+            Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0)),
             TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            HorizontalAlignment = WpfHorizontalAlignment.Center,
             Visibility = Visibility.Collapsed,
             Tag = index
         };
@@ -271,7 +341,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.Error($"Failed to initialize keyboard macro service: {ex}");
-            MessageBox.Show("マクロサービスの初期化に失敗しました。ログを確認してください。", "Macro Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
+            WpfMessageBox.Show("マクロサービスの初期化に失敗しました。ログを確認してください。", "Macro Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         try
@@ -296,14 +366,14 @@ public partial class MainWindow : Window
             else
             {
                 _logger.Warn("Configured shortcut prefix could not be parsed. Falling back to Ctrl+Q.");
-                MessageBox.Show("設定ファイルの Prefix を解釈できなかったため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
+                WpfMessageBox.Show("設定ファイルの Prefix を解釈できなかったため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             UpdateShortcutRegistrations();
         }
         catch (Exception ex)
         {
             _logger.Error($"Failed to initialize shortcut service: {ex}");
-            MessageBox.Show("ショートカットサービスの初期化に失敗しました。ログを確認してください。", "Shortcut Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
+            WpfMessageBox.Show("ショートカットサービスの初期化に失敗しました。ログを確認してください。", "Shortcut Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -402,24 +472,24 @@ public partial class MainWindow : Window
         switch (state)
         {
             case SlotMacroState.Running:
-                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x1A, 0x2E, 0x1A));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x5A, 0xD6, 0x6B));
+                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1A, 0x2E, 0x1A));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x5A, 0xD6, 0x6B));
                 status.Text = "マクロ実行中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
                 status.Visibility = Visibility.Visible;
                 break;
             case SlotMacroState.Cancelling:
-                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2E, 0x28, 0x1A));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xC6, 0x4D));
+                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x2E, 0x28, 0x1A));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xC6, 0x4D));
                 status.Text = "キャンセル中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xD7, 0x66));
+                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xD7, 0x66));
                 status.Visibility = Visibility.Visible;
                 break;
             default:
-                border.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
+                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33));
                 status.Text = "マクロ実行中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x7C, 0xFF, 0xB0));
+                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
                 status.Visibility = Visibility.Collapsed;
                 break;
         }
@@ -511,7 +581,7 @@ public partial class MainWindow : Window
                        slot.ClickEnabled;
         if (!isEmpty)
         {
-            var result = MessageBox.Show(
+            var result = WpfMessageBox.Show(
                 "このスロットの設定を初期化します。よろしいですか？",
                 "Clear Slot",
                 MessageBoxButton.YesNo,
@@ -530,25 +600,25 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-            var paths = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (!e.Data.GetDataPresent(WpfDataFormats.FileDrop)) return;
+            var paths = (string[])e.Data.GetData(WpfDataFormats.FileDrop);
             if (sender is not FrameworkElement fe) return;
             int idx = GetSlotIndex(fe);
             var slot = _config.Layers[_currentLayer].Slots[idx];
             if (string.IsNullOrWhiteSpace(slot.Command))
             {
-                MessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
+                WpfMessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var result = _launcher.Launch(slot, paths);
             if (!result.Success)
             {
-                MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Drop Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(ex.Message, "Drop Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -651,7 +721,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -674,7 +744,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Open Logs", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(ex.Message, "Open Logs", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -729,7 +799,7 @@ public partial class MainWindow : Window
     {
         while (source != null)
         {
-            if (source is Button or MenuItem)
+            if (source is WpfButton or MenuItem)
             {
                 return true;
             }
@@ -748,7 +818,7 @@ public partial class MainWindow : Window
 
     private void OnLayerDragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
         {
             if (sender == LayerBtn1) _hoverTargetLayer = 0;
             else if (sender == LayerBtn2) _hoverTargetLayer = 1;
@@ -762,14 +832,14 @@ public partial class MainWindow : Window
 
     private void OnLayerDragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
         {
             if (sender == LayerBtn1) _hoverTargetLayer = 0;
             else if (sender == LayerBtn2) _hoverTargetLayer = 1;
             else if (sender == LayerBtn3) _hoverTargetLayer = 2;
             else if (sender == LayerBtn4) _hoverTargetLayer = 3;
             if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
-            e.Effects = DragDropEffects.Link;
+            e.Effects = WpfDragDropEffects.Link;
             e.Handled = true;
         }
     }
@@ -785,7 +855,7 @@ public partial class MainWindow : Window
         if (sender is not Border b) return;
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(32, 32, 32));
+        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(32, 32, 32));
         b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray);
     }
     private void OnSlotMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
@@ -800,8 +870,8 @@ public partial class MainWindow : Window
         if (sender is not Border b) return;
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48));
-        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(200, 200, 200));
+        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
+        b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(200, 200, 200));
     }
 
     private void OnSlotDragEnter(object sender, DragEventArgs e)
@@ -809,7 +879,7 @@ public partial class MainWindow : Window
         if (sender is not Border b) return;
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(48, 48, 48));
+        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
         b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
     }
     private void OnSlotDragLeave(object sender, DragEventArgs e)
@@ -855,7 +925,7 @@ public partial class MainWindow : Window
             else
             {
                 _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                MessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
+                WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             return;
         }
@@ -882,7 +952,7 @@ public partial class MainWindow : Window
                     }
                     if (!macroResult.IsCanceled)
                     {
-                        MessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        WpfMessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                     return;
                 }
@@ -891,7 +961,7 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {ex}");
-                MessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                WpfMessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
             finally
@@ -907,7 +977,7 @@ public partial class MainWindow : Window
             if (!result.Success)
             {
                 _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {result.Message}");
-                MessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             else
             {
@@ -1055,13 +1125,13 @@ public partial class MainWindow : Window
 
     private void UpdateLayerButtonVisuals()
     {
-        void SetState(Button b, bool active)
+        void SetState(WpfButton b, bool active)
         {
             if (active)
             {
                 // Black-based emphasis: brighter gray background and strong border
                 b.Opacity = 1.0;
-                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x22, 0x22, 0x22));
+                b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x22, 0x22, 0x22));
                 b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
                 b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
                 b.FontWeight = System.Windows.FontWeights.SemiBold;
@@ -1069,8 +1139,8 @@ public partial class MainWindow : Window
             else
             {
                 b.Opacity = 0.9;
-                b.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11));
-                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0x44, 0x44));
+                b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
+                b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x44, 0x44, 0x44));
                 b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
                 b.FontWeight = System.Windows.FontWeights.Normal;
             }
@@ -1084,6 +1154,13 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        if (_notifyIcon != null)
+        {
+            _notifyIcon.MouseClick -= OnNotifyIconMouseClick;
+            _notifyIcon.Visible = false;
+            _notifyIcon.Dispose();
+            _notifyIcon = null;
+        }
         _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
         _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;

@@ -1,4 +1,5 @@
 using System;
+using WpfClipboard = System.Windows.Clipboard;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -899,7 +900,7 @@ public sealed class KeyboardMacroService : IDisposable
     private bool TrySetClipboardText(string text, out string? error)
     {
         error = null;
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null)
         {
             error = "アプリケーションのディスパッチャが利用できません。";
@@ -916,7 +917,7 @@ public sealed class KeyboardMacroService : IDisposable
             {
                 try
                 {
-                    Clipboard.SetText(clipboardText);
+                    WpfClipboard.SetText(clipboardText);
                 }
                 catch (Exception ex)
                 {
@@ -941,7 +942,7 @@ public sealed class KeyboardMacroService : IDisposable
             if (attempt == 2)
             {
                 error = $"クリップボードへの書き込みに失敗しました: {operationError.Message}";
-                _logger.Error($"Clipboard.SetText failed: {operationError}");
+                _logger.Error($"WpfClipboard.SetText failed: {operationError}");
                 return false;
             }
 

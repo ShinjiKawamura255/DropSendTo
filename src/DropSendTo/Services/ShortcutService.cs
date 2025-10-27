@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Timer = System.Threading.Timer;
+using System.Threading;
 
 namespace DropSendTo.Services;
 

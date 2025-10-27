@@ -9,7 +9,8 @@
         Foreground="#FFFFFFFF"
         WindowStyle="None"
         ResizeMode="NoResize"
-        PreviewMouseWheel="OnMouseWheel">
+        PreviewMouseWheel="OnMouseWheel"
+        ShowInTaskbar="False">
     <Window.ContextMenu>
         <ContextMenu Opened="OnContextMenuOpened">
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
