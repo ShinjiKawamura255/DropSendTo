@@ -6,6 +6,7 @@ using Xunit;
 
 namespace DropSendTo.Tests;
 
+[Collection("KeyboardMacroServiceTests")]
 public class KeyboardMacroServiceVariableTests
 {
     private static IDisposable UseActiveWindowBounds(int left, int top, int right, int bottom)

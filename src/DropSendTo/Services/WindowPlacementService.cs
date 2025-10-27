@@ -17,6 +17,8 @@ public class WindowPlacementService
 
         var maxLeft = bounds.Right - windowWidth;
         var maxTop = bounds.Bottom - windowHeight;
+        if (maxLeft < bounds.Left) maxLeft = bounds.Left;
+        if (maxTop < bounds.Top) maxTop = bounds.Top;
         if (cl < bounds.Left) cl = bounds.Left;
         if (ct < bounds.Top) ct = bounds.Top;
         if (cl > maxLeft) cl = maxLeft;
@@ -24,4 +26,3 @@ public class WindowPlacementService
         return (cl, ct);
     }
 }
-

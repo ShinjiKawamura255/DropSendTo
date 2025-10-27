@@ -7,6 +7,7 @@ using Xunit;
 
 namespace DropSendTo.Tests;
 
+[Collection("KeyboardMacroServiceTests")]
 public class KeyboardMacroServiceMouseCommandTests
 {
     private static MethodInfo GetMouseCommandMethod()
