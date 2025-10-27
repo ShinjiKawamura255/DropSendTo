@@ -213,20 +213,45 @@ public sealed class KeyboardMacroService : IDisposable
             return MacroExecutionResult.Fail("ターゲットとなる直前のウィンドウが見つかりません。");
         }
 
+        var buffer = new List<INPUT>(16);
+        var keyTracker = new KeyHoldTracker();
+
+        MacroExecutionResult CompleteResult(MacroExecutionResult result)
+        {
+            if (!result.Success)
+            {
+                buffer.Clear();
+            }
+
+            if (keyTracker.HasHeldKeys)
+            {
+                keyTracker.ReleaseAll(buffer);
+            }
+
+            if (!TryFlushInputs(buffer, out var finalError))
+            {
+                return result.Success
+                    ? MacroExecutionResult.Fail(finalError ?? "SendInput の実行に失敗しました。")
+                    : result;
+            }
+
+            return result;
+        }
+
         try
         {
+            var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             if (!TryFocusTarget(target, out string? focusError))
             {
-                return MacroExecutionResult.Fail(focusError ?? "ターゲットのフォーカス取得に失敗しました。");
+                return CompleteResult(MacroExecutionResult.Fail(focusError ?? "ターゲットのフォーカス取得に失敗しました。"));
             }
 
             var lines = script.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
             if (!TryExpandRepeatBlocks(lines, out var expandedLines, out var expandError))
             {
-                return MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。");
+                return CompleteResult(MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。"));
             }
-            var buffer = new List<INPUT>(16);
-            var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var rawLine in expandedLines)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -237,7 +262,7 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     if (!TryApplySetDirective(line, variables, out var setName, out var setValue, out var setError))
                     {
-                        return MacroExecutionResult.Fail(setError ?? $"SET コマンドの解釈に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(setError ?? $"SET コマンドの解釈に失敗しました: \"{line}\""));
                     }
                     if (!string.IsNullOrEmpty(setName))
                     {
@@ -250,7 +275,7 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     if (!TryApplyUnsetDirective(line, variables, out var unsetName, out var removed, out var unsetError))
                     {
-                        return MacroExecutionResult.Fail(unsetError ?? $"UNSET コマンドの解釈に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(unsetError ?? $"UNSET コマンドの解釈に失敗しました: \"{line}\""));
                     }
                     if (!string.IsNullOrEmpty(unsetName))
                     {
@@ -271,7 +296,7 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     if (!TryApplyMathDirective(line, variables, out var mathName, out var beforeValue, out var operandValue, out var resultValue, out var mathError))
                     {
-                        return MacroExecutionResult.Fail(mathError ?? $"数値演算の解釈に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(mathError ?? $"数値演算の解釈に失敗しました: \"{line}\""));
                     }
                     if (!string.IsNullOrEmpty(mathName))
                     {
@@ -285,7 +310,7 @@ public sealed class KeyboardMacroService : IDisposable
                     bool prepend = StartsWithCommand(line, "PREPEND");
                     if (!TryApplyConcatDirective(line, variables, prepend, out var concatName, out var newValue, out var concatError))
                     {
-                        return MacroExecutionResult.Fail(concatError ?? $"文字列結合の解釈に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(concatError ?? $"文字列結合の解釈に失敗しました: \"{line}\""));
                     }
                     if (!string.IsNullOrEmpty(concatName))
                     {
@@ -299,15 +324,15 @@ public sealed class KeyboardMacroService : IDisposable
                     var waitToken = line.Length > 4 ? line[4..].Trim() : string.Empty;
                     if (!TryExpandVariables(waitToken, variables, out var expandedWait, out var waitExpandError))
                     {
-                        return MacroExecutionResult.Fail(waitExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(waitExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     if (!int.TryParse(expandedWait, out var waitMs) || waitMs < 0 || waitMs > 60000)
                     {
-                        return MacroExecutionResult.Fail($"WAIT に指定できる時間は 0〜60000 ミリ秒です: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail($"WAIT に指定できる時間は 0〜60000 ミリ秒です: \"{line}\""));
                     }
                     if (!TryFlushInputs(buffer, out var flushError))
                     {
-                        return MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。"));
                     }
                     if (waitMs > 0 && cancellationToken.WaitHandle.WaitOne(waitMs))
                     {
@@ -332,12 +357,12 @@ public sealed class KeyboardMacroService : IDisposable
                         }
                         else
                         {
-                            return MacroExecutionResult.Fail($"PREFIX コマンドの書式が不正です: \"{line}\"");
+                            return CompleteResult(MacroExecutionResult.Fail($"PREFIX コマンドの書式が不正です: \"{line}\""));
                         }
                     }
                     if (!TryAppendPrefixSequence(buffer, passthrough, out var prefixError))
                     {
-                        return MacroExecutionResult.Fail(prefixError ?? "PREFIX コマンドの実行に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(prefixError ?? "PREFIX コマンドの実行に失敗しました。"));
                     }
                     continue;
                 }
@@ -347,15 +372,15 @@ public sealed class KeyboardMacroService : IDisposable
                     var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
                     if (!TryExpandVariables(text, variables, out var expandedText, out var textExpandError))
                     {
-                        return MacroExecutionResult.Fail(textExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(textExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     if (!TryFlushInputs(buffer, out var flushBeforeTextError))
                     {
-                        return MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。"));
                     }
                     if (!TrySendUnicodeText(expandedText, cancellationToken, out var textError))
                     {
-                        return MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。"));
                     }
                     continue;
                 }
@@ -365,23 +390,23 @@ public sealed class KeyboardMacroService : IDisposable
                     var text = line.Length > 8 ? line[8..].TrimStart() : string.Empty;
                     if (!TryExpandVariables(text, variables, out var clipText, out var clipExpandError))
                     {
-                        return MacroExecutionResult.Fail(clipExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(clipExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     if (!TryFlushInputs(buffer, out var flushBeforeClipError))
                     {
-                        return MacroExecutionResult.Fail(flushBeforeClipError ?? "SendInput の実行に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(flushBeforeClipError ?? "SendInput の実行に失敗しました。"));
                     }
                     if (!TrySetClipboardText(clipText, out var clipboardError))
                     {
-                        return MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。"));
                     }
                     if (!TryAppendCombination("CTRL+V", buffer, InputExtraInfo.MacroPassthroughPointer, out var pasteError))
                     {
-                        return MacroExecutionResult.Fail(pasteError ?? "Ctrl+V の送信に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(pasteError ?? "Ctrl+V の送信に失敗しました。"));
                     }
                     if (!TryFlushInputs(buffer, out var flushAfterClipError))
                     {
-                        return MacroExecutionResult.Fail(flushAfterClipError ?? "SendInput の実行に失敗しました。");
+                        return CompleteResult(MacroExecutionResult.Fail(flushAfterClipError ?? "SendInput の実行に失敗しました。"));
                     }
                     if (ClipTextAutoWaitMilliseconds > 0 && cancellationToken.WaitHandle.WaitOne(ClipTextAutoWaitMilliseconds))
                     {
@@ -395,12 +420,13 @@ public sealed class KeyboardMacroService : IDisposable
                     var token = line.Length > 7 ? line[7..].Trim() : string.Empty;
                     if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
                     {
-                        return MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     var resolvedToken = expandedToken.Trim();
                     if (!KeyChordParser.TryResolveKeyToken(resolvedToken, out var key))
-                        return MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{resolvedToken}\"");
+                        return CompleteResult(MacroExecutionResult.Fail($"KEYDOWN のキー名が不正です: \"{resolvedToken}\""));
                     AppendKey(buffer, key, false);
+                    keyTracker.TrackKeyDown(key);
                     continue;
                 }
 
@@ -409,12 +435,13 @@ public sealed class KeyboardMacroService : IDisposable
                     var token = line.Length > 5 ? line[5..].Trim() : string.Empty;
                     if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
                     {
-                        return MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     var resolvedToken = expandedToken.Trim();
                     if (!KeyChordParser.TryResolveKeyToken(resolvedToken, out var key))
-                        return MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{resolvedToken}\"");
+                        return CompleteResult(MacroExecutionResult.Fail($"KEYUP のキー名が不正です: \"{resolvedToken}\""));
                     AppendKey(buffer, key, true);
+                    keyTracker.TrackKeyUp(key);
                     continue;
                 }
 
@@ -423,11 +450,11 @@ public sealed class KeyboardMacroService : IDisposable
                     var combo = line.Length > 3 ? line[3..].Trim() : string.Empty;
                     if (!TryExpandVariables(combo, variables, out var expandedCombo, out var comboExpandError))
                     {
-                        return MacroExecutionResult.Fail(comboExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(comboExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     if (!TryAppendCombination(expandedCombo.Trim(), buffer, InputExtraInfo.MacroPassthroughPointer, out var error))
                     {
-                        return MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{expandedCombo}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(error ?? $"KEY の書式が不正です: \"{expandedCombo}\""));
                     }
                     continue;
                 }
@@ -436,28 +463,23 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     if (!TryExpandVariables(line, variables, out var expandedMouse, out var mouseExpandError))
                     {
-                        return MacroExecutionResult.Fail(mouseExpandError ?? $"変数の解決に失敗しました: \"{line}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(mouseExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
                     if (!TryHandleMouseCommand(expandedMouse, buffer, out var mouseError))
                     {
-                        return MacroExecutionResult.Fail(mouseError ?? $"MOUSE コマンドの書式が不正です: \"{expandedMouse}\"");
+                        return CompleteResult(MacroExecutionResult.Fail(mouseError ?? $"MOUSE コマンドの書式が不正です: \"{expandedMouse}\""));
                     }
                     continue;
                 }
 
-                return MacroExecutionResult.Fail($"未知のマクロ命令です: \"{line}\"");
+                return CompleteResult(MacroExecutionResult.Fail($"未知のマクロ命令です: \"{line}\""));
             }
 
-            if (!TryFlushInputs(buffer, out var finalFlushError))
-            {
-                return MacroExecutionResult.Fail(finalFlushError ?? "SendInput の実行に失敗しました。");
-            }
-
-            return MacroExecutionResult.Ok();
+            return CompleteResult(MacroExecutionResult.Ok());
         }
         catch (OperationCanceledException)
         {
-            return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
+            return CompleteResult(MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。"));
         }
     }
 
@@ -1736,6 +1758,45 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     internal static void ClearActiveWindowBoundsForTesting()
     {
         Volatile.Write(ref _useTestActiveWindowBounds, 0);
+    }
+
+    private sealed class KeyHoldTracker
+    {
+        private readonly List<ushort> _order = new();
+        private readonly HashSet<ushort> _set = new();
+
+        public bool HasHeldKeys => _order.Count > 0;
+
+        public void TrackKeyDown(ushort key)
+        {
+            if (_set.Add(key))
+            {
+                _order.Add(key);
+            }
+        }
+
+        public void TrackKeyUp(ushort key)
+        {
+            if (!_set.Remove(key)) return;
+            for (int i = _order.Count - 1; i >= 0; i--)
+            {
+                if (_order[i] == key)
+                {
+                    _order.RemoveAt(i);
+                    break;
+                }
+            }
+        }
+
+        public void ReleaseAll(List<INPUT> buffer)
+        {
+            for (int i = _order.Count - 1; i >= 0; i--)
+            {
+                AppendKey(buffer, _order[i], true);
+            }
+            _order.Clear();
+            _set.Clear();
+        }
     }
 
     private sealed class RepeatFrame

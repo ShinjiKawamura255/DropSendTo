@@ -199,6 +199,10 @@ internal static class KeyChordParser
         {
             return true;
         }
+        if (TryResolveModifier(token, out var modifierKind) && TryGetModifierVirtualKey(modifierKind, out key))
+        {
+            return true;
+        }
         if (token.Length == 1)
         {
             var ch = char.ToUpperInvariant(token[0]);
