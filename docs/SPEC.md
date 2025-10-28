@@ -26,7 +26,7 @@
 - MUST: ドロップされたパス（複数可）は登録先のコマンドへ `{args}` を展開して渡される。
 - MUST: スロットクリック時は、設定されていればマクロスクリプトを最初に実行し、成功した場合のみコマンドを起動する。マクロのみ／コマンドのみも許容する。
 - MUST: マクロ実行中は別スロットのマクロをブロックし、警告を表示する。ただしコマンドのみのスロット起動は並列に許可する。
-- MUST: マクロは直前にアクティブだった外部ウィンドウへキーストロークを送る。ターゲットが見つからない場合はエラー扱い。
+- MUST: マクロは直前にアクティブだった外部ウィンドウへのフォーカス取得を試みた上でキーストロークを送る。ターゲットの特定やフォーカス取得に失敗した場合でもエラーにせず警告ログを残し、現在のフォーカス状態で実行を継続する。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。

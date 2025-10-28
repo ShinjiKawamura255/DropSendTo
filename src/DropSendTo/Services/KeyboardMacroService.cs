@@ -209,10 +209,10 @@ public sealed class KeyboardMacroService : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         IntPtr target = ResolveTargetWindow();
-        if (target == IntPtr.Zero)
+        bool targetAvailable = target != IntPtr.Zero;
+        if (!targetAvailable)
         {
-            _logger.Warn("Macro execution aborted: no target window available.");
-            return MacroExecutionResult.Fail("ターゲットとなる直前のウィンドウが見つかりません。");
+            _logger.Warn("No previous window captured; continuing macro execution without focusing a target.");
         }
 
         var buffer = new List<INPUT>(16);
@@ -254,9 +254,13 @@ public sealed class KeyboardMacroService : IDisposable
         {
             var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            if (!TryFocusTarget(target, out string? focusError))
+            if (targetAvailable)
             {
-                return CompleteResult(MacroExecutionResult.Fail(focusError ?? "ターゲットのフォーカス取得に失敗しました。"));
+                if (!TryFocusTarget(target, out string? focusError))
+                {
+                    var message = focusError ?? "ターゲットのフォーカス取得に失敗しました。";
+                    _logger.Warn($"Failed to focus previous window; continuing without focus: {message}");
+                }
             }
 
             var lines = script.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
