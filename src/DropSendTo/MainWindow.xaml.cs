@@ -169,19 +169,7 @@ public partial class MainWindow : Window
         {
             if (e.Button == Forms.MouseButtons.Left)
             {
-                if (!IsVisible)
-                {
-                    Show();
-                }
-                if (WindowState == WindowState.Minimized)
-                {
-                    WindowState = WindowState.Normal;
-                }
-                Activate();
-                Focus();
-                bool desiredTopmost = _config?.AlwaysOnTop ?? true;
-                Topmost = true;
-                Topmost = desiredTopmost;
+                BringWindowToForeground();
             }
             else if (e.Button == Forms.MouseButtons.Right)
             {
@@ -193,6 +181,23 @@ public partial class MainWindow : Window
                 }
             }
         });
+    }
+
+    private void BringWindowToForeground()
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+        Activate();
+        Focus();
+        bool desiredTopmost = _config?.AlwaysOnTop ?? true;
+        Topmost = true;
+        Topmost = desiredTopmost;
     }
 
     private void ApplySlotLayout()
@@ -348,6 +353,7 @@ public partial class MainWindow : Window
         {
             _shortcutService.ShortcutTriggered += OnShortcutTriggered;
             _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
+            _shortcutService.PrefixActivationRequested += OnPrefixActivationRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _macroService.SetPrefixChordAccessor(() => _shortcutService.CurrentPrefixChord);
@@ -1015,6 +1021,11 @@ public partial class MainWindow : Window
         _ = SendPrefixPassthroughAsync(e.ShortcutText);
     }
 
+    private void OnPrefixActivationRequested(object? sender, EventArgs e)
+    {
+        BringWindowToForeground();
+    }
+
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
         if (PrefixIndicator == null || PrefixIndicatorText == null)
@@ -1163,6 +1174,7 @@ public partial class MainWindow : Window
         }
         _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
         _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
+        _shortcutService.PrefixActivationRequested -= OnPrefixActivationRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();

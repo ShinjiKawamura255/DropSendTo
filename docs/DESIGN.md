@@ -29,7 +29,7 @@
 6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
-9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出し、以降の入力に MacroPassthrough タグを付けてショートカット検出を継続する。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
+9) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出し、以降の入力に MacroPassthrough タグを付けてショートカット検出を継続する。armed 中に修飾なしの `Enter` を受け取った場合は MainWindow へ復帰イベントを通知し、ウィンドウを前面にアクティブ化する（常時最前面設定は変更しない）。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
 10) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 
 ## DES-004 API Contracts (examples)

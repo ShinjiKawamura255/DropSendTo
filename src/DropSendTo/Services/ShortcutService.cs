@@ -79,6 +79,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler<ShortcutTriggeredEventArgs>? ShortcutTriggered;
     public event EventHandler<PrefixPassthroughEventArgs>? PrefixPassthroughRequested;
     public event EventHandler<PrefixStateChangedEventArgs>? PrefixStateChanged;
+    public event EventHandler? PrefixActivationRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -309,15 +310,22 @@ internal sealed class ShortcutService : IDisposable
         var prefixResidue = RemovePrefixModifiers(modifiers, _prefixModifiers, _prefixArmedAtUtc);
         SetPrefixArmedLocked(false, now);
 
-        if (!TryMatchAvailableShortcut(vk, modifiers, prefixResidue, out var matchedChord))
+        if (TryMatchAvailableShortcut(vk, modifiers, prefixResidue, out var matchedChord))
         {
-            suppress = false;
-            return ShortcutAction.None;
+            MarkKeyForSuppression(vk);
+            suppress = true;
+            return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
         }
 
-        MarkKeyForSuppression(vk);
-        suppress = true;
-        return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
+        if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
+        {
+            MarkKeyForSuppression(vk);
+            suppress = true;
+            return ShortcutAction.CreatePrefixActivation();
+        }
+
+        suppress = false;
+        return ShortcutAction.None;
     }
 
     private bool ProcessKeyUp(uint vkCode)
@@ -419,6 +427,9 @@ internal sealed class ShortcutService : IDisposable
                 var modifiers = action.ModifierKeys ?? Array.Empty<ushort>();
                 var args = new ShortcutTriggeredEventArgs(action.MainKey, modifiers, action.RegisteredChord);
                 _dispatcher.BeginInvoke(() => ShortcutTriggered?.Invoke(this, args));
+                break;
+            case ShortcutActionType.PrefixActivate:
+                _dispatcher.BeginInvoke(() => PrefixActivationRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -719,13 +730,17 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixPassthrough(string text) =>
             new(ShortcutActionType.PrefixPassthrough, 0, null, text, null);
+
+        public static ShortcutAction CreatePrefixActivation() =>
+            new(ShortcutActionType.PrefixActivate, 0, null, null, null);
     }
 
     private enum ShortcutActionType
     {
         None,
         TriggerShortcut,
-        PrefixPassthrough
+        PrefixPassthrough,
+        PrefixActivate
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -775,6 +790,7 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_RMENU = 0xA5;
     private const ushort VK_LWIN = 0x5B;
     private const ushort VK_RWIN = 0x5C;
+    private const ushort VK_RETURN = 0x0D;
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
