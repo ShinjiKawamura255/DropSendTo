@@ -13,6 +13,7 @@ public partial class App : WpfApplication
     private readonly ConfigService _configService = new();
     private readonly LauncherService _launcher = new();
     private readonly LoggerService _logger = LoggerService.Instance;
+    private readonly SingleInstanceService _singleInstance = new(@"Global\DropSendTo");
 
     public App()
     {
@@ -38,6 +39,14 @@ public partial class App : WpfApplication
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (!_singleInstance.TryAcquire())
+        {
+            _logger.Warn("Another DropSendTo instance is already running.");
+            WpfMessageBox.Show("DropSendTo はすでに起動しています。既存のウィンドウを確認してください。", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         _logger.Info($"DropSendTo starting (args={e.Args.Length}).");
@@ -86,5 +95,11 @@ public partial class App : WpfApplication
         var win = new MainWindow();
         win.Show();
         _logger.Info("Main window shown.");
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        base.OnExit(e);
+        _singleInstance.Dispose();
     }
 }
