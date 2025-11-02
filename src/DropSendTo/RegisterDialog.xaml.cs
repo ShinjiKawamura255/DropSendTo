@@ -2,6 +2,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfMessageBox = System.Windows.MessageBox;
 using Win32OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -9,6 +10,7 @@ using Microsoft.Win32;
 using DropSendTo.Models;
 using DropSendTo.Services;
 using System.Windows.Interop;
+using System.Text;
 
 namespace DropSendTo;
 
@@ -25,6 +27,7 @@ public partial class RegisterDialog : Window
     private MacroTipsWindow? _tipsWindow;
     private readonly MacroRecordingService _recordingService = new();
     private int _recordedLineCount;
+    private int _recordingStartTextLength;
 
     public RegisterDialog()
     {
@@ -228,6 +231,7 @@ public partial class RegisterDialog : Window
         }
 
         _recordedLineCount = 0;
+        _recordingStartTextLength = MacroBox?.Text.Length ?? 0;
         RefreshRecordingControls();
         _recordingService.SuppressNextLeftButtonUp();
         if (RecordingStatusText != null)
@@ -241,14 +245,8 @@ public partial class RegisterDialog : Window
         if (!_recordingService.IsRecording) return;
 
         var lines = _recordingService.StopRecording();
-        if (lines.Count > _recordedLineCount)
-        {
-            foreach (var line in lines.Skip(_recordedLineCount))
-            {
-                AppendMacroLine(line);
-                _recordedLineCount++;
-            }
-        }
+        ReplaceRecordedSection(lines);
+        _recordedLineCount = lines.Count;
         RefreshRecordingControls();
         if (RecordingStatusText != null)
         {
@@ -301,6 +299,37 @@ public partial class RegisterDialog : Window
 
         MacroBox.AppendText(line);
         MacroBox.AppendText(Environment.NewLine);
+        MacroBox.CaretIndex = MacroBox.Text.Length;
+        MacroBox.ScrollToEnd();
+    }
+
+    private void ReplaceRecordedSection(IReadOnlyList<string> lines)
+    {
+        if (MacroBox == null)
+        {
+            return;
+        }
+
+        var original = MacroBox.Text ?? string.Empty;
+        int start = Math.Clamp(_recordingStartTextLength, 0, original.Length);
+        var prefix = original[..start];
+        var builder = new StringBuilder(prefix.Length + Math.Max(lines.Count * 16, 0));
+        builder.Append(prefix);
+
+        if (lines.Count > 0)
+        {
+            if (builder.Length > 0 && !prefix.EndsWith(Environment.NewLine, StringComparison.Ordinal))
+            {
+                builder.AppendLine();
+            }
+
+            foreach (var line in lines)
+            {
+                builder.AppendLine(line);
+            }
+        }
+
+        MacroBox.Text = builder.ToString();
         MacroBox.CaretIndex = MacroBox.Text.Length;
         MacroBox.ScrollToEnd();
     }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace DropSendTo.Services;
@@ -8,8 +7,8 @@ namespace DropSendTo.Services;
 internal sealed class MacroRecordingService : IDisposable
 {
     private readonly object _syncRoot = new();
-    private readonly List<string> _recordedLines = new();
-    private readonly HashSet<ModifierKind> _modifierState = new();
+    private readonly List<MacroRecordingEvent> _recordedEvents = new();
+    private readonly HashSet<string> _activeRecordedKeys = new(StringComparer.OrdinalIgnoreCase);
     private (IntPtr Window, int X, int Y)? _lastRelativePosition;
     private readonly object _mouseSuppressLock = new();
     private HookProc? _keyboardHookProc;
@@ -43,8 +42,8 @@ internal sealed class MacroRecordingService : IDisposable
             }
 
             _ownerWindowHandle = ownerWindowHandle;
-            _recordedLines.Clear();
-            _modifierState.Clear();
+            _recordedEvents.Clear();
+            _activeRecordedKeys.Clear();
             _lastRelativePosition = null;
             _suppressNextLeftButtonDown = false;
             _suppressNextLeftButtonUp = false;
@@ -85,13 +84,15 @@ internal sealed class MacroRecordingService : IDisposable
             }
 
             CleanupHooks();
-            _modifierState.Clear();
             _lastRelativePosition = null;
             _ownerWindowHandle = IntPtr.Zero;
             _isRecording = false;
             _suppressNextLeftButtonDown = false;
             _suppressNextLeftButtonUp = false;
-            return _recordedLines.ToArray();
+            _activeRecordedKeys.Clear();
+            var optimized = MacroRecordingOptimizer.Optimize(_recordedEvents);
+            _recordedEvents.Clear();
+            return optimized;
         }
     }
 
@@ -151,47 +152,56 @@ internal sealed class MacroRecordingService : IDisposable
         if (!isKeyDown && !isKeyUp) return;
 
         ushort vk = (ushort)data.vkCode;
+        string token;
+        ModifierKind? modifierKind;
         if (TryGetModifierKind(vk, out var modifier))
         {
-            lock (_syncRoot)
-            {
-                if (isKeyDown)
-                {
-                    _modifierState.Add(modifier);
-                }
-                else if (isKeyUp)
-                {
-                    _modifierState.Remove(modifier);
-                }
-            }
-            return;
+            modifierKind = modifier;
+            token = GetModifierToken(modifier);
         }
-
-        if (!isKeyDown) return;
-
-        var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero || foreground == _ownerWindowHandle || !IsWindow(foreground))
+        else
         {
-            return;
-        }
-
-        ModifierKind[] modifiersSnapshot;
-        lock (_syncRoot)
-        {
-            modifiersSnapshot = _modifierState.ToArray();
-        }
-
-        if (!KeyChordParser.TryFormat(vk, modifiersSnapshot, out var normalized))
-        {
-            if (!KeyChordParser.TryGetCanonicalToken(vk, out var token))
+            modifierKind = null;
+            if (!KeyChordParser.TryGetCanonicalToken(vk, out token))
             {
                 return;
             }
-            normalized = BuildChordString(token, modifiersSnapshot);
         }
 
-        if (string.IsNullOrWhiteSpace(normalized)) return;
-        AddLine($"KEY {normalized}");
+        var foreground = GetForegroundWindow();
+        bool shouldRecord = foreground != IntPtr.Zero && foreground != _ownerWindowHandle && IsWindow(foreground);
+        bool recorded = false;
+
+        lock (_syncRoot)
+        {
+            if (isKeyDown)
+            {
+                if (!shouldRecord || _activeRecordedKeys.Contains(token))
+                {
+                    return;
+                }
+
+                _activeRecordedKeys.Add(token);
+                _recordedEvents.Add(MacroRecordingEvent.KeyDown(token, modifierKind));
+                recorded = true;
+            }
+            else if (isKeyUp)
+            {
+                if (!shouldRecord && !_activeRecordedKeys.Contains(token))
+                {
+                    return;
+                }
+
+                _activeRecordedKeys.Remove(token);
+                _recordedEvents.Add(MacroRecordingEvent.KeyUp(token, modifierKind));
+                recorded = true;
+            }
+        }
+
+        if (!recorded) return;
+
+        var line = isKeyDown ? $"KEYDOWN {token}" : $"KEYUP {token}";
+        LineRecorded?.Invoke(this, line);
     }
 
     private void ProcessMouseMessage(int message, MSLLHOOKSTRUCT data)
@@ -300,7 +310,7 @@ internal sealed class MacroRecordingService : IDisposable
         if (string.IsNullOrWhiteSpace(line)) return;
         lock (_syncRoot)
         {
-            _recordedLines.Add(line);
+            _recordedEvents.Add(MacroRecordingEvent.Raw(line));
         }
         LineRecorded?.Invoke(this, line);
     }
@@ -318,18 +328,6 @@ internal sealed class MacroRecordingService : IDisposable
             UnhookWindowsHookEx(_mouseHookHandle);
             _mouseHookHandle = IntPtr.Zero;
         }
-    }
-
-    private static string BuildChordString(string mainToken, IReadOnlyCollection<ModifierKind> modifiers)
-    {
-        if (modifiers.Count == 0) return mainToken;
-
-        var ordered = modifiers
-            .OrderBy(m => Array.IndexOf(ModifierOrder, m))
-            .Select(m => ModifierTokens.TryGetValue(m, out var token) ? token : m.ToString())
-            .ToList();
-        ordered.Add(mainToken);
-        return string.Join("+", ordered);
     }
 
     private static bool TryGetWindowBounds(IntPtr hwnd, out RECT rect)
@@ -372,6 +370,18 @@ internal sealed class MacroRecordingService : IDisposable
         };
         return Enum.IsDefined(typeof(ModifierKind), kind) && kind != (ModifierKind)(-1);
     }
+
+    private static string GetModifierToken(ModifierKind kind) =>
+        kind switch
+        {
+            ModifierKind.Control => "Ctrl",
+            ModifierKind.Shift => "Shift",
+            ModifierKind.Alt => "Alt",
+            ModifierKind.Win => "Win",
+            ModifierKind.LeftWin => "LWin",
+            ModifierKind.RightWin => "RWin",
+            _ => kind.ToString()
+        };
 
     private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -475,26 +485,6 @@ internal sealed class MacroRecordingService : IDisposable
     private const ushort VK_LWIN = 0x5B;
     private const ushort VK_RWIN = 0x5C;
 
-    private static readonly ModifierKind[] ModifierOrder =
-    {
-        ModifierKind.Control,
-        ModifierKind.Shift,
-        ModifierKind.Alt,
-        ModifierKind.Win,
-        ModifierKind.LeftWin,
-        ModifierKind.RightWin
-    };
-
-    private static readonly Dictionary<ModifierKind, string> ModifierTokens = new()
-    {
-        { ModifierKind.Control, "Ctrl" },
-        { ModifierKind.Shift, "Shift" },
-        { ModifierKind.Alt, "Alt" },
-        { ModifierKind.Win, "Win" },
-        { ModifierKind.LeftWin, "LWin" },
-        { ModifierKind.RightWin, "RWin" }
-    };
-
     private bool ConsumeSuppressFlag(ref bool flag)
     {
         lock (_mouseSuppressLock)
@@ -504,4 +494,34 @@ internal sealed class MacroRecordingService : IDisposable
             return true;
         }
     }
+}
+
+internal enum MacroRecordingEventKind
+{
+    RawCommand,
+    KeyDown,
+    KeyUp
+}
+
+internal readonly struct MacroRecordingEvent
+{
+    public MacroRecordingEvent(MacroRecordingEventKind kind, string value, ModifierKind? modifierKind)
+    {
+        Kind = kind;
+        Value = value;
+        ModifierKind = modifierKind;
+    }
+
+    public MacroRecordingEventKind Kind { get; }
+    public string Value { get; }
+    public ModifierKind? ModifierKind { get; }
+
+    public static MacroRecordingEvent Raw(string command) =>
+        new(MacroRecordingEventKind.RawCommand, command, null);
+
+    public static MacroRecordingEvent KeyDown(string token, ModifierKind? modifierKind) =>
+        new(MacroRecordingEventKind.KeyDown, token, modifierKind);
+
+    public static MacroRecordingEvent KeyUp(string token, ModifierKind? modifierKind) =>
+        new(MacroRecordingEventKind.KeyUp, token, modifierKind);
 }
