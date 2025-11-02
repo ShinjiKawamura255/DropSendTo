@@ -618,6 +618,7 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
+        WindowCascadeService.Arrange(dlg, this);
 
         dlg.SlotSaved += (_, args) =>
         {
@@ -722,6 +723,7 @@ public partial class MainWindow : Window
         }
 
         var dialog = new SlotSelectionDialog(candidates, "スロットの移動先を選択") { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
         if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
         {
             return;
@@ -758,6 +760,7 @@ public partial class MainWindow : Window
         }
 
         var dialog = new SlotSelectionDialog(candidates, "スロットのコピー先を選択") { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
         if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
         {
             return;
@@ -916,6 +919,7 @@ public partial class MainWindow : Window
             {
                 Owner = this
             };
+            WindowCascadeService.Arrange(passwordDialog, this);
             if (passwordDialog.ShowDialog() != true)
             {
                 return;
@@ -975,6 +979,7 @@ public partial class MainWindow : Window
             {
                 Owner = this
             };
+            WindowCascadeService.Arrange(passwordDialog, this);
             if (passwordDialog.ShowDialog() != true)
             {
                 return;
@@ -1037,6 +1042,7 @@ public partial class MainWindow : Window
     private void OnChangePrefix(object sender, RoutedEventArgs e)
     {
         var dlg = new PrefixDialog(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled) { Owner = this };
+        WindowCascadeService.Arrange(dlg, this);
         if (dlg.ShowDialog() == true)
         {
             var newPrefix = dlg.NormalizedPrefix;

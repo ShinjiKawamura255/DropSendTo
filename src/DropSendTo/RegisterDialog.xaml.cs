@@ -164,6 +164,7 @@ public partial class RegisterDialog : Window
         {
             Owner = this
         };
+        WindowCascadeService.Arrange(_tipsWindow, this);
         _tipsWindow.Closed += OnTipsWindowClosed;
         _tipsWindow.Show();
     }
