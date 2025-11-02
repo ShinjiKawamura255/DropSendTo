@@ -270,8 +270,9 @@ public partial class MainWindow : Window
     {
         if (_config.WindowLeft.HasValue && _config.WindowTop.HasValue)
         {
-            var bounds = GetVirtualScreenBounds();
-            var (left, top) = _placement.Clamp(_config.WindowLeft.Value, _config.WindowTop.Value, bounds, this.Width, this.Height);
+            var rect = GetWindowRect(_config.WindowLeft.Value, _config.WindowTop.Value);
+            var bounds = ScreenBoundsResolver.ForRect(this, rect);
+            var (left, top) = _placement.Clamp(rect.Left, rect.Top, bounds, rect.Width, rect.Height);
             Left = left;
             Top = top;
         }
@@ -283,15 +284,37 @@ public partial class MainWindow : Window
 
     private void ClampWindowWithinBounds()
     {
-        var bounds = GetVirtualScreenBounds();
-        var (left, top) = _placement.Clamp(this.Left, this.Top, bounds, this.Width, this.Height);
+        var rect = GetWindowRect(this.Left, this.Top);
+        var bounds = ScreenBoundsResolver.ForRect(this, rect);
+        var (left, top) = _placement.Clamp(rect.Left, rect.Top, bounds, rect.Width, rect.Height);
         Left = left;
         Top = top;
     }
 
-    private static ScreenBounds GetVirtualScreenBounds() =>
-        new(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
-            SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+    private Rect GetWindowRect(double left, double top)
+    {
+        double width = this.Width;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = this.ActualWidth;
+        }
+        if (width <= 0)
+        {
+            width = Math.Max(this.MinWidth, 1);
+        }
+
+        double height = this.Height;
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = this.ActualHeight;
+        }
+        if (height <= 0)
+        {
+            height = Math.Max(this.MinHeight, 1);
+        }
+
+        return new Rect(left, top, width, height);
+    }
 
     private void UpdateWindowSize(int rows, int columns)
     {

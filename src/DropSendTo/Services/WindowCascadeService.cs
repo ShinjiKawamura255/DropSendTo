@@ -26,17 +26,14 @@ internal static class WindowCascadeService
         double width = GetWindowWidth(window);
         double height = GetWindowHeight(window);
 
-        var bounds = new ScreenBounds(
-            SystemParameters.VirtualScreenLeft,
-            SystemParameters.VirtualScreenTop,
-            SystemParameters.VirtualScreenWidth,
-            SystemParameters.VirtualScreenHeight);
+        var bounds = owner != null
+            ? ScreenBoundsResolver.ForWindow(owner)
+            : ScreenBoundsResolver.ForRect(window, new Rect(window.Left, window.Top, width, height));
 
         if (owner == null)
         {
-            var workArea = SystemParameters.WorkArea;
-            double centeredLeft = workArea.Left + Math.Max(0, (workArea.Width - width) / 2);
-            double centeredTop = workArea.Top + Math.Max(0, (workArea.Height - height) / 2);
+            double centeredLeft = bounds.Left + Math.Max(0, (bounds.Width - width) / 2);
+            double centeredTop = bounds.Top + Math.Max(0, (bounds.Height - height) / 2);
             (centeredLeft, centeredTop) = Placement.Clamp(centeredLeft, centeredTop, bounds, width, height);
             window.Left = centeredLeft;
             window.Top = centeredTop;
