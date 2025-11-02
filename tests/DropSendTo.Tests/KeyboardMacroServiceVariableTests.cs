@@ -188,6 +188,43 @@ public class KeyboardMacroServiceVariableTests
     }
 
     [Fact]
+    public void TryExpandVariables_ShouldResolveClipboardVariables()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var snapshot = new ClipboardSnapshot(" Hello World ", new[] { "First", "Second" }, new[] { "Line1", "Line2" });
+        var resolver = KeyboardMacroService.CreateSpecialVariableResolverForTesting(snapshot);
+
+        var okRaw = KeyboardMacroService.TryExpandVariables("{{clipboard}}", variables, out var raw, out var rawError, resolver);
+        okRaw.Should().BeTrue();
+        rawError.Should().BeNull();
+        raw.Should().Be("Hello World");
+
+        var okLatest = KeyboardMacroService.TryExpandVariables("{{clipboard_args}}", variables, out var latest, out var latestError, resolver);
+        okLatest.Should().BeTrue();
+        latestError.Should().BeNull();
+        latest.Should().Be("Line1" + Environment.NewLine + "Line2");
+
+        var okLimited = KeyboardMacroService.TryExpandVariables("{{clipboard:1}}", variables, out var limited, out var limitedError, resolver);
+        okLimited.Should().BeTrue();
+        limitedError.Should().BeNull();
+        limited.Should().Be("Second");
+    }
+
+    [Fact]
+    public void TryExpandVariables_ShouldReportError_OnInvalidClipboardSpecifier()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var snapshot = new ClipboardSnapshot("data", Array.Empty<string>(), Array.Empty<string>());
+        var resolver = KeyboardMacroService.CreateSpecialVariableResolverForTesting(snapshot);
+
+        var ok = KeyboardMacroService.TryExpandVariables("{{clipboard:abc}}", variables, out _, out var error, resolver);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("clipboard");
+    }
+
+    [Fact]
     public void TryApplyMathDirective_ShouldUseWindowCoordinateOperand()
     {
         using var _ = UseActiveWindowBounds(100, 200, 300, 400);

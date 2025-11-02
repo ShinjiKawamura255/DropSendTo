@@ -253,6 +253,8 @@ public sealed class KeyboardMacroService : IDisposable
         try
         {
             var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var clipboardSnapshot = ClipboardHistoryService.Instance.GetSnapshot(null);
+            var specialResolver = CreateSpecialVariableResolver(clipboardSnapshot);
 
             if (targetAvailable)
             {
@@ -276,7 +278,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                 if (StartsWithCommand(line, "SET"))
                 {
-                    if (!TryApplySetDirective(line, variables, out var setName, out var setValue, out var setError))
+                    if (!TryApplySetDirective(line, variables, out var setName, out var setValue, out var setError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(setError ?? $"SET コマンドの解釈に失敗しました: \"{line}\""));
                     }
@@ -310,7 +312,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "ADD") || StartsWithCommand(line, "SUB") ||
                     StartsWithCommand(line, "MUL") || StartsWithCommand(line, "DIV"))
                 {
-                    if (!TryApplyMathDirective(line, variables, out var mathName, out var beforeValue, out var operandValue, out var resultValue, out var mathError))
+                    if (!TryApplyMathDirective(line, variables, out var mathName, out var beforeValue, out var operandValue, out var resultValue, out var mathError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(mathError ?? $"数値演算の解釈に失敗しました: \"{line}\""));
                     }
@@ -324,7 +326,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "APPEND") || StartsWithCommand(line, "PREPEND"))
                 {
                     bool prepend = StartsWithCommand(line, "PREPEND");
-                    if (!TryApplyConcatDirective(line, variables, prepend, out var concatName, out var newValue, out var concatError))
+                    if (!TryApplyConcatDirective(line, variables, prepend, out var concatName, out var newValue, out var concatError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(concatError ?? $"文字列結合の解釈に失敗しました: \"{line}\""));
                     }
@@ -338,7 +340,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "WAIT"))
                 {
                     var waitToken = line.Length > 4 ? line[4..].Trim() : string.Empty;
-                    if (!TryExpandVariables(waitToken, variables, out var expandedWait, out var waitExpandError))
+                    if (!TryExpandVariables(waitToken, variables, out var expandedWait, out var waitExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(waitExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -386,7 +388,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "TEXT"))
                 {
                     var text = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
-                    if (!TryExpandVariables(text, variables, out var expandedText, out var textExpandError))
+                    if (!TryExpandVariables(text, variables, out var expandedText, out var textExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(textExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -404,7 +406,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "CLIPTEXT"))
                 {
                     var text = line.Length > 8 ? line[8..].TrimStart() : string.Empty;
-                    if (!TryExpandVariables(text, variables, out var clipText, out var clipExpandError))
+                    if (!TryExpandVariables(text, variables, out var clipText, out var clipExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(clipExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -434,7 +436,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYDOWN"))
                 {
                     var token = line.Length > 7 ? line[7..].Trim() : string.Empty;
-                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
+                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -449,7 +451,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEYUP"))
                 {
                     var token = line.Length > 5 ? line[5..].Trim() : string.Empty;
-                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError))
+                    if (!TryExpandVariables(token, variables, out var expandedToken, out var tokenExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(tokenExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -464,7 +466,7 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "KEY"))
                 {
                     var combo = line.Length > 3 ? line[3..].Trim() : string.Empty;
-                    if (!TryExpandVariables(combo, variables, out var expandedCombo, out var comboExpandError))
+                    if (!TryExpandVariables(combo, variables, out var expandedCombo, out var comboExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(comboExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -477,7 +479,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                 if (StartsWithCommand(line, "MOUSE"))
                 {
-                    if (!TryExpandVariables(line, variables, out var expandedMouse, out var mouseExpandError))
+                    if (!TryExpandVariables(line, variables, out var expandedMouse, out var mouseExpandError, specialResolver))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(mouseExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
@@ -581,7 +583,89 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    internal static bool TryExpandVariables(string input, IReadOnlyDictionary<string, string> variables, out string result, out string? error)
+    private const int ClipboardVariableLimit = 20;
+
+    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot)
+    {
+        var rawText = snapshot.RawText?.Trim() ?? string.Empty;
+        var latestEntries = snapshot.LatestEntries ?? Array.Empty<string>();
+        var historyEntries = snapshot.Entries ?? Array.Empty<string>();
+
+        return (string token, out string value, out string? error) =>
+        {
+            value = string.Empty;
+            error = null;
+
+            if (string.Equals(token, "clipboard", StringComparison.OrdinalIgnoreCase))
+            {
+                value = rawText;
+                return true;
+            }
+
+            if (string.Equals(token, "clipboard_args", StringComparison.OrdinalIgnoreCase))
+            {
+                value = JoinClipboardEntries(latestEntries);
+                return true;
+            }
+
+            if (token.StartsWith("clipboard:", StringComparison.OrdinalIgnoreCase))
+            {
+                var suffix = token["clipboard:".Length..];
+                return TryResolveClipboardHistory(suffix, historyEntries, out value, out error);
+            }
+
+            if (token.StartsWith("clipboard_args:", StringComparison.OrdinalIgnoreCase))
+            {
+                var suffix = token["clipboard_args:".Length..];
+                return TryResolveClipboardHistory(suffix, historyEntries, out value, out error);
+            }
+
+            return false;
+        };
+    }
+
+    internal static SpecialVariableResolver CreateSpecialVariableResolverForTesting(ClipboardSnapshot snapshot) => CreateSpecialVariableResolver(snapshot);
+
+    private static bool TryResolveClipboardHistory(string suffix, IReadOnlyList<string> entries, out string value, out string? error)
+    {
+        value = string.Empty;
+        error = null;
+
+        if (!int.TryParse(suffix, NumberStyles.None, CultureInfo.InvariantCulture, out var limit))
+        {
+            error = $"clipboard の個数指定が不正です: \"{suffix}\"";
+            return true;
+        }
+
+        if (limit <= 0 || entries.Count == 0)
+        {
+            return true;
+        }
+
+        limit = Math.Min(limit, Math.Min(entries.Count, ClipboardVariableLimit));
+        if (limit <= 0)
+        {
+            return true;
+        }
+
+        var start = entries.Count - limit;
+        var selection = entries.Skip(start).Take(limit);
+        value = string.Join(Environment.NewLine, selection);
+        return true;
+    }
+
+    private static string JoinClipboardEntries(IReadOnlyList<string> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return string.Empty;
+        }
+        return string.Join(Environment.NewLine, entries);
+    }
+
+    internal delegate bool SpecialVariableResolver(string token, out string value, out string? error);
+
+    internal static bool TryExpandVariables(string input, IReadOnlyDictionary<string, string> variables, out string result, out string? error, SpecialVariableResolver? specialResolver = null)
     {
         result = input;
         error = null;
@@ -609,19 +693,41 @@ public sealed class KeyboardMacroService : IDisposable
 
                 var token = input.Substring(i + 2, end - i - 2);
                 var name = token.Trim();
-                if (!IsValidVariableName(name))
+                if (IsValidVariableName(name))
                 {
-                    error = $"変数名が不正です: \"{token}\"";
-                    return false;
+                    if (variables.TryGetValue(name, out var value))
+                    {
+                        sb.Append(value);
+                    }
+                    else if (specialResolver != null && specialResolver(name, out var specialValue, out var specialError))
+                    {
+                        if (specialError != null)
+                        {
+                            error = specialError;
+                            return false;
+                        }
+                        sb.Append(specialValue);
+                    }
+                    else
+                    {
+                        error = $"変数 \"{name}\" は定義されていません。";
+                        return false;
+                    }
                 }
-
-                if (!variables.TryGetValue(name, out var value))
+                else
                 {
-                    error = $"変数 \"{name}\" は定義されていません。";
-                    return false;
+                    if (specialResolver == null || !specialResolver(name, out var specialValue, out var specialError))
+                    {
+                        error = $"変数名が不正です: \"{token}\"";
+                        return false;
+                    }
+                    if (specialError != null)
+                    {
+                        error = specialError;
+                        return false;
+                    }
+                    sb.Append(specialValue);
                 }
-
-                sb.Append(value);
                 i = end + 2;
                 continue;
             }
@@ -640,7 +746,7 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    internal static bool TryApplySetDirective(string line, Dictionary<string, string> variables, out string? name, out string? value, out string? error)
+    internal static bool TryApplySetDirective(string line, Dictionary<string, string> variables, out string? name, out string? value, out string? error, SpecialVariableResolver? specialResolver = null)
     {
         name = null;
         value = null;
@@ -671,7 +777,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         var rawValue = separatorIndex < 0 ? string.Empty : content[(separatorIndex + 1)..];
         var trimmedValue = rawValue.Length == 0 ? string.Empty : rawValue.TrimStart();
-        if (!TryExpandVariables(trimmedValue, variables, out var expandedValue, out var expandError))
+        if (!TryExpandVariables(trimmedValue, variables, out var expandedValue, out var expandError, specialResolver))
         {
             error = expandError;
             return false;
@@ -744,7 +850,7 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    internal static bool TryApplyMathDirective(string line, Dictionary<string, string> variables, out string? name, out long beforeValue, out long operandValue, out long resultValue, out string? error)
+    internal static bool TryApplyMathDirective(string line, Dictionary<string, string> variables, out string? name, out long beforeValue, out long operandValue, out long resultValue, out string? error, SpecialVariableResolver? specialResolver = null)
     {
         name = null;
         beforeValue = 0;
@@ -781,7 +887,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         var operandRaw = firstSpace < 0 ? string.Empty : content[(firstSpace + 1)..].Trim();
-        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError))
+        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError, specialResolver))
         {
             error = expandError;
             return false;
@@ -833,7 +939,7 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    internal static bool TryApplyConcatDirective(string line, Dictionary<string, string> variables, bool prepend, out string? name, out string? newValue, out string? error)
+    internal static bool TryApplyConcatDirective(string line, Dictionary<string, string> variables, bool prepend, out string? name, out string? newValue, out string? error, SpecialVariableResolver? specialResolver = null)
     {
         name = null;
         newValue = null;
@@ -862,7 +968,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         var operandRaw = firstSpace < 0 ? string.Empty : content[(firstSpace + 1)..].TrimStart();
-        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError))
+        if (!TryExpandVariables(operandRaw, variables, out var expandedOperand, out var expandError, specialResolver))
         {
             error = expandError;
             return false;
