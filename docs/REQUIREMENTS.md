@@ -39,7 +39,7 @@ Windows 用の軽量ドラッグ＆ドロップランチャを .NET 8（Windows 
 - FR-022: Slot Layout メニューで 2〜4 行×2〜4 列の候補を選択でき、選択直後に UI と設定へ反映される。
 - FR-023: 各スロットにグローバルショートカット（Prefix 押下後に入力するキー）を登録でき、Prefix 入力後 4 秒以内に該当ショートカットを押すと対象スロットがレイヤー切替込みで起動する。Prefix と同じ修飾キーを含むショートカットでも修飾キーを押し直さずに起動できる。
 - FR-024: Prefix は Change Prefix ダイアログから編集でき、解析失敗時は既定の Ctrl+Q へフォールバックした上でユーザーへ通知する。Prefix の armed 状態は UI 左上のインジケーターで表示され、Prefix を再入力すると前面ウィンドウへ送出できる。
-- FR-025: Arguments Template では `{args}` に加え `{clipboard}`（クリップボード文字列）、`{clipboard_args}`（クリップボード内のパス群を引用付きで展開）プレースホルダを利用できる。
+- FR-025: Arguments Template では `{args}` に加え `{clipboard}`（クリップボード文字列）、`{clipboard_args}`（最新のクリップボード文字列を行単位で引用付き展開）、`{clipboard_args:n}`（直近 n 行〈1〜20 行〉を古い順で引用付き展開）プレースホルダを利用できる。
 
 ## Non-Functional Requirements (NFR)
 - NFR-001: .NET 8（Windows）で動作。WSL 上の .NET は不使用。
@@ -65,6 +65,7 @@ Windows 用の軽量ドラッグ＆ドロップランチャを .NET 8（Windows 
 - AC-011: Slot Layout メニューで選んだ行列構成が即時に UI/設定へ反映され、再起動後も保持される。
 - AC-012: Prefix を変更・保存でき、Prefix 押下後の 4 秒以内に登録ショートカットを入力すると該当スロットがレイヤー切替込みで起動し（同じ修飾キーは押し直さなくてもよい）、Prefix 再入力で前面ウィンドウへ送出できる。インジケーターはウィンドウ左上で状態を示す。
 - AC-013: エクスプローラーでコピーしたパスを `{clipboard_args}` が正しく引用付きで展開し、`{clipboard}` で文字列として扱える。
+- AC-014: `{clipboard_args:n}` に n（例: 3）を指定した場合、直近のコピー履歴から n 行のみが古い順に引用付きで渡され、それ以外は含まれない。
 
 ## Traceability (excerpt)
 - FR-001 → SP-001/003 → DES-002/003 → TC-010/065

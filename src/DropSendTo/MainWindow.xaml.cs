@@ -122,6 +122,7 @@ public partial class MainWindow : Window
             _config.CurrentLayer = _currentLayer;
             _config.AlwaysOnTop = this.Topmost;
             _configService.Save(_config);
+            ClipboardHistoryService.Instance.Dispose();
         };
 
         _layerHoverTimer = new System.Windows.Threading.DispatcherTimer
@@ -347,6 +348,15 @@ public partial class MainWindow : Window
         {
             _logger.Error($"Failed to initialize keyboard macro service: {ex}");
             WpfMessageBox.Show("マクロサービスの初期化に失敗しました。ログを確認してください。", "Macro Setup", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+
+        try
+        {
+            ClipboardHistoryService.Instance.Initialize(this);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to initialize clipboard history listener: {ex.Message}");
         }
 
         try

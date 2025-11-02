@@ -29,7 +29,7 @@
 - TC-086 ShortcutSharedModifier: Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → `Ctrl+X`）は修飾キーを押し直さなくても発火し、再押下でも動作する。
 - TC-088 MacroPrefixCommand: マクロスクリプトで `PREFIX ARM`（または SEND）を挟んだ後に `KEY` でショートカットが発動し、`PREFIX PASSTHROUGH` で前面アプリに送出される。
 - TC-089 PrefixActivate: Prefix 待機中に `Enter` を押すと DropSendTo ウィンドウが前面へ復帰してアクティブ化され、常時最前面設定が変化しない。
-- TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` がクリップボード文字列/パスを期待通り展開し、引用が適切に付与される。
+- TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
 - TC-097 CommandOnlyParallel: マクロ実行中は別スロットのマクロ起動がブロックされる一方、コマンドのみのスロットはショートカット/クリックから並列に実行できる。
@@ -50,7 +50,7 @@
  11) スロット hover/drag/クリックの視覚変化を確認し、クリック有効/無効トグルが尊重されることを確認。
  12) メニューボタンから Open Config/Open Logs/Change Prefix/Slot Layout/Exit が動作することを確認（Open Logs はフォルダを開く）。
  13) Prefix（例: Ctrl+Q）を押下して左上インジケーター点灯→修飾キーを押し直さずに `X` を押し `Ctrl+X` ショートカットが起動すること、必要に応じ修飾キーを離して押し直しても動作すること、Prefix 再入力で前面ウィンドウへ送出されること、Prefix 変更ダイアログで不正入力時にエラー表示・既定値フォールバックが行われることを確認。さらにマクロスクリプトに `PREFIX ARM` → `KEY X` → `PREFIX PASSTHROUGH` を記述し、Prefix 待機の擬似入力からショートカット発動→前面アプリ送出まで自動化できること、ログにマクロ PREFIX 操作が記録されることを確認。Prefix 待機中に `Enter` を入力すると DropSendTo ウィンドウが前面に復帰し、常時最前面設定が変化しないことも確認する。
- 14) エクスプローラーでファイル/フォルダをコピーし、`ArgumentsTemplate` に `{clipboard_args}` を指定したスロットをショートカット起動してクリップボードのパスが引用付きで渡されること、および `{clipboard}` 指定で生文字列が渡されることを確認。
+ 14) エクスプローラーでファイル/フォルダを複数コピーし、`ArgumentsTemplate` に `{clipboard_args}` を指定したスロットをショートカット起動して全行が引用付きで渡されること、`{clipboard_args:2}` 指定で直近 2 行のみが古い順に渡されること、および `{clipboard}` 指定で生文字列が渡されることを確認。
  15) `%AppData%/DropSendTo/logs` にテスト用ログを作成し、1MB 超でローテーションすることと、7 日より古いファイルが `CleanupOldLogs` 後に削除されることを確認（ファイルの最終更新日時を調整して検証）。
  16) マクロ付きスロットを起動（長めの WAIT を含める）し、その実行中に別スロットのマクロ起動を試みて警告が表示されること、同じ状態でコマンドのみスロットを起動すると即時でコマンドが実行されること、およびログに並列許可の記録が残ることを確認。
 

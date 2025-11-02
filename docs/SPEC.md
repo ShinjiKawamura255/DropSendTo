@@ -31,7 +31,7 @@
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
-- MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（クリップボード内のパス群を引用付きで展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
+- MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（最新のクリップボード文字列を行単位で引用付き展開）、`{clipboard_args:n}`（直近 n 行〈1〜20 行〉を古い順で引用付き展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
 - MUST: CLI 起動時は現在レイヤー内で最初に登録されたスロットを優先し、存在しない場合は全レイヤーから最初の登録スロットを選んで引数を渡す。失敗時はエラーダイアログを表示し UI を継続する。
 - SHOULD: コマンド未登録スロットへドロップした場合は情報メッセージで通知する。
 
@@ -90,7 +90,7 @@
 - 登録: Edit 選択 → ダイアログの `...` ボタンで Windows ファイル選択ダイアログを開きコマンドを指定 → タイトルへファイル名が自動反映される。
 - マクロ: スロットに `KEY Ctrl+C`, `WAIT 200`, `TEXT processed` を設定 → クリックすると直前の外部ウィンドウに Ctrl+C が送信され、200ms 後に `processed` が入力された上でコマンドが起動する。
 - ショートカット: Prefix（例: `Ctrl+Q`）押下でインジケーターが点灯し、Ctrl を押し直さずに `X` を入力すると `Ctrl+X` ショートカットが実行されレイヤーが自動切替される。必要であれば修飾キーを離して押し直しても成功する。
-- クリップボード: エクスプローラーで `C:\data\report.xlsx` をコピー → `ArgumentsTemplate` に `{clipboard_args}` を指定したスロットを起動すると `"C:\data\report.xlsx"` が展開されコマンドに渡される。
+- クリップボード: エクスプローラーで `C:\data\report.xlsx` と `D:\logs\latest.txt` をコピー、または各行を順番にコピーする → `ArgumentsTemplate` に `{clipboard_args}` を指定したスロットを起動すると `"C:\data\report.xlsx" D:\logs\latest.txt` が展開される。同じ状況で `{clipboard_args:1}` を指定した場合は直近でコピーした `D:\logs\latest.txt` のみが渡される。
 
 ### Invariants / Boundaries
 - スロット数は各レイヤーで SlotRows×SlotColumns（2〜4 行×2〜4 列）に一致し、空スロットは「未登録」表示。

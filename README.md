@@ -41,8 +41,10 @@ src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
 ### 引数テンプレートのプレースホルダ
 - `{args}`: ドロップ/CLI で渡されたパスをスペース区切り + 必要に応じて引用付きで展開
 - `{clipboard}`: クリップボードの文字列をそのまま挿入（前後の空白は自動トリム）
-- `{clipboard_args}`: クリップボードにコピーしたパス（複数行可）を引用付きで展開
+- `{clipboard_args}`: 最新のクリップボードにあるテキスト（複数行なら行ごと）を引用付きで展開
   - 例) エクスプローラーでファイルをコピー → `{clipboard_args}` を引数に指定するとコピーしたパスを用いてアプリを起動
+- `{clipboard_args:n}`: 直近 n 行（1〜20 行）のコピー履歴を古い順に引用付きで展開
+  - 例) `{clipboard_args:3}` で最初の 3 件だけを引数に渡せます
 
 ## 設定とログ
 - 設定: `%AppData%/DropSendTo/config.json`（保存時に `.bak` へバックアップ）

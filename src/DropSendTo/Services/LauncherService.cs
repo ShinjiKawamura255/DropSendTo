@@ -74,15 +74,15 @@ public class LauncherService
 
     private string BuildArguments(string template, string[] paths)
     {
-        return ArgumentTemplateExpander.Expand(template, paths, TryReadClipboardText);
+        return ArgumentTemplateExpander.Expand(template, paths, GetClipboardSnapshot);
     }
 
-    private string? TryReadClipboardText()
+    private ClipboardSnapshot GetClipboardSnapshot()
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null)
         {
-            return null;
+            return ClipboardSnapshot.Empty;
         }
 
         string? clipboardText = null;
@@ -117,7 +117,7 @@ public class LauncherService
             _logger.Warn($"Failed to read clipboard text: {operationError.Message}");
         }
 
-        return clipboardText;
+        return ClipboardHistoryService.Instance.GetSnapshot(clipboardText);
     }
 }
 

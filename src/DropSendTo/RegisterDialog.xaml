@@ -51,7 +51,7 @@
         <Button x:Name="CommandBrowseButton" Content="..." Grid.Row="2" Grid.Column="2" Margin="6,2" Width="28" Click="OnBrowse"/>
 
         <TextBlock Text="Args Template" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="ArgsBox" Grid.Row="3" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" Text="{}{args}" ToolTip="テンプレート内の {args} が選択したパス列に置き換わります。&#x0a;{clipboard} はクリップボード文字列を展開します。&#x0a;{clipboard_args} はクリップボード内のパスを引用付きで展開します。&#x0a;例: /select {args}"/>
+        <TextBox x:Name="ArgsBox" Grid.Row="3" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" Text="{}{args}" ToolTip="テンプレート内の {args} が選択したパス列に置き換わります。&#x0a;{clipboard} はクリップボード文字列を展開します。&#x0a;{clipboard_args} はクリップボード内のパスを引用付きで展開します。&#x0a;{clipboard_args:n} は直近 n 行（1〜20）を古い順に展開します。&#x0a;例: /select {args}"/>
 
         <TextBlock Text="Shortcut" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"/>
         <TextBox x:Name="ShortcutBox" Grid.Row="4" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" ToolTip="例: Ctrl+Shift+1 / F5 / Alt+S&#x0a;prefix+Shortcut ボタンでショートカットを実行できます"/>

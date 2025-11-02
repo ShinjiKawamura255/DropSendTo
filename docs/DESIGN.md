@@ -11,8 +11,9 @@
 - MainWindow: 2〜4 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey を保持。
 - ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 7 までのマイグレーションを実装し、行列分のスロット容量を保証する。
-- LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
-- ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスとクリップボードの文字列/パス展開を担当する純粋関数。
+- ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
+- LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
+- ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基にクリップボードの文字列/パス展開（先頭 n 行抽出を含む）を担当する純粋関数。
 - KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。再入防止にセマフォを使用。
 - ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
@@ -23,7 +24,7 @@
 ## DES-003 UI Flows
 1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
-3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、それ以外は LauncherService で `ArgumentsTemplate` を展開（`{args}` / `{clipboard}` / `{clipboard_args}`）して実行。失敗時はエラーダイアログ表示とログ出力。
+3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、それ以外は LauncherService が ClipboardHistoryService から取得した履歴を含めて `ArgumentsTemplate` を展開（`{args}` / `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}`）し実行。失敗時はエラーダイアログ表示とログ出力。
 4) スロットクリック: ClickEnabled が有効な場合、KeyboardMacroService により直前の外部ウィンドウへスクリプトを送信し、成功すれば LauncherService でコマンドを起動。マクロのみが設定されたスロットは逐次実行、コマンドのみのスロットはマクロ実行中でも即時に起動する。Any エラーはメッセージ表示でユーザーへ通知。
 5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、KeyChordParser でショートカット書式を検証・正規化。Macro Script 欄には `?` ボタンを配置し、クリックで MacroTipsWindow をモードレス表示（単一インスタンス再利用）してサポートされる命令と例を参照できる。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
 6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
@@ -34,7 +35,7 @@
 
 ## DES-004 API Contracts (examples)
 - LauncherService
-  - Input: `SlotModel slot`, `string[] paths`（0..n）。`ArgumentTemplateExpander` が `{args}` をクォート済みで展開し、`{clipboard}`/`{clipboard_args}` をクリップボード文字列から解決する。
+  - Input: `SlotModel slot`, `string[] paths`（0..n）。`ArgumentTemplateExpander` が `{args}` をクォート済みで展開し、`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を ClipboardHistoryService が返す履歴から解決する（`{clipboard_args:n}` は直近 n 行を古い順で展開）。
   - Output: `LaunchResult`（Success/Message）。例外は捕捉してメッセージ化。
 - ConfigService
   - `LoadOrCreate()`: JSON を読み込み、検証・マイグレーションを実行。失敗時は `.bak` または既定値にフォールバック。

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace DropSendTo.Services;
 
@@ -9,20 +11,32 @@ internal static class ArgumentTemplateExpander
     private const string ArgsToken = "{args}";
     private const string ClipboardToken = "{clipboard}";
     private const string ClipboardArgsToken = "{clipboard_args}";
+    private const int ClipboardArgsLimitCap = 20;
+    private static readonly Regex ClipboardArgsLimitRegex = new(@"\{clipboard_args:(\d+)\}", RegexOptions.Compiled);
 
-    public static string Expand(string? template, IReadOnlyCollection<string> paths, Func<string?> clipboardProvider)
+    public static string Expand(string? template, IReadOnlyCollection<string> paths, Func<ClipboardSnapshot> clipboardProvider)
     {
         template ??= ArgsToken;
         var joinedPaths = JoinPaths(paths);
 
-        string clipboardRaw = clipboardProvider?.Invoke() ?? string.Empty;
+        var snapshot = clipboardProvider?.Invoke() ?? ClipboardSnapshot.Empty;
+        string clipboardRaw = snapshot.RawText ?? string.Empty;
         string clipboardNormalized = clipboardRaw.Trim();
-        string clipboardArgs = BuildClipboardArgs(clipboardNormalized);
+        var historyEntries = snapshot.Entries ?? Array.Empty<string>();
 
         string result = template.Replace(ArgsToken, joinedPaths);
+        result = ReplaceClipboardArgsWithLimit(result, historyEntries);
         if (result.Contains(ClipboardArgsToken, StringComparison.Ordinal))
         {
-            result = result.Replace(ClipboardArgsToken, clipboardArgs);
+            var latestEntries = snapshot.LatestEntries ?? Array.Empty<string>();
+            if (latestEntries.Count == 0)
+            {
+                result = result.Replace(ClipboardArgsToken, string.Empty);
+            }
+            else
+            {
+                result = result.Replace(ClipboardArgsToken, BuildClipboardArgs(latestEntries));
+            }
         }
         if (result.Contains(ClipboardToken, StringComparison.Ordinal))
         {
@@ -37,63 +51,23 @@ internal static class ArgumentTemplateExpander
         return string.Join(" ", paths.Select(QuotePath));
     }
 
-    private static string BuildClipboardArgs(string clipboardText)
+    private static string BuildClipboardArgs(IReadOnlyList<string> entries, int? limit = null)
     {
-        var tokens = ParseClipboardEntries(clipboardText);
-        if (tokens.Count == 0)
+        if (entries.Count == 0)
         {
             return string.Empty;
         }
-        return string.Join(" ", tokens.Select(QuotePath));
-    }
-
-    private static IReadOnlyList<string> ParseClipboardEntries(string clipboardText)
-    {
-        if (string.IsNullOrWhiteSpace(clipboardText))
+        if (limit.HasValue)
         {
-            return Array.Empty<string>();
-        }
-
-        var entries = new List<string>();
-        var lines = clipboardText.Replace("\r", string.Empty)
-                                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (lines.Length <= 1)
-        {
-            var single = NormalizeClipboardEntry(clipboardText);
-            if (!string.IsNullOrWhiteSpace(single))
+            if (limit.Value <= 0)
             {
-                entries.Add(single);
+                return string.Empty;
             }
-            return entries;
+            int takeCount = Math.Min(limit.Value, entries.Count);
+            int skip = entries.Count - takeCount;
+            return string.Join(" ", entries.Skip(skip).Take(takeCount).Select(QuotePath));
         }
-
-        foreach (var line in lines)
-        {
-            var normalized = NormalizeClipboardEntry(line);
-            if (!string.IsNullOrWhiteSpace(normalized))
-            {
-                entries.Add(normalized);
-            }
-        }
-
-        return entries;
-    }
-
-    private static string NormalizeClipboardEntry(string entry)
-    {
-        if (string.IsNullOrWhiteSpace(entry))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = entry.Trim();
-        if (trimmed.Length >= 2 && trimmed.StartsWith("\"", StringComparison.Ordinal) && trimmed.EndsWith("\"", StringComparison.Ordinal))
-        {
-            trimmed = trimmed[1..^1];
-        }
-
-        return trimmed;
+        return string.Join(" ", entries.Select(QuotePath));
     }
 
     private static string QuotePath(string path)
@@ -109,5 +83,28 @@ internal static class ArgumentTemplateExpander
         }
 
         return path;
+    }
+
+    private static string ReplaceClipboardArgsWithLimit(string template, IReadOnlyList<string> entries)
+    {
+        if (!ClipboardArgsLimitRegex.IsMatch(template))
+        {
+            return template;
+        }
+
+        return ClipboardArgsLimitRegex.Replace(template, match =>
+        {
+            var token = match.Groups[1].Value;
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var limit))
+            {
+                return string.Empty;
+            }
+            if (limit <= 0)
+            {
+                return string.Empty;
+            }
+            limit = Math.Min(limit, ClipboardArgsLimitCap);
+            return BuildClipboardArgs(entries, limit);
+        });
     }
 }
