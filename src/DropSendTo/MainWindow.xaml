@@ -15,6 +15,8 @@
         <ContextMenu Opened="OnContextMenuOpened">
             <MenuItem Header="Open Config" Click="OnOpenConfig"/>
             <MenuItem Header="Open Logs" Click="OnOpenLogs"/>
+            <MenuItem Header="Export Config..." Click="OnExportConfig"/>
+            <MenuItem Header="Import Config..." Click="OnImportConfig"/>
             <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
             <MenuItem x:Name="LayoutMenuItem"
                       Header="Slot Layout"

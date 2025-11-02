@@ -12,6 +12,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using DropSendTo.Models;
 using DropSendTo.Services;
+using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using MediaColor = System.Windows.Media.Color;
 using DragEventArgs = System.Windows.DragEventArgs;
@@ -34,6 +35,7 @@ public partial class MainWindow : Window
     private readonly System.Windows.Threading.DispatcherTimer _layerHoverTimer;
     private readonly KeyboardMacroService _macroService = new();
     private readonly ShortcutService _shortcutService = new();
+    private readonly ConfigTransferService _configTransferService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private Forms.NotifyIcon? _notifyIcon;
@@ -900,6 +902,112 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             WpfMessageBox.Show(ex.Message, "Open Config", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnExportConfig(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var passwordDialog = new PasswordPromptDialog(
+                "コンフィグのエクスポート",
+                "エクスポートファイルを保護するパスワードを入力してください。",
+                requireConfirmation: true)
+            {
+                Owner = this
+            };
+            if (passwordDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var password = passwordDialog.Password;
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                WpfMessageBox.Show("パスワードを入力してください。", "Export Config", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "エクスポート先を選択",
+                Filter = "DropSendTo Export (*.dstcfg)|*.dstcfg|All files (*.*)|*.*",
+                DefaultExt = ".dstcfg",
+                FileName = $"DropSendTo_{DateTime.Now:yyyyMMdd_HHmmss}.dstcfg"
+            };
+
+            if (saveDialog.ShowDialog(this) != true)
+            {
+                return;
+            }
+
+            var payload = _configTransferService.CreateExportPayload(_config, password);
+            File.WriteAllText(saveDialog.FileName, payload);
+            WpfMessageBox.Show("コンフィグのエクスポートが完了しました。", "Export Config", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Config export failed: {ex}");
+            WpfMessageBox.Show("コンフィグのエクスポートに失敗しました。ログをご確認ください。", "Export Config", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void OnImportConfig(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var openDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "インポートするファイルを選択",
+                Filter = "DropSendTo Export (*.dstcfg)|*.dstcfg|All files (*.*)|*.*",
+                DefaultExt = ".dstcfg"
+            };
+            if (openDialog.ShowDialog(this) != true)
+            {
+                return;
+            }
+
+            var payload = File.ReadAllText(openDialog.FileName);
+            var passwordDialog = new PasswordPromptDialog(
+                "コンフィグのインポート",
+                "エクスポート時に設定したパスワードを入力してください。",
+                requireConfirmation: false)
+            {
+                Owner = this
+            };
+            if (passwordDialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var password = passwordDialog.Password;
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                WpfMessageBox.Show("パスワードを入力してください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var imported = _configTransferService.ImportConfig(payload, password);
+            _config = imported;
+            _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+            Topmost = _config.AlwaysOnTop;
+            ApplySlotLayout();
+            RestoreWindowPosition();
+            Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+            RefreshUi();
+            UpdateTrayMenuState();
+            _configService.Save(_config);
+            WpfMessageBox.Show("コンフィグのインポートが完了しました。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.Warn($"Config import failed: {ex}");
+            WpfMessageBox.Show(ex.Message, "Import Config", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Config import error: {ex}");
+            WpfMessageBox.Show("コンフィグのインポートに失敗しました。ログをご確認ください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
