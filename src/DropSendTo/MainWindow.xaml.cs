@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -450,17 +451,28 @@ public partial class MainWindow : Window
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
+        var idx = GetSlotIndex(fe);
+        var slot = _config.Layers[_currentLayer].Slots[idx];
+        var emptyTargets = GetEmptySlotOptions();
+        bool sourceHasContent = !IsSlotEmpty(slot);
+        bool hasMoveTargets = emptyTargets.Any(opt => opt.LayerIndex != _currentLayer || opt.SlotIndex != idx);
+        bool hasCopyTargets = emptyTargets.Count > 0;
+
         var cm = new ContextMenu();
         var miEdit = new MenuItem { Header = "Edit..." };
         miEdit.Click += (_, _) => EditSlot(fe);
+        var miMove = new MenuItem { Header = "Move to..." , IsEnabled = sourceHasContent && hasMoveTargets };
+        miMove.Click += (_, _) => MoveSlot(_currentLayer, idx);
+        var miCopy = new MenuItem { Header = "Copy to..." , IsEnabled = sourceHasContent && hasCopyTargets };
+        miCopy.Click += (_, _) => CopySlot(_currentLayer, idx);
         var miClear = new MenuItem { Header = "Clear..." };
         miClear.Click += (_, _) => ClearSlot(fe);
         cm.Items.Add(miEdit);
+        cm.Items.Add(miMove);
+        cm.Items.Add(miCopy);
         cm.Items.Add(new Separator());
         cm.Items.Add(miClear);
         cm.Items.Add(new Separator());
-        var idx = GetSlotIndex(fe);
-        var slot = _config.Layers[_currentLayer].Slots[idx];
         var toggle = new MenuItem { Header = slot.ClickEnabled ? "Disable Click Launch" : "Enable Click Launch" };
         toggle.Click += (_, _) => { slot.ClickEnabled = !slot.ClickEnabled; _configService.Save(_config); };
         cm.Items.Add(toggle);
@@ -623,13 +635,7 @@ public partial class MainWindow : Window
     {
         int idx = GetSlotIndex(fe);
         var slot = _config.Layers[_currentLayer].Slots[idx];
-        bool isEmpty = string.IsNullOrWhiteSpace(slot.Title) &&
-                       string.IsNullOrWhiteSpace(slot.Command) &&
-                       string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) &&
-                       string.IsNullOrWhiteSpace(slot.ShortcutKey) &&
-                       string.Equals(slot.ArgumentsTemplate ?? string.Empty, "{args}", StringComparison.Ordinal) &&
-                       slot.ClickEnabled;
-        if (!isEmpty)
+        if (!IsSlotEmpty(slot))
         {
             var result = WpfMessageBox.Show(
                 "このスロットの設定を初期化します。よろしいですか？",
@@ -642,6 +648,128 @@ public partial class MainWindow : Window
             }
         }
         _config.Layers[_currentLayer].Slots[idx] = new SlotModel();
+        _configService.Save(_config);
+        RefreshUi();
+    }
+
+    private static bool IsSlotEmpty(SlotModel slot)
+    {
+        if (slot == null) return true;
+        bool baseTemplate = string.Equals(slot.ArgumentsTemplate ?? string.Empty, "{args}", StringComparison.Ordinal);
+        return string.IsNullOrWhiteSpace(slot.Title) &&
+               string.IsNullOrWhiteSpace(slot.Command) &&
+               string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) &&
+               string.IsNullOrWhiteSpace(slot.ShortcutKey) &&
+               baseTemplate &&
+               slot.ClickEnabled &&
+               string.IsNullOrWhiteSpace(slot.IconPath);
+    }
+
+    private static SlotModel CloneSlot(SlotModel source)
+    {
+        return new SlotModel
+        {
+            Title = source.Title,
+            Command = source.Command,
+            ArgumentsTemplate = source.ArgumentsTemplate,
+            IconPath = source.IconPath,
+            ClickEnabled = source.ClickEnabled,
+            ShortcutKey = source.ShortcutKey,
+            KeyboardMacroScript = source.KeyboardMacroScript
+        };
+    }
+
+    private List<SlotSelectionOption> GetEmptySlotOptions()
+    {
+        var options = new List<SlotSelectionOption>();
+        for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
+        {
+            var layer = _config.Layers[layerIndex];
+            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            {
+                if (IsSlotEmpty(layer.Slots[slotIndex]))
+                {
+                    options.Add(new SlotSelectionOption(layerIndex, slotIndex, FormatSlotDisplayName(layerIndex, slotIndex)));
+                }
+            }
+        }
+        return options;
+    }
+
+    private static string FormatSlotDisplayName(int layerIndex, int slotIndex)
+    {
+        return string.Format(CultureInfo.InvariantCulture, "Layer {0} - Slot {1}", layerIndex + 1, slotIndex + 1);
+    }
+
+    private void MoveSlot(int sourceLayerIndex, int sourceSlotIndex)
+    {
+        var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
+        if (IsSlotEmpty(sourceSlot))
+        {
+            WpfMessageBox.Show("空のスロットは移動できません。", "Move Slot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var candidates = GetEmptySlotOptions()
+            .Where(opt => opt.LayerIndex != sourceLayerIndex || opt.SlotIndex != sourceSlotIndex)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            WpfMessageBox.Show("移動先の空きスロットがありません。", "Move Slot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SlotSelectionDialog(candidates, "スロットの移動先を選択") { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
+        {
+            return;
+        }
+
+        var selection = dialog.SelectedOption;
+        var targetSlot = _config.Layers[selection.LayerIndex].Slots[selection.SlotIndex];
+        if (!IsSlotEmpty(targetSlot))
+        {
+            WpfMessageBox.Show("選択されたスロットは既に使用されています。", "Move Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _config.Layers[selection.LayerIndex].Slots[selection.SlotIndex] = CloneSlot(sourceSlot);
+        _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex] = new SlotModel();
+        _configService.Save(_config);
+        RefreshUi();
+    }
+
+    private void CopySlot(int sourceLayerIndex, int sourceSlotIndex)
+    {
+        var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
+        if (IsSlotEmpty(sourceSlot))
+        {
+            WpfMessageBox.Show("空のスロットはコピーできません。", "Copy Slot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var candidates = GetEmptySlotOptions();
+        if (candidates.Count == 0)
+        {
+            WpfMessageBox.Show("コピー先の空きスロットがありません。", "Copy Slot", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SlotSelectionDialog(candidates, "スロットのコピー先を選択") { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
+        {
+            return;
+        }
+
+        var selection = dialog.SelectedOption;
+        var targetSlot = _config.Layers[selection.LayerIndex].Slots[selection.SlotIndex];
+        if (!IsSlotEmpty(targetSlot))
+        {
+            WpfMessageBox.Show("選択されたスロットは既に使用されています。", "Copy Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _config.Layers[selection.LayerIndex].Slots[selection.SlotIndex] = CloneSlot(sourceSlot);
         _configService.Save(_config);
         RefreshUi();
     }
