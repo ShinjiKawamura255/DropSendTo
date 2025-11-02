@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Media;
 using Forms = System.Windows.Forms;
 
 namespace DropSendTo.Services;
