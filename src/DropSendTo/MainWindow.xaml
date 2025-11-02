@@ -26,6 +26,9 @@
                       Header="常に最前面に表示"
                       IsCheckable="True"
                       Click="OnToggleAlwaysOnTop"/>
+            <MenuItem x:Name="MinimizeToTrayMenuItem"
+                      Header="Minimize to Tray"
+                      Click="OnMinimizeToTray"/>
             <Separator/>
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>

@@ -80,6 +80,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler<PrefixPassthroughEventArgs>? PrefixPassthroughRequested;
     public event EventHandler<PrefixStateChangedEventArgs>? PrefixStateChanged;
     public event EventHandler? PrefixActivationRequested;
+    public event EventHandler? PrefixMinimizeRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -317,6 +318,13 @@ internal sealed class ShortcutService : IDisposable
             return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
         }
 
+        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_SHIFT) && prefixResidue.Count == 0)
+        {
+            MarkKeyForSuppression(vk);
+            suppress = true;
+            return ShortcutAction.CreatePrefixMinimize();
+        }
+
         if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
         {
             MarkKeyForSuppression(vk);
@@ -430,6 +438,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixActivate:
                 _dispatcher.BeginInvoke(() => PrefixActivationRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixMinimize:
+                _dispatcher.BeginInvoke(() => PrefixMinimizeRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -733,6 +744,9 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixActivation() =>
             new(ShortcutActionType.PrefixActivate, 0, null, null, null);
+
+        public static ShortcutAction CreatePrefixMinimize() =>
+            new(ShortcutActionType.PrefixMinimize, 0, null, null, null);
     }
 
     private enum ShortcutActionType
@@ -740,7 +754,8 @@ internal sealed class ShortcutService : IDisposable
         None,
         TriggerShortcut,
         PrefixPassthrough,
-        PrefixActivate
+        PrefixActivate,
+        PrefixMinimize
     }
 
     [StructLayout(LayoutKind.Sequential)]

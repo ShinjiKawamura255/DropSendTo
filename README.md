@@ -6,6 +6,7 @@ DropSendTo は .NET 8 (WPF) 製の常駐ランチャです。半透明のコン�
 - 4 レイヤー × 2〜4 行・2〜4 列のグリッド（最大 4×4×4 = 64 スロット）と常時最前面ウィンドウ
 - ドロップ/クリック/CLI 引数/Prefix+ショートカットから共通のスロット起動フロー（マクロ → コマンド）
 - Prefix インジケーターをウィンドウ左上に表示し、CTRL 押しっぱなしなど Prefix と同じ修飾キーを再度押し直さなくてもショートカットを検出
+- タスクトレイ常駐・最小化をサポートし、Prefix+Shift+Enter やメニューからワンクリックでウィンドウを格納
 - Slot Edit ダイアログでタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、マクロ Tips をモードレスで参照可能
 - `%AppData%/DropSendTo/config.json` への設定保存、`.bak` バックアップ、7 日保持のローテーションログ
 
@@ -31,7 +32,9 @@ src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
 1. `Change Prefix...` メニューで Prefix を設定 (既定は `Ctrl+Q`)
 2. Prefix を押すとウィンドウ左上のインジケーターが点灯し、4 秒以内に登録済みショートカットを入力すると該当スロットが発火します。
 3. Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → ショートカット `Ctrl+X`）は、Ctrl を押しっぱなしのまま `X` を押せば実行可能です。押し直しても動作します。
-4. Prefix を再入力すると armed 状態を解除しつつ、Prefix キーを前面アプリへ送出します。
+4. Prefix+Enter で DropSendTo ウィンドウを最前面に復帰させます（タスクトレイへ最小化している場合でも復帰）。
+5. Prefix+Shift+Enter でウィンドウをタスクトレイへ最小化します。タスクトレイアイコンの左クリックでも復帰できます。
+6. Prefix を再入力すると armed 状態を解除しつつ、Prefix キーを前面アプリへ送出します。
 
 ### マクロの概要
 - `KEY`, `KEYDOWN`, `KEYUP`, `TEXT`, `WAIT`, `REPEAT`、各種マウス操作 (`MOUSELEFTCLICK` 等) に対応

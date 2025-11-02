@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private Forms.NotifyIcon? _notifyIcon;
+    private bool _isMinimizedToTray;
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
@@ -114,6 +115,7 @@ public partial class MainWindow : Window
         RestoreWindowPosition();
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
+        UpdateTrayMenuState();
         this.Closing += (_, _) =>
         {
             ClampWindowWithinBounds();
@@ -184,16 +186,47 @@ public partial class MainWindow : Window
         });
     }
 
-    private void BringWindowToForeground()
+    private void MinimizeWindowToTray()
     {
-        if (!IsVisible)
+        if (_isMinimizedToTray)
+        {
+            return;
+        }
+
+        _config.WindowLeft = this.Left;
+        _config.WindowTop = this.Top;
+        _isMinimizedToTray = true;
+        Hide();
+        UpdateTrayMenuState();
+    }
+
+    private void RestoreWindowFromTray()
+    {
+        if (_isMinimizedToTray || !IsVisible)
         {
             Show();
+            _isMinimizedToTray = false;
         }
+
         if (WindowState == WindowState.Minimized)
         {
             WindowState = WindowState.Normal;
         }
+
+        UpdateTrayMenuState();
+    }
+
+    private void UpdateTrayMenuState()
+    {
+        if (MinimizeToTrayMenuItem != null)
+        {
+            MinimizeToTrayMenuItem.IsEnabled = !_isMinimizedToTray;
+        }
+    }
+
+    private void BringWindowToForeground()
+    {
+        RestoreWindowFromTray();
         Activate();
         Focus();
         bool desiredTopmost = _config?.AlwaysOnTop ?? true;
@@ -364,6 +397,7 @@ public partial class MainWindow : Window
             _shortcutService.ShortcutTriggered += OnShortcutTriggered;
             _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
             _shortcutService.PrefixActivationRequested += OnPrefixActivationRequested;
+            _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _macroService.SetPrefixChordAccessor(() => _shortcutService.CurrentPrefixChord);
@@ -785,6 +819,11 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnMinimizeToTray(object sender, RoutedEventArgs e)
+    {
+        MinimizeWindowToTray();
+    }
+
     private void OnToggleAlwaysOnTop(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item) return;
@@ -798,6 +837,7 @@ public partial class MainWindow : Window
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
         PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
+        UpdateTrayMenuState();
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
@@ -1036,6 +1076,11 @@ public partial class MainWindow : Window
         BringWindowToForeground();
     }
 
+    private void OnPrefixMinimizeRequested(object? sender, EventArgs e)
+    {
+        MinimizeWindowToTray();
+    }
+
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
         if (PrefixIndicator == null || PrefixIndicatorText == null)
@@ -1185,6 +1230,7 @@ public partial class MainWindow : Window
         _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
         _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
         _shortcutService.PrefixActivationRequested -= OnPrefixActivationRequested;
+        _shortcutService.PrefixMinimizeRequested -= OnPrefixMinimizeRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();
