@@ -5,10 +5,10 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 9;
+    public int Version { get; set; } = 10;
     public int CurrentLayer { get; set; } = 0; // 0..3
-    public double? WindowLeft { get; set; }
-    public double? WindowTop { get; set; }
+    public double? WindowLeft { get; set; } = 0;
+    public double? WindowTop { get; set; } = 0;
     public bool AlwaysOnTop { get; set; } = true;
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }

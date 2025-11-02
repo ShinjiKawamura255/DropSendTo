@@ -263,6 +263,23 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 10)
+        {
+            // v10 initializes window coordinates to the origin when missing.
+            if (!cfg.WindowLeft.HasValue)
+            {
+                cfg.WindowLeft = 0;
+                changed = true;
+            }
+            if (!cfg.WindowTop.HasValue)
+            {
+                cfg.WindowTop = 0;
+                changed = true;
+            }
+            cfg.Version = 10;
+            changed = true;
+        }
+
         return changed;
     }
 }
