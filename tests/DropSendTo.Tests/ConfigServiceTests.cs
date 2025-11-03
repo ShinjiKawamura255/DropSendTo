@@ -28,6 +28,8 @@ public class ConfigServiceTests
             }
         }
         cfg.AlwaysOnTop.Should().BeTrue();
+        cfg.StartupBehavior.Should().Be(StartupWindowBehavior.AlwaysShow);
+        cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
         cfg.Version.Should().Be(CurrentConfigVersion);
     }
 
@@ -90,6 +92,8 @@ public class ConfigServiceTests
         var svc = new ConfigService(temp);
         var cfg = svc.LoadOrCreate();
         cfg.Version.Should().Be(CurrentConfigVersion);
+        cfg.StartupBehavior.Should().Be(StartupWindowBehavior.AlwaysShow);
+        cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
         foreach (var layer in cfg.Layers)
         foreach (var slot in layer.Slots)
         {

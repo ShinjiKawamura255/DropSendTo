@@ -13,11 +13,13 @@ public class ConfigTransferServiceTests
         var service = new ConfigTransferService();
         var config = new AppConfig
         {
-            Version = 10,
+            Version = 11,
             CurrentLayer = 2,
             WindowLeft = 123.4,
             WindowTop = 56.7,
             AlwaysOnTop = false,
+            StartupBehavior = StartupWindowBehavior.RestoreLastState,
+            LastWindowVisibility = WindowVisibilityState.Tray,
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
             SlotRows = 3,
@@ -39,6 +41,8 @@ public class ConfigTransferServiceTests
         imported.ShortcutPrefix.Should().Be(config.ShortcutPrefix);
         imported.ShortcutPrefixDisabled.Should().BeTrue();
         imported.AlwaysOnTop.Should().BeFalse();
+        imported.StartupBehavior.Should().Be(StartupWindowBehavior.RestoreLastState);
+        imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");

@@ -134,6 +134,8 @@ internal sealed class ConfigTransferService
         public double? WindowLeft { get; set; }
         public double? WindowTop { get; set; }
         public bool AlwaysOnTop { get; set; }
+        public StartupWindowBehavior StartupBehavior { get; set; }
+        public WindowVisibilityState LastWindowVisibility { get; set; }
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
         public int SlotRows { get; set; }
@@ -150,6 +152,8 @@ internal sealed class ConfigTransferService
                 WindowLeft = config.WindowLeft,
                 WindowTop = config.WindowTop,
                 AlwaysOnTop = config.AlwaysOnTop,
+                StartupBehavior = config.StartupBehavior,
+                LastWindowVisibility = config.LastWindowVisibility,
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
                 SlotRows = config.SlotRows,
@@ -176,6 +180,8 @@ internal sealed class ConfigTransferService
                 WindowLeft = WindowLeft,
                 WindowTop = WindowTop,
                 AlwaysOnTop = AlwaysOnTop,
+                StartupBehavior = StartupBehavior,
+                LastWindowVisibility = LastWindowVisibility,
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
                 SlotRows = SlotRows,

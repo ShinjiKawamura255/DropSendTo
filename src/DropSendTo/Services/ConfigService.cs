@@ -115,6 +115,14 @@ public class ConfigService
             cfg.SlotSize = SlotSize.Large;
         }
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
+        if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
+        {
+            cfg.StartupBehavior = StartupWindowBehavior.AlwaysShow;
+        }
+        if (!Enum.IsDefined(typeof(WindowVisibilityState), cfg.LastWindowVisibility))
+        {
+            cfg.LastWindowVisibility = WindowVisibilityState.Visible;
+        }
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -277,6 +285,20 @@ public class ConfigService
                 changed = true;
             }
             cfg.Version = 10;
+            changed = true;
+        }
+
+        if (cfg.Version < 11)
+        {
+            if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
+            {
+                cfg.StartupBehavior = StartupWindowBehavior.AlwaysShow;
+            }
+            if (!Enum.IsDefined(typeof(WindowVisibilityState), cfg.LastWindowVisibility))
+            {
+                cfg.LastWindowVisibility = WindowVisibilityState.Visible;
+            }
+            cfg.Version = 11;
             changed = true;
         }
 

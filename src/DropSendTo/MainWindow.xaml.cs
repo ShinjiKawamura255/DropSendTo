@@ -40,6 +40,7 @@ public partial class MainWindow : Window
     private readonly List<SlotVisual> _slotVisuals = new();
     private Forms.NotifyIcon? _notifyIcon;
     private bool _isMinimizedToTray;
+    private bool _minimizeOnLoaded;
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
@@ -109,10 +110,13 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         InitializeNotifyIcon();
         _configService = new ConfigService();
-       _launcher = new LauncherService();
-       _config = _configService.LoadOrCreate();
-       Topmost = _config.AlwaysOnTop;
-       _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+        _launcher = new LauncherService();
+        _config = _configService.LoadOrCreate();
+        _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
+                            && _config.LastWindowVisibility == WindowVisibilityState.Tray;
+        Loaded += OnLoaded;
+        Topmost = _config.AlwaysOnTop;
+        _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
 
         ApplySlotLayout();
         RestoreWindowPosition();
@@ -126,6 +130,7 @@ public partial class MainWindow : Window
             _config.WindowTop = this.Top;
             _config.CurrentLayer = _currentLayer;
             _config.AlwaysOnTop = this.Topmost;
+            _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
             _configService.Save(_config);
             ClipboardHistoryService.Instance.Dispose();
         };
@@ -199,8 +204,27 @@ public partial class MainWindow : Window
         _config.WindowLeft = this.Left;
         _config.WindowTop = this.Top;
         _isMinimizedToTray = true;
+        if (_config.LastWindowVisibility != WindowVisibilityState.Tray)
+        {
+            _config.LastWindowVisibility = WindowVisibilityState.Tray;
+            _configService.Save(_config);
+        }
         Hide();
         UpdateTrayMenuState();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        if (_minimizeOnLoaded)
+        {
+            _minimizeOnLoaded = false;
+            Dispatcher.BeginInvoke(new Action(MinimizeWindowToTray));
+        }
+        else if (_config.LastWindowVisibility != WindowVisibilityState.Visible)
+        {
+            _config.LastWindowVisibility = WindowVisibilityState.Visible;
+        }
     }
 
     private void RestoreWindowFromTray()
@@ -214,6 +238,12 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized)
         {
             WindowState = WindowState.Normal;
+        }
+
+        if (_config.LastWindowVisibility != WindowVisibilityState.Visible)
+        {
+            _config.LastWindowVisibility = WindowVisibilityState.Visible;
+            _configService.Save(_config);
         }
 
         UpdateTrayMenuState();
@@ -457,6 +487,7 @@ public partial class MainWindow : Window
     {
         _config.CurrentLayer = _currentLayer;
         _config.AlwaysOnTop = this.Topmost;
+        _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
         _configService.Save(_config);
         Close();
     }
@@ -1097,9 +1128,48 @@ public partial class MainWindow : Window
         _configService.Save(_config);
     }
 
+    private void OnStartupAlwaysShow(object sender, RoutedEventArgs e)
+    {
+        if (StartupAlwaysShowMenuItem != null)
+        {
+            StartupAlwaysShowMenuItem.IsChecked = true;
+        }
+        if (StartupRestoreMenuItem != null)
+        {
+            StartupRestoreMenuItem.IsChecked = false;
+        }
+        if (_config.StartupBehavior != StartupWindowBehavior.AlwaysShow)
+        {
+            _config.StartupBehavior = StartupWindowBehavior.AlwaysShow;
+            _configService.Save(_config);
+        }
+    }
+
+    private void OnStartupRestoreState(object sender, RoutedEventArgs e)
+    {
+        if (StartupRestoreMenuItem != null)
+        {
+            StartupRestoreMenuItem.IsChecked = true;
+        }
+        if (StartupAlwaysShowMenuItem != null)
+        {
+            StartupAlwaysShowMenuItem.IsChecked = false;
+        }
+        if (_config.StartupBehavior != StartupWindowBehavior.RestoreLastState)
+        {
+            _config.StartupBehavior = StartupWindowBehavior.RestoreLastState;
+            _configService.Save(_config);
+        }
+    }
+
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
+        if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null)
+        {
+            StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
+            StartupRestoreMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState;
+        }
         PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
