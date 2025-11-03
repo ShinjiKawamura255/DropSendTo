@@ -34,6 +34,8 @@ public sealed class KeyboardMacroService : IDisposable
     private bool _disposed;
     private uint _ownerThreadId;
     private Func<KeyChord?>? _prefixChordAccessor;
+    private Func<bool>? _prefixIsArmedAccessor;
+    private Action? _prefixResetAction;
 
     public void Initialize(WindowInteropHelper helper)
     {
@@ -57,9 +59,11 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    internal void SetPrefixChordAccessor(Func<KeyChord?>? accessor)
+    internal void SetPrefixStateAccessors(Func<KeyChord?>? chordAccessor, Func<bool>? isArmedAccessor, Action? resetAction)
     {
-        _prefixChordAccessor = accessor;
+        _prefixChordAccessor = chordAccessor;
+        _prefixIsArmedAccessor = isArmedAccessor;
+        _prefixResetAction = resetAction;
     }
 
     public bool IsMacroRunning => Volatile.Read(ref _macroRunningFlag) == 1;
@@ -219,6 +223,7 @@ public sealed class KeyboardMacroService : IDisposable
         var buffer = new List<INPUT>(16);
         var keyTracker = new KeyHoldTracker();
         var cursorScope = default(MacroCursorScope);
+        bool prefixArmRequested = false;
 
         if (TryGetCursorPosition(out var cursorX, out var cursorY))
         {
@@ -243,9 +248,35 @@ public sealed class KeyboardMacroService : IDisposable
 
             if (!TryFlushInputs(buffer, out var finalError))
             {
-                return result.Success
-                    ? MacroExecutionResult.Fail(finalError ?? "SendInput の実行に失敗しました。")
-                    : result;
+                if (result.Success)
+                {
+                    result = MacroExecutionResult.Fail(finalError ?? "SendInput の実行に失敗しました。");
+                }
+            }
+
+            if (prefixArmRequested && _prefixResetAction != null)
+            {
+                bool wasArmed = false;
+                try
+                {
+                    wasArmed = _prefixIsArmedAccessor?.Invoke() ?? false;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"Prefix armed state check failed after macro execution: {ex}");
+                }
+
+                try
+                {
+                    _logger.Info(wasArmed
+                        ? "Prefix disarmed after macro execution."
+                        : "Prefix state cleared after macro execution.");
+                    _prefixResetAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"Failed to reset prefix state after macro execution: {ex}");
+                }
             }
 
             return result;
@@ -382,6 +413,10 @@ public sealed class KeyboardMacroService : IDisposable
                     if (!TryAppendPrefixSequence(buffer, passthrough, out var prefixError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(prefixError ?? "PREFIX コマンドの実行に失敗しました。"));
+                    }
+                    if (!passthrough)
+                    {
+                        prefixArmRequested = true;
                     }
                     continue;
                 }

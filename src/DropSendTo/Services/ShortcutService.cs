@@ -96,6 +96,16 @@ internal sealed class ShortcutService : IDisposable
     public bool IsUsingFallbackPrefix => _usingFallbackPrefix;
 
     public bool IsPrefixDisabled => _prefixDisabled;
+    public bool IsPrefixArmed
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _prefixArmed;
+            }
+        }
+    }
 
     public void Initialize(string? prefixExpression, bool prefixDisabled)
     {
@@ -179,6 +189,19 @@ internal sealed class ShortcutService : IDisposable
                     _logger.Warn($"Failed to parse shortcut registration \"{entry}\": {error}");
                 }
             }
+        }
+    }
+
+    public void ResetPrefixState(bool clearModifiers = false)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        lock (_stateLock)
+        {
+            if (clearModifiers)
+            {
+                ClearModifierStateLocked();
+            }
+            ResetPrefixStateLocked();
         }
     }
 

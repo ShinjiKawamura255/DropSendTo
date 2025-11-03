@@ -456,7 +456,10 @@ public partial class MainWindow : Window
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
-            _macroService.SetPrefixChordAccessor(() => _shortcutService.CurrentPrefixChord);
+            _macroService.SetPrefixStateAccessors(
+                () => _shortcutService.CurrentPrefixChord,
+                () => _shortcutService.IsPrefixArmed,
+                () => _shortcutService.ResetPrefixState(clearModifiers: true));
             if (_shortcutService.IsPrefixDisabled)
             {
                 // 無効化時は設定値の正規化は行わない。
