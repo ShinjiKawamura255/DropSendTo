@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using WpfClipboard = System.Windows.Clipboard;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -1146,24 +1147,150 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         if (string.IsNullOrEmpty(text)) return true;
 
-        var inputs = new INPUT[2];
-        foreach (var ch in text)
+        var targetWindow = GetForegroundWindow();
+        uint targetThread = targetWindow != IntPtr.Zero
+            ? GetWindowThreadProcessId(targetWindow, out _)
+            : GetCurrentThreadId();
+        var keyboardLayout = GetKeyboardLayout(targetThread);
+        if (keyboardLayout == IntPtr.Zero)
+        {
+            keyboardLayout = GetKeyboardLayout(0);
+        }
+
+        Span<char> runeBuffer = stackalloc char[2];
+        var unicodeInputs = new INPUT[2];
+
+        foreach (var rune in text.EnumerateRunes())
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            inputs[0] = CreateUnicodeInput(ch, keyUp: false);
-            inputs[1] = CreateUnicodeInput(ch, keyUp: true);
+            if (!TrySendRuneUsingKeyboardLayout(rune, keyboardLayout, cancellationToken, out var layoutError))
+            {
+                if (layoutError != null)
+                {
+                    error = layoutError;
+                    return false;
+                }
+
+                if (!TrySendRuneUsingUnicode(rune, runeBuffer, unicodeInputs, cancellationToken, out var unicodeError))
+                {
+                    error = unicodeError;
+                    return false;
+                }
+            }
+
+            bool isWhitespace = Rune.IsWhiteSpace(rune);
+            DelayFor(isWhitespace ? TextSendWhitespaceDelayMilliseconds : TextSendInterCharacterDelayMilliseconds, cancellationToken);
+        }
+
+        error = null;
+        return true;
+    }
+
+    private bool TrySendRuneUsingUnicode(Rune rune, Span<char> buffer, INPUT[] inputs, CancellationToken cancellationToken, out string? error)
+    {
+        error = null;
+        int length = rune.EncodeToUtf16(buffer);
+        for (int i = 0; i < length; i++)
+        {
             cancellationToken.ThrowIfCancellationRequested();
+            var unit = buffer[i];
+            inputs[0] = CreateUnicodeInput(unit, keyUp: false);
+            inputs[1] = CreateUnicodeInput(unit, keyUp: true);
             if (!TrySendInputArray(inputs, inputs.Length, out var charError))
             {
                 error = charError;
                 return false;
             }
-            bool isWhitespace = char.IsWhiteSpace(ch);
-            DelayFor(isWhitespace ? TextSendWhitespaceDelayMilliseconds : TextSendInterCharacterDelayMilliseconds, cancellationToken);
         }
 
+        return true;
+    }
+
+    private bool TrySendRuneUsingKeyboardLayout(Rune rune, IntPtr keyboardLayout, CancellationToken cancellationToken, out string? error)
+    {
         error = null;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!rune.IsBmp)
+        {
+            return false;
+        }
+
+        char ch = (char)rune.Value;
+        short result = VkKeyScanEx(ch, keyboardLayout);
+        if (result == -1)
+        {
+            return false;
+        }
+
+        ushort vk = (ushort)(result & 0xFF);
+        if (vk == 0xFFFF)
+        {
+            return false;
+        }
+
+        ushort modifiers = (ushort)((result >> 8) & 0xFF);
+        if ((modifiers & ~0x7) != 0)
+        {
+            return false;
+        }
+
+        Span<INPUT> span = stackalloc INPUT[8];
+        int count = 0;
+
+        if ((modifiers & 0x1) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_SHIFT, keyUp: false, InputExtraInfo.MacroPassthroughPointer);
+        }
+        if ((modifiers & 0x2) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_CONTROL, keyUp: false, InputExtraInfo.MacroPassthroughPointer);
+        }
+        if ((modifiers & 0x4) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_MENU, keyUp: false, InputExtraInfo.MacroPassthroughPointer);
+        }
+
+        span[count++] = CreateVirtualKeyInput(vk, keyUp: false, InputExtraInfo.MacroPassthroughPointer);
+        span[count++] = CreateVirtualKeyInput(vk, keyUp: true, InputExtraInfo.MacroPassthroughPointer);
+
+        if ((modifiers & 0x4) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_MENU, keyUp: true, InputExtraInfo.MacroPassthroughPointer);
+        }
+        if ((modifiers & 0x2) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_CONTROL, keyUp: true, InputExtraInfo.MacroPassthroughPointer);
+        }
+        if ((modifiers & 0x1) != 0)
+        {
+            span[count++] = CreateVirtualKeyInput(VK_SHIFT, keyUp: true, InputExtraInfo.MacroPassthroughPointer);
+        }
+
+        if (count == 0)
+        {
+            return true;
+        }
+
+        var rented = ArrayPool<INPUT>.Shared.Rent(count);
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                rented[i] = span[i];
+            }
+
+            if (!TrySendInputArray(rented, count, out var sendError))
+            {
+                error = sendError;
+                return false;
+            }
+        }
+        finally
+        {
+            ArrayPool<INPUT>.Shared.Return(rented);
+        }
+
         return true;
     }
 
@@ -2311,6 +2438,12 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("user32.dll")]
+    private static extern short VkKeyScanEx(char ch, IntPtr dwhkl);
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
