@@ -12,7 +12,7 @@ public class LauncherService
 {
     private readonly LoggerService _logger = LoggerService.Instance;
 
-    public LaunchResult Launch(SlotModel slot, string[] paths)
+    public LaunchResult Launch(SlotModel slot, string[] paths, string? argumentOverride = null)
     {
         try
         {
@@ -35,7 +35,7 @@ public class LauncherService
                 WorkingDirectory = Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
                 Arguments = string.Empty
             };
-            var arguments = BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
+            var arguments = argumentOverride ?? BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
             startInfo.Arguments = arguments;
             _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{arguments}\" (paths={paths.Length}).");
             var p = Process.Start(startInfo);

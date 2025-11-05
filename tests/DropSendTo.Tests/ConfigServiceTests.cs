@@ -25,6 +25,7 @@ public class ConfigServiceTests
             foreach (var slot in layer.Slots)
             {
                 slot.KeyboardMacroScript.Should().NotBeNull();
+                slot.ExecutionMode.Should().Be(SlotExecutionMode.Command);
             }
         }
         cfg.AlwaysOnTop.Should().BeTrue();
@@ -98,6 +99,7 @@ public class ConfigServiceTests
         foreach (var slot in layer.Slots)
         {
             slot.KeyboardMacroScript.Should().Be(string.Empty);
+            slot.ExecutionMode.Should().Be(SlotExecutionMode.Command);
         }
     }
 
@@ -119,5 +121,89 @@ public class ConfigServiceTests
 
         var reloaded = svc.LoadOrCreate();
         reloaded.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("SECRET");
+    }
+
+    [Fact]
+    public void LoadOrCreate_Should_Migrate_Legacy_Macro_Mode_To_ExecutionMode()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var cfgDir = Path.Combine(temp, "DropSendTo");
+        Directory.CreateDirectory(cfgDir);
+        var legacyJson = """
+        {
+          "Version": 11,
+          "CurrentLayer": 0,
+          "AlwaysOnTop": true,
+          "SlotRows": 2,
+          "SlotColumns": 2,
+          "Layers": [
+            { "Slots": [
+                { "Title": "MacroOne", "Command": "", "ArgumentsTemplate": "{args}", "ClickEnabled": true, "KeyboardMacroScript": "TEXT Hello" },
+                { "Title": "MacroExtended", "Command": "cmd.exe", "ArgumentsTemplate": "{args}", "ClickEnabled": true, "KeyboardMacroScript": "TEXT World" },
+                { "Title": "CmdOnly", "Command": "cmd.exe", "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true }
+              ] },
+            { "Slots": [
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true }
+              ] },
+            { "Slots": [
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true }
+              ] },
+            { "Slots": [
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true },
+                { "Title": null, "Command": null, "ArgumentsTemplate": "{args}", "ClickEnabled": true }
+              ] }
+          ]
+        }
+        """;
+        File.WriteAllText(Path.Combine(cfgDir, "config.json"), legacyJson);
+
+        var svc = new ConfigService(temp);
+        var cfg = svc.LoadOrCreate();
+
+        cfg.Version.Should().Be(CurrentConfigVersion);
+        var firstSlot = cfg.Layers[0].Slots[0];
+        firstSlot.KeyboardMacroScript.Should().Be("TEXT Hello");
+        firstSlot.ExecutionMode.Should().Be(SlotExecutionMode.MacroScript);
+
+        var secondSlot = cfg.Layers[0].Slots[1];
+        secondSlot.ExecutionMode.Should().Be(SlotExecutionMode.MacroScriptExtended);
+
+        var thirdSlot = cfg.Layers[0].Slots[2];
+        thirdSlot.ExecutionMode.Should().Be(SlotExecutionMode.Command);
+    }
+
+    [Fact]
+    public void Save_Should_Normalize_ExecutionMode_Based_On_Content()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var svc = new ConfigService(temp);
+        var cfg = svc.LoadOrCreate();
+
+        var macroSlot = cfg.Layers[0].Slots[0];
+        macroSlot.KeyboardMacroScript = "TEXT Macro";
+        macroSlot.Command = string.Empty;
+        macroSlot.ExecutionMode = SlotExecutionMode.Command;
+
+        var extendedSlot = cfg.Layers[0].Slots[1];
+        extendedSlot.KeyboardMacroScript = "TEXT Extended";
+        extendedSlot.Command = "cmd.exe";
+        extendedSlot.ArgumentsTemplate = "{args}";
+        extendedSlot.ExecutionMode = SlotExecutionMode.Command;
+
+        svc.Save(cfg);
+
+        var reloaded = svc.LoadOrCreate();
+        reloaded.Layers[0].Slots[0].ExecutionMode.Should().Be(SlotExecutionMode.MacroScript);
+        reloaded.Layers[0].Slots[1].ExecutionMode.Should().Be(SlotExecutionMode.MacroScriptExtended);
     }
 }

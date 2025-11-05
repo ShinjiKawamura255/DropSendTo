@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Microsoft.Win32;
 using DropSendTo.Models;
@@ -17,13 +18,30 @@ namespace DropSendTo;
 public partial class RegisterDialog : Window
 {
     public string AppTitle => TitleBox.Text.Trim();
-    public string CommandPath => IsMacroMode ? string.Empty : CommandBox.Text.Trim();
-    public string ArgumentsTemplate => IsMacroMode ? "{args}" : ArgsBox.Text;
-    public string MacroScript => IsMacroMode ? MacroBox.Text : string.Empty;
+    public string CommandPath => ExecutionMode == SlotExecutionMode.MacroScript
+        ? string.Empty
+        : CommandBox.Text.Trim();
+    public string ArgumentsTemplate => ExecutionMode == SlotExecutionMode.MacroScript
+        ? "{args}"
+        : ArgsBox.Text;
+    public string MacroScript => ExecutionMode == SlotExecutionMode.Command
+        ? string.Empty
+        : MacroBox.Text;
     public string ShortcutChord { get; private set; } = string.Empty;
+    public SlotExecutionMode ExecutionMode => CurrentMode;
     public event EventHandler<SlotSavedEventArgs>? SlotSaved;
 
-    private bool IsMacroMode => MacroModeToggle?.IsChecked == true;
+    private SlotExecutionMode CurrentMode
+    {
+        get
+        {
+            if (ModeComboBox?.SelectedValue is SlotExecutionMode mode)
+            {
+                return mode;
+            }
+            return SlotExecutionMode.Command;
+        }
+    }
     private MacroTipsWindow? _tipsWindow;
     private readonly MacroRecordingService _recordingService = new();
     private int _recordedLineCount;
@@ -41,6 +59,14 @@ public partial class RegisterDialog : Window
         {
             RecordStopButton.PreviewMouseDown += OnRecordStopPreviewMouseDown;
         }
+        if (ModeComboBox != null)
+        {
+            ModeComboBox.SelectionChanged += OnModeSelectionChanged;
+            if (ModeComboBox.SelectedValue == null)
+            {
+                ModeComboBox.SelectedIndex = 0;
+            }
+        }
         if (RecordingStatusText != null)
         {
             RecordingStatusText.Text = "「記録開始」を押すと操作が Macro Script に追記されます。";
@@ -56,29 +82,57 @@ public partial class RegisterDialog : Window
         MacroBox.Text = slot.KeyboardMacroScript ?? string.Empty;
         ShortcutBox.Text = slot.ShortcutKey ?? string.Empty;
         ShortcutChord = ShortcutBox.Text.Trim();
-        MacroModeToggle.IsChecked = !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
+        if (ModeComboBox != null)
+        {
+            var mode = Enum.IsDefined(typeof(SlotExecutionMode), slot.ExecutionMode)
+                ? slot.ExecutionMode
+                : (!string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) ? SlotExecutionMode.MacroScript : SlotExecutionMode.Command);
+            ModeComboBox.SelectedValue = mode;
+        }
         UpdateModeState();
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
-        if (IsMacroMode)
+        var mode = CurrentMode;
+        bool macroRequired = mode != SlotExecutionMode.Command;
+        bool commandRequired = mode != SlotExecutionMode.MacroScript;
+
+        if (macroRequired)
         {
             if (string.IsNullOrWhiteSpace(MacroBox.Text))
             {
-                WpfMessageBox.Show("Macro Script モードでは Macro Script を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var message = mode == SlotExecutionMode.MacroScriptExtended
+                    ? "Macro Script 拡張モードでは Macro Script を入力してください。"
+                    : "Macro Script モードでは Macro Script を入力してください。";
+                WpfMessageBox.Show(message, "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            CommandBox.Text = string.Empty;
         }
         else
         {
+            MacroBox.Text = string.Empty;
+        }
+
+        if (commandRequired)
+        {
             if (string.IsNullOrWhiteSpace(CommandBox.Text))
             {
-                WpfMessageBox.Show("Command モードでは Command を入力してください。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var message = mode == SlotExecutionMode.MacroScriptExtended
+                    ? "Macro Script 拡張モードでは Command を入力してください。"
+                    : "Command モードでは Command を入力してください。";
+                WpfMessageBox.Show(message, "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            MacroBox.Text = string.Empty;
+        }
+        else
+        {
+            CommandBox.Text = string.Empty;
+        }
+
+        if (mode == SlotExecutionMode.MacroScript)
+        {
+            ArgsBox.Text = "{args}";
         }
 
         var shortcutText = ShortcutBox.Text.Trim();
@@ -97,24 +151,26 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord));
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode));
         Close();
     }
 
-    private void OnModeToggleChanged(object sender, RoutedEventArgs e)
+    private void OnModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         UpdateModeState();
     }
 
     private void UpdateModeState()
     {
-        bool macroMode = IsMacroMode;
-        CommandBox.IsEnabled = !macroMode;
-        ArgsBox.IsEnabled = !macroMode;
-        CommandBrowseButton.IsEnabled = !macroMode;
-        MacroBox.IsEnabled = macroMode;
+        var mode = CurrentMode;
+        bool macroEnabled = mode != SlotExecutionMode.Command;
+        bool commandEnabled = mode != SlotExecutionMode.MacroScript;
+        CommandBox.IsEnabled = commandEnabled;
+        ArgsBox.IsEnabled = commandEnabled;
+        CommandBrowseButton.IsEnabled = commandEnabled;
+        MacroBox.IsEnabled = macroEnabled;
 
-        if (!macroMode && _recordingService.IsRecording)
+        if (!macroEnabled && _recordingService.IsRecording)
         {
             _recordingService.StopRecording();
             _recordedLineCount = 0;
@@ -122,9 +178,13 @@ public partial class RegisterDialog : Window
 
         RefreshRecordingControls();
 
-        if (!macroMode && RecordingStatusText != null)
+        if (!macroEnabled && RecordingStatusText != null)
         {
             RecordingStatusText.Text = string.Empty;
+        }
+        else if (macroEnabled && RecordingStatusText != null && string.IsNullOrEmpty(RecordingStatusText.Text))
+        {
+            RecordingStatusText.Text = "「記録開始」を押すと操作が Macro Script に追記されます。";
         }
     }
 
@@ -185,6 +245,10 @@ public partial class RegisterDialog : Window
         {
             RecordStopButton.PreviewMouseDown -= OnRecordStopPreviewMouseDown;
         }
+        if (ModeComboBox != null)
+        {
+            ModeComboBox.SelectionChanged -= OnModeSelectionChanged;
+        }
         _recordingService.LineRecorded -= OnRecordingLineGenerated;
         if (_recordingService.IsRecording)
         {
@@ -210,9 +274,9 @@ public partial class RegisterDialog : Window
 
     private void OnRecordStart(object sender, RoutedEventArgs e)
     {
-        if (!IsMacroMode)
+        if (CurrentMode == SlotExecutionMode.Command)
         {
-            WpfMessageBox.Show("Macro Script モードでのみ記録を利用できます。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("Macro Script モードまたは拡張モードでのみ記録を利用できます。", "Macro Recording", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -259,15 +323,15 @@ public partial class RegisterDialog : Window
 
     private void RefreshRecordingControls()
     {
-        bool macroMode = IsMacroMode;
+        bool macroEnabled = CurrentMode != SlotExecutionMode.Command;
         bool recording = _recordingService.IsRecording;
         if (RecordStartButton != null)
         {
-            RecordStartButton.IsEnabled = macroMode && !recording;
+            RecordStartButton.IsEnabled = macroEnabled && !recording;
         }
         if (RecordStopButton != null)
         {
-            RecordStopButton.IsEnabled = macroMode && recording;
+            RecordStopButton.IsEnabled = macroEnabled && recording;
         }
         if (MacroBox != null)
         {
@@ -362,13 +426,14 @@ public partial class RegisterDialog : Window
 
 public sealed class SlotSavedEventArgs : EventArgs
 {
-    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord)
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode)
     {
         AppTitle = appTitle;
         CommandPath = commandPath;
         ArgumentsTemplate = argumentsTemplate;
         MacroScript = macroScript;
         ShortcutChord = shortcutChord;
+        ExecutionMode = executionMode;
     }
 
     public string AppTitle { get; }
@@ -376,4 +441,5 @@ public sealed class SlotSavedEventArgs : EventArgs
     public string ArgumentsTemplate { get; }
     public string MacroScript { get; }
     public string ShortcutChord { get; }
+    public SlotExecutionMode ExecutionMode { get; }
 }

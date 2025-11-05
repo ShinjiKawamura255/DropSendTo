@@ -9,6 +9,7 @@ using System.Windows.Interop;
 using System.Windows;
 using System.Text;
 using System.Globalization;
+using DropSendTo.Models;
 
 namespace DropSendTo.Services;
 
@@ -137,7 +138,7 @@ public sealed class KeyboardMacroService : IDisposable
         Interlocked.Exchange(ref _lastExternalWindow, hwnd);
     }
 
-    public async Task<MacroExecutionResult> RunMacroAsync(string? script, CancellationToken cancellationToken = default)
+    public async Task<MacroExecutionResult> RunMacroAsync(string? script, MacroExecutionContext? context = null, CancellationToken cancellationToken = default)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(KeyboardMacroService));
         if (string.IsNullOrWhiteSpace(script))
@@ -164,7 +165,7 @@ public sealed class KeyboardMacroService : IDisposable
             try
             {
                 _logger.Info($"Macro execution started (length={scriptToRun.Length} chars).");
-                result = await Task.Run(() => RunMacroInternal(scriptToRun, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
+                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -210,7 +211,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private MacroExecutionResult RunMacroInternal(string script, CancellationToken cancellationToken)
+    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         IntPtr target = ResolveTargetWindow();
@@ -418,6 +419,63 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         prefixArmRequested = true;
                     }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "COMMAND"))
+                {
+                    if (context?.CommandInvoker == null || context.SlotMode != SlotExecutionMode.MacroScriptExtended)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail("COMMAND コマンドは Macro Script 拡張モードでのみ使用できます。"));
+                    }
+
+                    var payload = line.Length > 7 ? line[7..].TrimStart() : string.Empty;
+                    string? overrideArguments = null;
+                    if (!string.IsNullOrEmpty(payload))
+                    {
+                        if (!TryExpandVariables(payload, variables, out var expandedPayload, out var payloadError, specialResolver))
+                        {
+                            return CompleteResult(MacroExecutionResult.Fail(payloadError ?? $"変数の解決に失敗しました: \"{line}\""));
+                        }
+                        overrideArguments = expandedPayload;
+                    }
+
+                    if (!TryFlushInputs(buffer, out var flushBeforeCommandError))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(flushBeforeCommandError ?? "SendInput の実行に失敗しました。"));
+                    }
+
+                    LaunchResult launchResult;
+                    try
+                    {
+                        launchResult = context.CommandInvoker(overrideArguments);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error($"Macro command invocation failed: {ex}");
+                        return CompleteResult(MacroExecutionResult.Fail("COMMAND コマンドの実行に失敗しました。"));
+                    }
+
+                    if (!launchResult.Success)
+                    {
+                        var message = string.IsNullOrWhiteSpace(launchResult.Message)
+                            ? "COMMAND コマンドによる呼び出しに失敗しました。"
+                            : $"COMMAND コマンドによる呼び出しに失敗しました: {launchResult.Message}";
+                        return CompleteResult(MacroExecutionResult.Fail(message));
+                    }
+
+                    var slotLabel = (context.SlotTitle ?? string.Empty).ReplaceLineEndings(" ").Trim();
+                    if (slotLabel.Length == 0)
+                    {
+                        slotLabel = "(untitled)";
+                    }
+                    var overrideInfo = overrideArguments == null
+                        ? "template arguments used"
+                        : $"override length={overrideArguments.Length}";
+                    var commandPath = string.IsNullOrWhiteSpace(context.CommandPath)
+                        ? "(unspecified)"
+                        : context.CommandPath;
+                    _logger.Info($"Slot command invoked via macro (slot=\"{slotLabel}\", command=\"{commandPath}\", {overrideInfo}).");
                     continue;
                 }
 

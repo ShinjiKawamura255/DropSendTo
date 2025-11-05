@@ -13,4 +13,12 @@ public class SlotModel
     public string? ShortcutKey { get; set; } = string.Empty;
     [JsonConverter(typeof(KeyboardMacroScriptJsonConverter))]
     public string? KeyboardMacroScript { get; set; } = string.Empty;
+    public SlotExecutionMode ExecutionMode { get; set; } = SlotExecutionMode.Command;
+}
+
+public enum SlotExecutionMode
+{
+    Command = 0,
+    MacroScript = 1,
+    MacroScriptExtended = 2
 }

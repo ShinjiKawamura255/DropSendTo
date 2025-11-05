@@ -16,6 +16,8 @@
 - TC-025 MacroScriptHappy: `KEY`/`WAIT`/`TEXT`/`REPEAT` など代表的な命令が期待通り展開・送信される。
 - TC-026 MacroScriptValidation: 不正なキー名/REPEAT 上限超過/未閉鎖ブロックでエラーが返る。
 - TC-027 MacroScriptVariables: `SET`/`UNSET`/`ADD`/`SUB`/`MUL`/`DIV`/`APPEND`/`PREPEND` で変数を操作し、`{{Var}}` 展開が成功する。未定義・不正名・整数でない値・0 除算は失敗およびログ記録となる。
+- TC-028 MacroScriptExtended: Macro Script 拡張モードでマクロが実行され、`COMMAND` 命令から登録済みコマンドが呼び出される。引数省略時はスロットの引数テンプレートが展開され、引数を指定した場合は変数展開後の文字列がそのまま渡される。
+- TC-029 MacroCommandValidation: `COMMAND` 命令を Macro Script 拡張モード以外で使用するとエラーとなり、ログに失敗理由が出力される。
 - TC-030 Errors: 実行不可パスやマクロエラーでメッセージが表示され、ログに ERROR が残る。
 - TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。
 - TC-040 UiTheme: 常時最前面が既定で ON、黒基調・半透明・角丸・ボタンスタイルが維持される。
@@ -24,7 +26,7 @@
 - TC-060 WindowPos: 再起動で位置復元し、画面外に移動しても可視範囲へ補正される。
 - TC-065 LayoutMenu: Slot Layout メニューで各行列候補を選択でき、即時 UI が再構成され、再起動後も構成が保持される。
 - TC-070 SlotStates: hover/drag/クリックで視覚状態が変化する（UI レベル）。
-- TC-080 ClickExec: クリック実行が有効なときのみマクロ→コマンドが動く。無効設定は保存される。
+- TC-080 ClickExec: クリック実行が有効なときのみ起動する。Command モードはコマンドのみ、Macro Script モードはマクロのみ、Macro Script 拡張モードはマクロ内で `COMMAND` によりコマンドが起動する。無効設定は保存される。
 - TC-085 ShortcutTrigger: Prefix 押下でインジケーターが点灯し、4 秒以内の登録ショートカットでスロットがレイヤー自動切替込みで起動する。Prefix 再入力で前面ウィンドウへ送出される。
 - TC-086 ShortcutSharedModifier: Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → `Ctrl+X`）は修飾キーを押し直さなくても発火し、再押下でも動作する。
 - TC-088 MacroPrefixCommand: マクロスクリプトで `PREFIX ARM`（または SEND）を挟んだ後に `KEY` でショートカットが発動し、`PREFIX PASSTHROUGH` で前面アプリに送出される。

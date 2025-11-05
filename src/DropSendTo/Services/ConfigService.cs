@@ -146,10 +146,16 @@ public class ConfigService
             EnsureSlotCapacity(layer, requiredSlots);
             foreach (var slot in layer.Slots)
             {
+                if (!Enum.IsDefined(typeof(SlotExecutionMode), slot.ExecutionMode))
+                {
+                    slot.ExecutionMode = SlotExecutionMode.Command;
+                }
+
                 if (slot.KeyboardMacroScript == null)
                 {
                     slot.KeyboardMacroScript = string.Empty;
                 }
+
                 if (slot.ShortcutKey == null)
                 {
                     slot.ShortcutKey = string.Empty;
@@ -158,6 +164,20 @@ public class ConfigService
                 {
                     slot.ShortcutKey = slot.ShortcutKey.Trim();
                 }
+
+                bool hasMacro = !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
+                bool hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
+
+                slot.ExecutionMode = slot.ExecutionMode switch
+                {
+                    SlotExecutionMode.MacroScript when !hasMacro && hasCommand => SlotExecutionMode.Command,
+                    SlotExecutionMode.MacroScript when !hasMacro => SlotExecutionMode.Command,
+                    SlotExecutionMode.MacroScriptExtended when !hasMacro && hasCommand => SlotExecutionMode.Command,
+                    SlotExecutionMode.MacroScriptExtended when hasMacro && !hasCommand => SlotExecutionMode.MacroScript,
+                    _ when hasMacro && hasCommand => SlotExecutionMode.MacroScriptExtended,
+                    _ when hasMacro => SlotExecutionMode.MacroScript,
+                    _ => SlotExecutionMode.Command
+                };
             }
         }
     }
@@ -299,6 +319,43 @@ public class ConfigService
                 cfg.LastWindowVisibility = WindowVisibilityState.Visible;
             }
             cfg.Version = 11;
+            changed = true;
+        }
+
+        if (cfg.Version < 12)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
+                {
+                    if (!Enum.IsDefined(typeof(SlotExecutionMode), slot.ExecutionMode))
+                    {
+                        slot.ExecutionMode = SlotExecutionMode.Command;
+                        changed = true;
+                    }
+
+                    bool hasMacro = !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
+                    bool hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
+
+                    var targetMode = hasMacro
+                        ? (hasCommand ? SlotExecutionMode.MacroScriptExtended : SlotExecutionMode.MacroScript)
+                        : SlotExecutionMode.Command;
+                    if (slot.ExecutionMode != targetMode)
+                    {
+                        slot.ExecutionMode = targetMode;
+                        changed = true;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(slot.ArgumentsTemplate))
+                    {
+                        slot.ArgumentsTemplate = "{args}";
+                        changed = true;
+                    }
+                }
+            }
+
+            cfg.Version = 12;
             changed = true;
         }
 

@@ -25,8 +25,8 @@
 1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、それ以外は LauncherService が ClipboardHistoryService から取得した履歴を含めて `ArgumentsTemplate` を展開（`{args}` / `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}`）し実行。失敗時はエラーダイアログ表示とログ出力。
-4) スロットクリック: ClickEnabled が有効な場合、KeyboardMacroService により直前の外部ウィンドウへスクリプトを送信し、成功すれば LauncherService でコマンドを起動。マクロのみが設定されたスロットは逐次実行、コマンドのみのスロットはマクロ実行中でも即時に起動する。Any エラーはメッセージ表示でユーザーへ通知。
-5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではタイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集し、KeyChordParser でショートカット書式を検証・正規化。Macro Script 欄には `?` ボタンを配置し、クリックで MacroTipsWindow をモードレス表示（単一インスタンス再利用）してサポートされる命令と例を参照できる。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
+4) スロットクリック: ClickEnabled が有効な場合、モードに応じて実行する。`Macro Script`/`Macro Script 拡張` では KeyboardMacroService が直前の外部ウィンドウへスクリプトを送信し、拡張モードではマクロ内の `COMMAND` 命令から LauncherService を呼び出せる。`Command` モードはマクロを介さずに LauncherService を起動する。マクロ系スロットは逐次実行し、コマンドのみのスロットはマクロ実行中でも即時に起動できる。Any エラーはメッセージ表示でユーザーへ通知。
+5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではモード選択 ComboBox で `Command` / `Macro Script` / `Macro Script 拡張` を切り替え、タイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集する。KeyChordParser でショートカット書式を検証・正規化し、Macro Script 欄には `?` ボタンを配置して MacroTipsWindow をモードレス表示（単一インスタンス再利用）できる。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
 6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新する。
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
@@ -44,8 +44,8 @@
   - `GetConfigPath()`: Open Config 用の絶対パスを返す。
 - KeyboardMacroService
   - `Initialize(WindowInteropHelper)`: フォアグラウンド変更フックを登録し、直近外部ウィンドウを追跡。
-  - `RunMacroAsync(script)`: セマフォで逐次実行し、マクロスクリプトを解釈して SendInput を発行。結果に成功/失敗/スキップを含める。
-  - SET/UNSET 命令で変数ディクショナリを管理し、各行のコマンド引数中に出現する `{{VarName}}` を解決してから `SendInput` やクリップボード処理を行う。ADD/SUB/MUL/DIV で 64bit 整数として演算し、APPEND/PREPEND で文字列結合を行う。`PREFIX [SEND|ARM|PASSTHROUGH]` で ShortcutService の Prefix 状態を操作し、MacroPassthrough 入力に切り替えてショートカット検出とアプリへの送出を両立する。未定義や書式不正は即座に失敗として復帰し、ログへ詳細を残す。
+- `RunMacroAsync(script, context)`: セマフォで逐次実行し、マクロスクリプトを解釈して SendInput を発行。`context` は `Macro Script 拡張` モード時にコマンド起動デリゲートを渡し、マクロ内の `COMMAND` 命令から LauncherService を呼び出せる。結果に成功/失敗/スキップを含める。
+- SET/UNSET 命令で変数ディクショナリを管理し、各行のコマンド引数中に出現する `{{VarName}}` を解決してから `SendInput` やクリップボード処理を行う。ADD/SUB/MUL/DIV で 64bit 整数として演算し、APPEND/PREPEND で文字列結合を行う。`PREFIX [SEND|ARM|PASSTHROUGH]` で ShortcutService の Prefix 状態を操作し、MacroPassthrough 入力に切り替えてショートカット検出とアプリへの送出を両立する。拡張モード専用の `COMMAND` 命令は入力バッファをフラッシュした後にコンテキスト経由の LauncherService を呼び出し、コンテキスト未提供時は失敗として復帰する。未定義や書式不正は即座に失敗として復帰し、ログへ詳細を残す。
   - `Dispose()`: WinEventHook の解除・ロック解放。
 - ShortcutService
   - `Initialize(string? prefixExpression)`: Prefix を解析・正規化し、低レベルフックをセットアップする。失敗時は既定 Prefix へフォールバックする。

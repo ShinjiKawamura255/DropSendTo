@@ -684,6 +684,7 @@ public partial class MainWindow : Window
             slot.ArgumentsTemplate = args.ArgumentsTemplate;
             slot.KeyboardMacroScript = args.MacroScript;
             slot.ShortcutKey = args.ShortcutChord;
+            slot.ExecutionMode = args.ExecutionMode;
             _configService.Save(_config);
             RefreshUi();
         };
@@ -735,7 +736,8 @@ public partial class MainWindow : Window
             IconPath = source.IconPath,
             ClickEnabled = source.ClickEnabled,
             ShortcutKey = source.ShortcutKey,
-            KeyboardMacroScript = source.KeyboardMacroScript
+            KeyboardMacroScript = source.KeyboardMacroScript,
+            ExecutionMode = source.ExecutionMode
         };
     }
 
@@ -845,6 +847,12 @@ public partial class MainWindow : Window
             if (sender is not FrameworkElement fe) return;
             int idx = GetSlotIndex(fe);
             var slot = _config.Layers[_currentLayer].Slots[idx];
+            var mode = slot.ExecutionMode;
+            if (mode == SlotExecutionMode.MacroScript)
+            {
+                WpfMessageBox.Show("Macro Script モードのスロットにはファイルをドロップできません。", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
             if (string.IsNullOrWhiteSpace(slot.Command))
             {
                 WpfMessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1293,14 +1301,16 @@ public partial class MainWindow : Window
         {
             slotTitle = "(untitled)";
         }
+        var mode = slot.ExecutionMode;
         var script = slot.KeyboardMacroScript ?? string.Empty;
-        var hasMacro = !string.IsNullOrWhiteSpace(script);
-        var hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
-        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={source}, macro={hasMacro}, command={hasCommand})");
+        var macroConfigured = !string.IsNullOrWhiteSpace(script);
+        var commandConfigured = !string.IsNullOrWhiteSpace(slot.Command);
+        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={source}, mode={mode}, macroConfigured={macroConfigured}, commandConfigured={commandConfigured})");
 
-        if (!hasMacro && !hasCommand) return;
+        if (!macroConfigured && !commandConfigured) return;
 
-        bool isCommandOnly = hasCommand && !hasMacro;
+        bool isCommandOnly = mode == SlotExecutionMode.Command;
+        bool shouldRunMacro = mode != SlotExecutionMode.Command && macroConfigured;
 
         if (_macroService.IsMacroRunning && !isCommandOnly)
         {
@@ -1308,7 +1318,7 @@ public partial class MainWindow : Window
                 _runningSlotLayerIndex.Value == layerIndex &&
                 _runningSlotIndex.HasValue &&
                 _runningSlotIndex.Value == slotIndex &&
-                hasMacro)
+                shouldRunMacro)
             {
                 if (_macroService.CancelCurrentMacro())
                 {
@@ -1328,12 +1338,31 @@ public partial class MainWindow : Window
             _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
         }
 
-        if (hasMacro)
+        MacroExecutionContext? macroContext = null;
+        if (mode == SlotExecutionMode.MacroScriptExtended && commandConfigured)
+        {
+            var contextTitle = slotTitle;
+            macroContext = new MacroExecutionContext(
+                SlotExecutionMode.MacroScriptExtended,
+                overrideArgs =>
+                {
+                    var launchResult = _launcher.Launch(slot, Array.Empty<string>(), overrideArgs);
+                    if (!launchResult.Success)
+                    {
+                        _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {launchResult.Message}");
+                    }
+                    return launchResult;
+                },
+                contextTitle,
+                slot.Command ?? string.Empty);
+        }
+
+        if (shouldRunMacro)
         {
             BeginSlotMacro(layerIndex, slotIndex);
             try
             {
-                var macroResult = await _macroService.RunMacroAsync(script);
+                var macroResult = await _macroService.RunMacroAsync(script, macroContext);
                 if (!macroResult.Success)
                 {
                     if (macroResult.IsCanceled)
@@ -1364,7 +1393,7 @@ public partial class MainWindow : Window
             }
         }
 
-        if (hasCommand)
+        if (mode == SlotExecutionMode.Command && commandConfigured)
         {
             _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
             var result = _launcher.Launch(slot, Array.Empty<string>());
