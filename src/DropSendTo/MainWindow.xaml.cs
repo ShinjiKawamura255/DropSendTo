@@ -23,6 +23,7 @@ using WpfVerticalAlignment = System.Windows.VerticalAlignment;
 using WpfButton = System.Windows.Controls.Button;
 using WpfDataFormats = System.Windows.DataFormats;
 using WpfDragDropEffects = System.Windows.DragDropEffects;
+using DrawingIcon = System.Drawing.Icon;
 
 namespace DropSendTo;
 
@@ -39,6 +40,8 @@ public partial class MainWindow : Window
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private Forms.NotifyIcon? _notifyIcon;
+    private DrawingIcon? _notifyIconDefault;
+    private DrawingIcon? _notifyIconActive;
     private bool _isMinimizedToTray;
     private bool _minimizeOnLoaded;
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
@@ -157,21 +160,45 @@ public partial class MainWindow : Window
             Visible = true
         };
 
+        _notifyIconDefault = LoadTrayIcon("pack://application:,,,/img/icon.ico");
+        _notifyIconActive = LoadTrayIcon("pack://application:,,,/img/icon_green.ico");
+        UpdateNotifyIconState(false);
+
+        _notifyIcon.MouseClick += OnNotifyIconMouseClick;
+    }
+
+    private DrawingIcon? LoadTrayIcon(string resourcePath)
+    {
         try
         {
-            var resource = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Resources/AppIcon.ico"));
-            if (resource?.Stream != null)
+            var resource = System.Windows.Application.GetResourceStream(new Uri(resourcePath));
+            if (resource?.Stream == null)
             {
-                using var iconStream = resource.Stream;
-                _notifyIcon.Icon = new System.Drawing.Icon(iconStream);
+                return null;
             }
+
+            using var stream = resource.Stream;
+            using var icon = new DrawingIcon(stream);
+            return (DrawingIcon)icon.Clone();
         }
         catch (Exception ex)
         {
-            _logger.Warn($"Failed to load tray icon: {ex.Message}");
+            _logger.Warn($"Failed to load tray icon \"{resourcePath}\": {ex.Message}");
+            return null;
+        }
+    }
+
+    private void UpdateNotifyIconState(bool macroRunning)
+    {
+        if (_notifyIcon == null)
+        {
+            return;
         }
 
-        _notifyIcon.MouseClick += OnNotifyIconMouseClick;
+        DrawingIcon icon = macroRunning
+            ? (_notifyIconActive ?? _notifyIconDefault ?? System.Drawing.SystemIcons.Application)
+            : (_notifyIconDefault ?? System.Drawing.SystemIcons.Application);
+        _notifyIcon.Icon = icon;
     }
 
     private void OnNotifyIconMouseClick(object? sender, Forms.MouseEventArgs e)
@@ -629,6 +656,7 @@ public partial class MainWindow : Window
         _runningSlotLayerIndex = layerIndex;
         _runningSlotIndex = index;
         _runningSlotCancellationRequested = false;
+        UpdateNotifyIconState(true);
         if (layerIndex == _currentLayer)
         {
             RenderSlotMacroState(index, SlotMacroState.Running);
@@ -664,6 +692,10 @@ public partial class MainWindow : Window
         if (layerIndex == _currentLayer)
         {
             RenderSlotMacroState(index, SlotMacroState.Idle);
+        }
+        if (!_macroService.IsMacroRunning)
+        {
+            UpdateNotifyIconState(false);
         }
     }
 
@@ -1478,6 +1510,7 @@ public partial class MainWindow : Window
 
         try
         {
+            UpdateNotifyIconState(true);
             var result = await _macroService.RunMacroAsync("PREFIX PASSTHROUGH");
             if (!result.Success && !result.IsCanceled)
             {
@@ -1487,6 +1520,13 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.Error($"Prefix passthrough execution failed: {ex}");
+        }
+        finally
+        {
+            if (!_macroService.IsMacroRunning)
+            {
+                UpdateNotifyIconState(false);
+            }
         }
     }
 
@@ -1594,6 +1634,10 @@ public partial class MainWindow : Window
             _notifyIcon.Dispose();
             _notifyIcon = null;
         }
+        _notifyIconDefault?.Dispose();
+        _notifyIconDefault = null;
+        _notifyIconActive?.Dispose();
+        _notifyIconActive = null;
         _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
         _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
         _shortcutService.PrefixActivationRequested -= OnPrefixActivationRequested;
