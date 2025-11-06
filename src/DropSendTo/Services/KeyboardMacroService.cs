@@ -37,6 +37,7 @@ public sealed class KeyboardMacroService : IDisposable
     private Func<KeyChord?>? _prefixChordAccessor;
     private Func<bool>? _prefixIsArmedAccessor;
     private Action? _prefixResetAction;
+    private static Func<uint, INPUT[], int, uint>? _sendInputOverride;
 
     public void Initialize(WindowInteropHelper helper)
     {
@@ -144,6 +145,20 @@ public sealed class KeyboardMacroService : IDisposable
         if (string.IsNullOrWhiteSpace(script))
             return MacroExecutionResult.Skip("No macro script configured.");
         var scriptToRun = script!;
+        var trimmedScript = scriptToRun.Trim();
+
+        if (trimmedScript.Equals("PREFIX PASSTHROUGH", StringComparison.OrdinalIgnoreCase) && IsMacroRunning)
+        {
+            if (TrySendPrefixPassthroughDirect(out var passthroughError))
+            {
+                _logger.Info("Prefix passthrough executed while macro is running.");
+                return MacroExecutionResult.Ok();
+            }
+
+            var failMessage = passthroughError ?? "PREFIX PASSTHROUGH の実行に失敗しました。";
+            _logger.Warn($"Failed to execute prefix passthrough while macro is running: {failMessage}");
+            return MacroExecutionResult.Fail(failMessage);
+        }
 
         bool lockTaken = false;
         try
@@ -1173,6 +1188,17 @@ public sealed class KeyboardMacroService : IDisposable
         return IntPtr.Zero;
     }
 
+    private bool TrySendPrefixPassthroughDirect(out string? error)
+    {
+        error = null;
+        var buffer = new List<INPUT>(8);
+        if (!TryAppendPrefixSequence(buffer, passthrough: true, out error))
+        {
+            return false;
+        }
+        return TryFlushInputs(buffer, out error);
+    }
+
     private bool TryFlushInputs(List<INPUT> buffer, out string? error)
     {
         error = null;
@@ -1407,11 +1433,15 @@ public sealed class KeyboardMacroService : IDisposable
     {
         error = null;
         if (length == 0) return true;
-        var sent = SendInput((uint)length, inputs, Marshal.SizeOf<INPUT>());
+        int cbSize = Marshal.SizeOf<INPUT>();
+        var sender = _sendInputOverride;
+        var sent = sender != null
+            ? sender((uint)length, inputs, cbSize)
+            : SendInput((uint)length, inputs, cbSize);
         if (sent == length) return true;
         int err = Marshal.GetLastWin32Error();
         error = $"SendInput の呼び出しに失敗しました (Error={err}).";
-        _logger.Error($"SendInput failure: requested={length}, sent={sent}, cbSize={Marshal.SizeOf<INPUT>()}, error={err}, firstType={(length > 0 ? inputs[0].type : 0)}, firstVk={(length > 0 ? inputs[0].u.ki.wVk : 0)}, firstFlags={(length > 0 ? inputs[0].u.ki.dwFlags : 0)}");
+        _logger.Error($"SendInput failure: requested={length}, sent={sent}, cbSize={cbSize}, error={err}, firstType={(length > 0 ? inputs[0].type : 0)}, firstVk={(length > 0 ? inputs[0].u.ki.wVk : 0)}, firstFlags={(length > 0 ? inputs[0].u.ki.dwFlags : 0)}");
         return false;
     }
 
@@ -2506,6 +2536,17 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     }
 
     private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+    internal static void SetSendInputOverrideForTesting(Func<uint, int, uint>? overrideFunc)
+    {
+        if (overrideFunc is null)
+        {
+            _sendInputOverride = null;
+            return;
+        }
+
+        _sendInputOverride = (count, _, size) => overrideFunc(count, size);
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);

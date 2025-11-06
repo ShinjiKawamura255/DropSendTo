@@ -1525,14 +1525,14 @@ public partial class MainWindow : Window
 
     private async Task SendPrefixPassthroughAsync(string prefixText)
     {
-        if (_macroService.IsMacroRunning)
-        {
-            return;
-        }
+        bool shouldToggleNotify = !_macroService.IsMacroRunning;
 
         try
         {
-            UpdateNotifyIconState(true);
+            if (shouldToggleNotify)
+            {
+                UpdateNotifyIconState(true);
+            }
             var result = await _macroService.RunMacroAsync("PREFIX PASSTHROUGH");
             if (!result.Success && !result.IsCanceled)
             {
@@ -1545,7 +1545,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (!_macroService.IsMacroRunning)
+            if (shouldToggleNotify && !_macroService.IsMacroRunning)
             {
                 UpdateNotifyIconState(false);
             }
