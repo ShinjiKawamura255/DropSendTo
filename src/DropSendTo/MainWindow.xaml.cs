@@ -106,6 +106,7 @@ public partial class MainWindow : Window
     private int? _runningSlotIndex;
     private int? _runningSlotLayerIndex;
     private bool _runningSlotCancellationRequested;
+    private WindowPlacementMode _windowPlacementMode;
 
     public MainWindow()
     {
@@ -115,6 +116,7 @@ public partial class MainWindow : Window
         _configService = new ConfigService();
         _launcher = new LauncherService();
         _config = _configService.LoadOrCreate();
+        _windowPlacementMode = _config.WindowPlacementMode;
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
@@ -128,9 +130,14 @@ public partial class MainWindow : Window
         UpdateTrayMenuState();
         this.Closing += (_, _) =>
         {
-            ClampWindowWithinBounds();
-            _config.WindowLeft = this.Left;
-            _config.WindowTop = this.Top;
+            if (_windowPlacementMode == WindowPlacementMode.Fixed)
+            {
+                CaptureFixedWindowPosition(clampBeforeStoring: true);
+            }
+            else
+            {
+                ClampWindowWithinBounds();
+            }
             _config.CurrentLayer = _currentLayer;
             _config.AlwaysOnTop = this.Topmost;
             _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
@@ -228,8 +235,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _config.WindowLeft = this.Left;
-        _config.WindowTop = this.Top;
+        CaptureFixedWindowPosition(clampBeforeStoring: true);
         _isMinimizedToTray = true;
         if (_config.LastWindowVisibility != WindowVisibilityState.Tray)
         {
@@ -482,6 +488,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixActivationRequested += OnPrefixActivationRequested;
             _shortcutService.PrefixMacroCancelRequested += OnPrefixMacroCancelRequested;
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
+            _shortcutService.PrefixPositionToggleRequested += OnPrefixPositionToggleRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _macroService.SetPrefixStateAccessors(
@@ -1473,6 +1480,10 @@ public partial class MainWindow : Window
 
     private void OnPrefixActivationRequested(object? sender, EventArgs e)
     {
+        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        {
+            PositionWindowAtMouse();
+        }
         BringWindowToForeground();
     }
 
@@ -1500,6 +1511,11 @@ public partial class MainWindow : Window
         {
             _logger.Warn("Prefix cancel macro shortcut could not cancel the current macro.");
         }
+    }
+
+    private void OnPrefixPositionToggleRequested(object? sender, EventArgs e)
+    {
+        ToggleWindowPlacementMode();
     }
 
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
@@ -1665,8 +1681,82 @@ public partial class MainWindow : Window
         _shortcutService.PrefixActivationRequested -= OnPrefixActivationRequested;
         _shortcutService.PrefixMacroCancelRequested -= OnPrefixMacroCancelRequested;
         _shortcutService.PrefixMinimizeRequested -= OnPrefixMinimizeRequested;
+        _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();
+    }
+
+    private void ToggleWindowPlacementMode()
+    {
+        var next = _windowPlacementMode == WindowPlacementMode.Fixed
+            ? WindowPlacementMode.MouseFollow
+            : WindowPlacementMode.Fixed;
+        SetWindowPlacementMode(next, initiatedByToggle: true);
+    }
+
+    private void SetWindowPlacementMode(WindowPlacementMode mode, bool initiatedByToggle)
+    {
+        if (_windowPlacementMode == mode)
+        {
+            if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
+            {
+                PositionWindowAtMouse();
+            }
+            return;
+        }
+
+        if (mode == WindowPlacementMode.MouseFollow)
+        {
+            CaptureFixedWindowPosition(clampBeforeStoring: true);
+            _windowPlacementMode = mode;
+            _config.WindowPlacementMode = mode;
+            if (initiatedByToggle)
+            {
+                PositionWindowAtMouse();
+            }
+        }
+        else
+        {
+            _windowPlacementMode = mode;
+            _config.WindowPlacementMode = mode;
+            RestoreWindowPosition();
+        }
+
+        _configService.Save(_config);
+    }
+
+    private void CaptureFixedWindowPosition(bool clampBeforeStoring)
+    {
+        if (_windowPlacementMode != WindowPlacementMode.Fixed)
+        {
+            return;
+        }
+
+        if (clampBeforeStoring)
+        {
+            ClampWindowWithinBounds();
+        }
+        _config.WindowLeft = this.Left;
+        _config.WindowTop = this.Top;
+    }
+
+    private void PositionWindowAtMouse()
+    {
+        try
+        {
+            var cursorPosition = Forms.Control.MousePosition;
+            var rect = GetWindowRect(this.Left, this.Top);
+            double newLeft = cursorPosition.X - (rect.Width / 2.0);
+            double newTop = cursorPosition.Y - (rect.Height / 2.0);
+            var bounds = ScreenBoundsResolver.ForRect(this, new Rect(newLeft, newTop, rect.Width, rect.Height));
+            var (left, top) = _placement.Clamp(newLeft, newTop, bounds, rect.Width, rect.Height);
+            Left = left;
+            Top = top;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to position window at mouse: {ex.Message}");
+        }
     }
 }

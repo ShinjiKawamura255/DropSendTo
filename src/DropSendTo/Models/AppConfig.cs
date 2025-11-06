@@ -5,13 +5,14 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 12;
+    public int Version { get; set; } = 13;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
     public bool AlwaysOnTop { get; set; } = true;
     public StartupWindowBehavior StartupBehavior { get; set; } = StartupWindowBehavior.AlwaysShow;
     public WindowVisibilityState LastWindowVisibility { get; set; } = WindowVisibilityState.Visible;
+    public WindowPlacementMode WindowPlacementMode { get; set; } = WindowPlacementMode.Fixed;
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
     public int SlotRows { get; set; } = 2;
@@ -41,4 +42,10 @@ public enum WindowVisibilityState
 {
     Visible = 0,
     Tray = 1
+}
+
+public enum WindowPlacementMode
+{
+    Fixed = 0,
+    MouseFollow = 1
 }

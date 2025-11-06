@@ -123,6 +123,10 @@ public class ConfigService
         {
             cfg.LastWindowVisibility = WindowVisibilityState.Visible;
         }
+        if (!Enum.IsDefined(typeof(WindowPlacementMode), cfg.WindowPlacementMode))
+        {
+            cfg.WindowPlacementMode = WindowPlacementMode.Fixed;
+        }
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -356,6 +360,17 @@ public class ConfigService
             }
 
             cfg.Version = 12;
+            changed = true;
+        }
+
+        if (cfg.Version < 13)
+        {
+            if (!Enum.IsDefined(typeof(WindowPlacementMode), cfg.WindowPlacementMode))
+            {
+                cfg.WindowPlacementMode = WindowPlacementMode.Fixed;
+                changed = true;
+            }
+            cfg.Version = 13;
             changed = true;
         }
 

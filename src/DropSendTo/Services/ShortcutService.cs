@@ -82,6 +82,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixActivationRequested;
     public event EventHandler? PrefixMinimizeRequested;
     public event EventHandler? PrefixMacroCancelRequested;
+    public event EventHandler? PrefixPositionToggleRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -342,6 +343,13 @@ internal sealed class ShortcutService : IDisposable
             return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
         }
 
+        if (vk == VK_TAB && modifiers.Count == 0 && prefixResidue.Count == 0)
+        {
+            MarkKeyForSuppression(vk);
+            suppress = true;
+            return ShortcutAction.CreatePrefixTogglePosition();
+        }
+
         if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
         {
             MarkKeyForSuppression(vk);
@@ -475,6 +483,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixCancelMacro:
                 _dispatcher.BeginInvoke(() => PrefixMacroCancelRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixTogglePosition:
+                _dispatcher.BeginInvoke(() => PrefixPositionToggleRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -784,6 +795,9 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixCancelMacro() =>
             new(ShortcutActionType.PrefixCancelMacro, 0, null, null, null);
+
+        public static ShortcutAction CreatePrefixTogglePosition() =>
+            new(ShortcutActionType.PrefixTogglePosition, 0, null, null, null);
     }
 
     private enum ShortcutActionType
@@ -793,7 +807,8 @@ internal sealed class ShortcutService : IDisposable
         PrefixPassthrough,
         PrefixActivate,
         PrefixMinimize,
-        PrefixCancelMacro
+        PrefixCancelMacro,
+        PrefixTogglePosition
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -844,6 +859,7 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_LWIN = 0x5B;
     private const ushort VK_RWIN = 0x5C;
     private const ushort VK_RETURN = 0x0D;
+    private const ushort VK_TAB = 0x09;
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
