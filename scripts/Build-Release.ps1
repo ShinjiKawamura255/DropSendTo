@@ -20,6 +20,17 @@ function Invoke-Step($name, $script) {
     & $script
 }
 
+function Get-SafeVariantName($name, $index) {
+    if (-not $name) {
+        return "Variant$index"
+    }
+    $safe = ($name -replace '[^A-Za-z0-9]', '')
+    if ([string]::IsNullOrWhiteSpace($safe)) {
+        $safe = "Variant$index"
+    }
+    return $safe
+}
+
 $wpfTrimmingSupported = $false
 if ($PortableTrim) {
     if (-not $wpfTrimmingSupported) {
@@ -52,6 +63,11 @@ try {
     New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
     $outDir = Join-Path $outRoot "DropSendTo_${Rid}_$Version"
     $portableOutDir = Join-Path $outRoot "DropSendTo_Portable_${Rid}_$Version"
+    $latestDir = Join-Path $outRoot 'latest'
+    if (Test-Path $latestDir) {
+        Remove-Item $latestDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $latestDir | Out-Null
 
     Invoke-Step "Restore" { dotnet restore $proj }
 
@@ -116,6 +132,7 @@ try {
 
     $artifacts = @()
 
+    $variantIndex = 0
     foreach ($variant in $buildVariants) {
         $variantName = $variant.Name
         $variantDir = $variant.OutputDir
@@ -167,6 +184,21 @@ try {
         else {
             $artifacts += $variantDir
         }
+
+        $targetLatestDir = if ($variantIndex -eq 0) {
+            $latestDir
+        } else {
+            $safeName = Get-SafeVariantName $variantName ($variantIndex + 1)
+            $nestedLatest = Join-Path $latestDir $safeName
+            if (Test-Path $nestedLatest) {
+                Remove-Item $nestedLatest -Recurse -Force
+            }
+            New-Item -ItemType Directory -Force -Path $nestedLatest | Out-Null
+            $nestedLatest
+        }
+        Copy-Item -Path (Join-Path $variantDir '*') -Destination $targetLatestDir -Recurse -Force
+
+        $variantIndex++
     }
 
     foreach ($artifact in $artifacts) {
