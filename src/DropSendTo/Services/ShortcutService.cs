@@ -81,6 +81,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler<PrefixStateChangedEventArgs>? PrefixStateChanged;
     public event EventHandler? PrefixActivationRequested;
     public event EventHandler? PrefixMinimizeRequested;
+    public event EventHandler? PrefixMacroCancelRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -341,6 +342,13 @@ internal sealed class ShortcutService : IDisposable
             return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
         }
 
+        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
+        {
+            MarkKeyForSuppression(vk);
+            suppress = true;
+            return ShortcutAction.CreatePrefixCancelMacro();
+        }
+
         if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_SHIFT) && prefixResidue.Count == 0)
         {
             MarkKeyForSuppression(vk);
@@ -464,6 +472,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixMinimize:
                 _dispatcher.BeginInvoke(() => PrefixMinimizeRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixCancelMacro:
+                _dispatcher.BeginInvoke(() => PrefixMacroCancelRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -770,6 +781,9 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixMinimize() =>
             new(ShortcutActionType.PrefixMinimize, 0, null, null, null);
+
+        public static ShortcutAction CreatePrefixCancelMacro() =>
+            new(ShortcutActionType.PrefixCancelMacro, 0, null, null, null);
     }
 
     private enum ShortcutActionType
@@ -778,7 +792,8 @@ internal sealed class ShortcutService : IDisposable
         TriggerShortcut,
         PrefixPassthrough,
         PrefixActivate,
-        PrefixMinimize
+        PrefixMinimize,
+        PrefixCancelMacro
     }
 
     [StructLayout(LayoutKind.Sequential)]

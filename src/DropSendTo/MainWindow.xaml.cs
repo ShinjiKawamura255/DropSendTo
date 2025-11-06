@@ -480,6 +480,7 @@ public partial class MainWindow : Window
             _shortcutService.ShortcutTriggered += OnShortcutTriggered;
             _shortcutService.PrefixPassthroughRequested += OnPrefixPassthroughRequested;
             _shortcutService.PrefixActivationRequested += OnPrefixActivationRequested;
+            _shortcutService.PrefixMacroCancelRequested += OnPrefixMacroCancelRequested;
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
@@ -1480,6 +1481,27 @@ public partial class MainWindow : Window
         MinimizeWindowToTray();
     }
 
+    private void OnPrefixMacroCancelRequested(object? sender, EventArgs e)
+    {
+        if (!_macroService.IsMacroRunning)
+        {
+            return;
+        }
+
+        if (_macroService.CancelCurrentMacro())
+        {
+            _logger.Info("Requested cancel for running macro via prefix shortcut.");
+            if (_runningSlotLayerIndex.HasValue && _runningSlotIndex.HasValue)
+            {
+                MarkSlotMacroCanceling(_runningSlotLayerIndex.Value, _runningSlotIndex.Value);
+            }
+        }
+        else
+        {
+            _logger.Warn("Prefix cancel macro shortcut could not cancel the current macro.");
+        }
+    }
+
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
         if (PrefixIndicator == null || PrefixIndicatorText == null)
@@ -1641,6 +1663,7 @@ public partial class MainWindow : Window
         _shortcutService.ShortcutTriggered -= OnShortcutTriggered;
         _shortcutService.PrefixPassthroughRequested -= OnPrefixPassthroughRequested;
         _shortcutService.PrefixActivationRequested -= OnPrefixActivationRequested;
+        _shortcutService.PrefixMacroCancelRequested -= OnPrefixMacroCancelRequested;
         _shortcutService.PrefixMinimizeRequested -= OnPrefixMinimizeRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
