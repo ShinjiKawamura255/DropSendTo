@@ -28,10 +28,6 @@
                           Header="Slot Size"
                           SubmenuOpened="OnSlotSizeMenuOpened"/>
             </MenuItem>
-            <MenuItem x:Name="AlwaysOnTopMenuItem"
-                      Header="常に最前面に表示"
-                      IsCheckable="True"
-                      Click="OnToggleAlwaysOnTop"/>
             <MenuItem x:Name="StartupAlwaysShowMenuItem"
                       Header="起動時: 常にウィンドウを表示"
                       IsCheckable="True"
