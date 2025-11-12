@@ -103,9 +103,8 @@ public partial class MainWindow : Window
     private int _hoverTargetLayer = -1;
     private AppConfig _config;
     private int _currentLayer = 0; // 0..3
-    private int? _runningSlotIndex;
-    private int? _runningSlotLayerIndex;
-    private bool _runningSlotCancellationRequested;
+    private readonly Stack<SlotRunContext> _slotRunStack = new();
+    private SlotRunContext? _currentSlotRun;
     private WindowPlacementMode _windowPlacementMode;
 
     public MainWindow()
@@ -593,7 +592,8 @@ public partial class MainWindow : Window
     {
         Idle,
         Running,
-        Cancelling
+        Cancelling,
+        Paused
     }
 
     private enum SlotTriggerSource
@@ -604,17 +604,27 @@ public partial class MainWindow : Window
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
     private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status);
+    private sealed class SlotRunContext
+    {
+        public SlotRunContext(int layerIndex, int slotIndex)
+        {
+            LayerIndex = layerIndex;
+            SlotIndex = slotIndex;
+        }
+
+        public int LayerIndex { get; }
+        public int SlotIndex { get; }
+        public bool CancellationRequested { get; set; }
+        public bool IsPaused { get; set; }
+    }
 
     private SlotMacroState GetSlotMacroState(int index)
     {
-        if (_runningSlotLayerIndex.HasValue &&
-            _runningSlotLayerIndex.Value == _currentLayer &&
-            _runningSlotIndex.HasValue &&
-            _runningSlotIndex.Value == index)
-        {
-            return _runningSlotCancellationRequested ? SlotMacroState.Cancelling : SlotMacroState.Running;
-        }
-        return SlotMacroState.Idle;
+        var context = GetSlotContext(_currentLayer, index);
+        if (context == null) return SlotMacroState.Idle;
+        if (context.CancellationRequested) return SlotMacroState.Cancelling;
+        if (context.IsPaused) return SlotMacroState.Paused;
+        return ReferenceEquals(context, _currentSlotRun) ? SlotMacroState.Running : SlotMacroState.Idle;
     }
 
     private void RenderSlotMacroState(int index, SlotMacroState state)
@@ -641,6 +651,13 @@ public partial class MainWindow : Window
                 status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xD7, 0x66));
                 status.Visibility = Visibility.Visible;
                 break;
+            case SlotMacroState.Paused:
+                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1E, 0x1A, 0x2E));
+                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x98, 0x7C, 0xFF));
+                status.Text = "一時停止中...";
+                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xC9, 0xB6, 0xFF));
+                status.Visibility = Visibility.Visible;
+                break;
             default:
                 border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
                 border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33));
@@ -649,6 +666,33 @@ public partial class MainWindow : Window
                 status.Visibility = Visibility.Collapsed;
                 break;
         }
+    }
+
+    private bool HasAnyRunningSlot() => _currentSlotRun != null || _slotRunStack.Count > 0;
+
+    private bool IsSlotCurrentlyRunning(int layerIndex, int slotIndex) =>
+        _currentSlotRun != null &&
+        _currentSlotRun.LayerIndex == layerIndex &&
+        _currentSlotRun.SlotIndex == slotIndex;
+
+    private SlotRunContext? GetSlotContext(int layerIndex, int slotIndex)
+    {
+        if (_currentSlotRun != null &&
+            _currentSlotRun.LayerIndex == layerIndex &&
+            _currentSlotRun.SlotIndex == slotIndex)
+        {
+            return _currentSlotRun;
+        }
+
+        foreach (var context in _slotRunStack)
+        {
+            if (context.LayerIndex == layerIndex && context.SlotIndex == slotIndex)
+            {
+                return context;
+            }
+        }
+
+        return null;
     }
 
     private void UpdateAllSlotMacroStates()
@@ -661,9 +705,11 @@ public partial class MainWindow : Window
 
     private void BeginSlotMacro(int layerIndex, int index)
     {
-        _runningSlotLayerIndex = layerIndex;
-        _runningSlotIndex = index;
-        _runningSlotCancellationRequested = false;
+        if (_currentSlotRun != null)
+        {
+            _slotRunStack.Push(_currentSlotRun);
+        }
+        _currentSlotRun = new SlotRunContext(layerIndex, index);
         UpdateNotifyIconState(true);
         if (layerIndex == _currentLayer)
         {
@@ -673,35 +719,74 @@ public partial class MainWindow : Window
 
     private void MarkSlotMacroCanceling(int layerIndex, int index)
     {
-        if (_runningSlotLayerIndex.HasValue &&
-            _runningSlotLayerIndex.Value == layerIndex &&
-            _runningSlotIndex.HasValue &&
-            _runningSlotIndex.Value == index)
+        var context = GetSlotContext(layerIndex, index);
+        if (context == null) return;
+        context.CancellationRequested = true;
+        UpdateSlotVisual(context);
+    }
+
+    private void SetSlotPaused(SlotRunContext? context, bool isPaused)
+    {
+        if (context == null || context.IsPaused == isPaused)
         {
-            _runningSlotCancellationRequested = true;
-            if (layerIndex == _currentLayer)
-            {
-                RenderSlotMacroState(index, SlotMacroState.Cancelling);
-            }
+            return;
         }
+
+        context.IsPaused = isPaused;
+        UpdateSlotVisual(context);
+    }
+
+    private void UpdateSlotVisual(SlotRunContext context)
+    {
+        if (context.LayerIndex != _currentLayer)
+        {
+            return;
+        }
+
+        SlotMacroState state;
+        if (context.CancellationRequested)
+        {
+            state = SlotMacroState.Cancelling;
+        }
+        else if (context.IsPaused)
+        {
+            state = SlotMacroState.Paused;
+        }
+        else if (ReferenceEquals(context, _currentSlotRun))
+        {
+            state = SlotMacroState.Running;
+        }
+        else
+        {
+            state = SlotMacroState.Idle;
+        }
+
+        RenderSlotMacroState(context.SlotIndex, state);
     }
 
     private void ClearSlotMacroState(int layerIndex, int index)
     {
-        if (_runningSlotLayerIndex.HasValue &&
-            _runningSlotLayerIndex.Value == layerIndex &&
-            _runningSlotIndex.HasValue &&
-            _runningSlotIndex.Value == index)
+        if (_currentSlotRun != null &&
+            _currentSlotRun.LayerIndex == layerIndex &&
+            _currentSlotRun.SlotIndex == index)
         {
-            _runningSlotLayerIndex = null;
-            _runningSlotIndex = null;
-            _runningSlotCancellationRequested = false;
+            _currentSlotRun = _slotRunStack.Count > 0 ? _slotRunStack.Pop() : null;
         }
+
         if (layerIndex == _currentLayer)
         {
             RenderSlotMacroState(index, SlotMacroState.Idle);
         }
-        if (!_macroService.IsMacroRunning)
+
+        if (_currentSlotRun != null && _currentSlotRun.LayerIndex == _currentLayer)
+        {
+            var state = _currentSlotRun.CancellationRequested
+                ? SlotMacroState.Cancelling
+                : (_currentSlotRun.IsPaused ? SlotMacroState.Paused : SlotMacroState.Running);
+            RenderSlotMacroState(_currentSlotRun.SlotIndex, state);
+        }
+
+        if (!HasAnyRunningSlot() && !_macroService.IsMacroRunning)
         {
             UpdateNotifyIconState(false);
         }
@@ -1213,6 +1298,23 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnMacroModeExclusive(object sender, RoutedEventArgs e) =>
+        SetMacroConcurrencyMode(MacroConcurrencyMode.Exclusive);
+
+    private void OnMacroModeInterrupt(object sender, RoutedEventArgs e) =>
+        SetMacroConcurrencyMode(MacroConcurrencyMode.Interrupt);
+
+    private void OnMacroModeSuspend(object sender, RoutedEventArgs e) =>
+        SetMacroConcurrencyMode(MacroConcurrencyMode.SuspendAndResume);
+
+    private void SetMacroConcurrencyMode(MacroConcurrencyMode mode)
+    {
+        if (_config.MacroConcurrencyMode == mode) return;
+        _config.MacroConcurrencyMode = mode;
+        _configService.Save(_config);
+        UpdateMacroModeMenu(mode);
+    }
+
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
@@ -1221,9 +1323,27 @@ public partial class MainWindow : Window
             StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
             StartupRestoreMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState;
         }
+        UpdateMacroModeMenu(null);
         PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
+    }
+
+    private void UpdateMacroModeMenu(MacroConcurrencyMode? overrideMode)
+    {
+        var current = overrideMode ?? _config.MacroConcurrencyMode;
+        if (MacroModeExclusiveMenuItem != null)
+        {
+            MacroModeExclusiveMenuItem.IsChecked = current == MacroConcurrencyMode.Exclusive;
+        }
+        if (MacroModeInterruptMenuItem != null)
+        {
+            MacroModeInterruptMenuItem.IsChecked = current == MacroConcurrencyMode.Interrupt;
+        }
+        if (MacroModeSuspendMenuItem != null)
+        {
+            MacroModeSuspendMenuItem.IsChecked = current == MacroConcurrencyMode.SuspendAndResume;
+        }
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
@@ -1352,31 +1472,70 @@ public partial class MainWindow : Window
         bool isCommandOnly = mode == SlotExecutionMode.Command;
         bool shouldRunMacro = mode != SlotExecutionMode.Command && macroConfigured;
 
-        if (_macroService.IsMacroRunning && !isCommandOnly)
+        IAsyncDisposable? suspension = null;
+        SlotRunContext? pausedContext = null;
+        try
         {
-            if (_runningSlotLayerIndex.HasValue &&
-                _runningSlotLayerIndex.Value == layerIndex &&
-                _runningSlotIndex.HasValue &&
-                _runningSlotIndex.Value == slotIndex &&
-                shouldRunMacro)
+            if (_macroService.IsMacroRunning)
             {
-                if (_macroService.CancelCurrentMacro())
+                if (shouldRunMacro && IsSlotCurrentlyRunning(layerIndex, slotIndex))
                 {
-                    _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                    MarkSlotMacroCanceling(layerIndex, slotIndex);
+                    if (_macroService.CancelCurrentMacro())
+                    {
+                        _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                        MarkSlotMacroCanceling(layerIndex, slotIndex);
+                    }
+                    return;
+                }
+
+                if (shouldRunMacro)
+                {
+                    switch (_config.MacroConcurrencyMode)
+                    {
+                        case MacroConcurrencyMode.Exclusive:
+                            if (IsSlotCurrentlyRunning(layerIndex, slotIndex))
+                            {
+                                if (_macroService.CancelCurrentMacro())
+                                {
+                                _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                                MarkSlotMacroCanceling(layerIndex, slotIndex);
+                            }
+                        }
+                        else
+                        {
+                            _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                            WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
+                        }
+                        return;
+                    case MacroConcurrencyMode.Interrupt:
+                        _logger.Info($"Interrupting running macro before executing slot (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                        if (_currentSlotRun != null)
+                        {
+                            MarkSlotMacroCanceling(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex);
+                        }
+                        await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
+                        break;
+                        case MacroConcurrencyMode.SuspendAndResume:
+                            pausedContext = _currentSlotRun;
+                            SetSlotPaused(pausedContext, true);
+                            suspension = await _macroService
+                                .SuspendCurrentMacroAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
+                            if (suspension == null)
+                            {
+                                SetSlotPaused(pausedContext, false);
+                                pausedContext = null;
+                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                                WpfMessageBox.Show("現在のマクロを一時停止できませんでした。実行中のマクロが落ち着くまで少し待ってから再度実行してください。", "Macro Busy", MessageBoxButton.OK, MessageBoxImage.Information);
+                                return;
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
                 }
             }
-            else
-            {
-                _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            return;
-        }
-        if (_macroService.IsMacroRunning && isCommandOnly)
-        {
-            _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-        }
 
         MacroExecutionContext? macroContext = null;
         if (mode == SlotExecutionMode.MacroScriptExtended && commandConfigured)
@@ -1447,6 +1606,22 @@ public partial class MainWindow : Window
                 _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
             }
         }
+        }
+        finally
+        {
+            if (suspension != null)
+            {
+                SetSlotPaused(pausedContext, false);
+                try
+                {
+                    await suspension.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"Failed to resume suspended macro: {ex}");
+                }
+            }
+        }
     }
 
     private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1502,9 +1677,9 @@ public partial class MainWindow : Window
         if (_macroService.CancelCurrentMacro())
         {
             _logger.Info("Requested cancel for running macro via prefix shortcut.");
-            if (_runningSlotLayerIndex.HasValue && _runningSlotIndex.HasValue)
+            if (_currentSlotRun != null)
             {
-                MarkSlotMacroCanceling(_runningSlotLayerIndex.Value, _runningSlotIndex.Value);
+                MarkSlotMacroCanceling(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex);
             }
         }
         else

@@ -18,9 +18,7 @@ public class KeyboardMacroServicePrefixPassthroughTests
         KeyChordParser.TryParse("CTRL+Q", out var chord, out var error).Should().BeTrue($"prefix chord should parse: {error}");
         service.SetPrefixStateAccessors(() => chord, () => false, () => { });
 
-        var cts = new CancellationTokenSource();
-        SetField(service, "_currentMacroCts", cts);
-        SetField(service, "_macroRunningFlag", 1);
+        SetField(service, "_macroRunningCount", 1);
 
         int invocationCount = 0;
         KeyboardMacroService.SetSendInputOverrideForTesting((count, size) =>
@@ -39,9 +37,7 @@ public class KeyboardMacroServicePrefixPassthroughTests
         finally
         {
             KeyboardMacroService.SetSendInputOverrideForTesting(null);
-            SetField(service, "_macroRunningFlag", 0);
-            SetField(service, "_currentMacroCts", null);
-            cts.Dispose();
+            SetField(service, "_macroRunningCount", 0);
         }
     }
 
@@ -52,9 +48,7 @@ public class KeyboardMacroServicePrefixPassthroughTests
         KeyChordParser.TryParse("CTRL+Q", out var chord, out var error).Should().BeTrue($"prefix chord should parse: {error}");
         service.SetPrefixStateAccessors(() => chord, () => false, () => { });
 
-        var cts = new CancellationTokenSource();
-        SetField(service, "_currentMacroCts", cts);
-        SetField(service, "_macroRunningFlag", 1);
+        SetField(service, "_macroRunningCount", 1);
 
         KeyboardMacroService.SetSendInputOverrideForTesting((_, _) => 0);
 
@@ -68,9 +62,7 @@ public class KeyboardMacroServicePrefixPassthroughTests
         finally
         {
             KeyboardMacroService.SetSendInputOverrideForTesting(null);
-            SetField(service, "_macroRunningFlag", 0);
-            SetField(service, "_currentMacroCts", null);
-            cts.Dispose();
+            SetField(service, "_macroRunningCount", 0);
         }
     }
 

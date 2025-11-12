@@ -31,6 +31,7 @@ public class ConfigServiceTests
         cfg.AlwaysOnTop.Should().BeTrue();
         cfg.StartupBehavior.Should().Be(StartupWindowBehavior.AlwaysShow);
         cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
+        cfg.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
         cfg.Version.Should().Be(CurrentConfigVersion);
     }
 

@@ -23,8 +23,10 @@ public sealed class KeyboardMacroService : IDisposable
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
-    private CancellationTokenSource? _currentMacroCts;
-    private int _macroRunningFlag;
+    private readonly Stack<MacroExecutionEntry> _macroStack = new();
+    private readonly Stack<(MacroSuspensionHandle Handle, MacroExecutionSession Session)> _suspensionStack = new();
+    private TaskCompletionSource<object?> _macroIdleTcs = CreateIdleTask(completed: true);
+    private int _macroRunningCount;
     private IntPtr _windowHandle;
     private IntPtr _lastExternalWindow;
     private static readonly AsyncLocal<MacroCursorContext?> CurrentMacroCursor = new();
@@ -68,21 +70,30 @@ public sealed class KeyboardMacroService : IDisposable
         _prefixResetAction = resetAction;
     }
 
-    public bool IsMacroRunning => Volatile.Read(ref _macroRunningFlag) == 1;
+    public bool IsMacroRunning => Volatile.Read(ref _macroRunningCount) > 0;
 
     public bool CancelCurrentMacro()
     {
-        CancellationTokenSource? cts;
+        MacroExecutionEntry? entry = null;
         lock (_stateLock)
         {
-            cts = _currentMacroCts;
+            if (_macroStack.Count > 0)
+            {
+                entry = _macroStack.Peek();
+            }
         }
 
-        if (cts == null || cts.IsCancellationRequested) return false;
+        if (entry is null) return false;
+        var cts = entry.Value.Cancellation;
+        if (cts.IsCancellationRequested) return false;
 
         try
         {
             cts.Cancel();
+            if (entry.Value.Session.IsPaused)
+            {
+                entry.Value.Session.ResumeAfterCancel();
+            }
             _logger.Info("Macro execution cancel requested.");
             return true;
         }
@@ -90,6 +101,115 @@ public sealed class KeyboardMacroService : IDisposable
         {
             return false;
         }
+    }
+
+    public Task WaitForIdleAsync(CancellationToken cancellationToken)
+    {
+        Task waitTask;
+        lock (_stateLock)
+        {
+            if (_macroStack.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
+            waitTask = _macroIdleTcs.Task;
+        }
+
+        return waitTask.WaitAsync(cancellationToken);
+    }
+
+    public async Task<bool> CancelAllRunningMacrosAsync(CancellationToken cancellationToken)
+    {
+        bool issued = false;
+        while (true)
+        {
+            bool hasMacro;
+            lock (_stateLock)
+            {
+                hasMacro = _macroStack.Count > 0;
+            }
+            if (!hasMacro)
+            {
+                break;
+            }
+
+            if (CancelCurrentMacro())
+            {
+                issued = true;
+            }
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+        }
+
+        await WaitForIdleAsync(cancellationToken).ConfigureAwait(false);
+        return issued;
+    }
+
+    public async Task<IAsyncDisposable?> SuspendCurrentMacroAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        MacroExecutionEntry? entry = null;
+        lock (_stateLock)
+        {
+            if (_macroStack.Count > 0)
+            {
+                entry = _macroStack.Peek();
+            }
+        }
+
+        if (entry is null) return null;
+
+        var session = entry.Value.Session;
+        if (session.IsPaused)
+        {
+            var existingHandle = new MacroSuspensionHandle(this);
+            lock (_stateLock)
+            {
+                _suspensionStack.Push((existingHandle, session));
+            }
+            return existingHandle;
+        }
+
+        var paused = await session.PauseAsync(timeout, cancellationToken).ConfigureAwait(false);
+        if (!paused)
+        {
+            return null;
+        }
+
+        var handle = new MacroSuspensionHandle(this);
+        lock (_stateLock)
+        {
+            _suspensionStack.Push((handle, session));
+        }
+        _logger.Info("Macro execution suspended to allow nested macro execution.");
+        return handle;
+    }
+
+    private async Task ResumeSuspendedMacroAsync(MacroSuspensionHandle handle, CancellationToken cancellationToken)
+    {
+        bool match;
+        MacroExecutionSession? session = null;
+        lock (_stateLock)
+        {
+            if (_suspensionStack.Count > 0 && ReferenceEquals(_suspensionStack.Peek().Handle, handle))
+            {
+                session = _suspensionStack.Pop().Session;
+                match = true;
+            }
+            else
+            {
+                match = false;
+            }
+        }
+
+        if (!match)
+        {
+            throw new InvalidOperationException("Suspended macro resume order mismatch.");
+        }
+
+        if (session != null)
+        {
+            await session.ResumeAsync(cancellationToken).ConfigureAwait(false);
+        }
+        _logger.Info("Suspended macro resumed.");
     }
 
     public void Dispose()
@@ -113,22 +233,48 @@ public sealed class KeyboardMacroService : IDisposable
         _macroLock.Dispose();
     }
 
-    private void SetMacroRunning(CancellationTokenSource cts)
+    private void SetMacroRunning(CancellationTokenSource cts, MacroExecutionSession session)
     {
         lock (_stateLock)
         {
-            _currentMacroCts = cts;
-            Volatile.Write(ref _macroRunningFlag, 1);
+            _macroStack.Push(new MacroExecutionEntry(cts, session));
+            var count = _macroStack.Count;
+            Volatile.Write(ref _macroRunningCount, count);
+            if (count == 1 || _macroIdleTcs.Task.IsCompleted)
+            {
+                _macroIdleTcs = CreateIdleTask(completed: false);
+            }
         }
     }
 
-    private void ClearMacroRunning()
+    private void ClearMacroRunning(MacroExecutionSession session)
     {
+        TaskCompletionSource<object?>? idleSource = null;
         lock (_stateLock)
         {
-            _currentMacroCts = null;
-            Volatile.Write(ref _macroRunningFlag, 0);
+            if (_macroStack.Count > 0 && ReferenceEquals(_macroStack.Peek().Session, session))
+            {
+                _macroStack.Pop();
+            }
+            var count = _macroStack.Count;
+            Volatile.Write(ref _macroRunningCount, count);
+            if (count == 0)
+            {
+                idleSource = _macroIdleTcs;
+                _macroIdleTcs = CreateIdleTask(completed: true);
+            }
         }
+        idleSource?.TrySetResult(null);
+    }
+
+    private static TaskCompletionSource<object?> CreateIdleTask(bool completed)
+    {
+        var tcs = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (completed)
+        {
+            tcs.SetResult(null);
+        }
+        return tcs;
     }
 
     private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
@@ -171,16 +317,19 @@ public sealed class KeyboardMacroService : IDisposable
             return MacroExecutionResult.Canceled("マクロ実行がキャンセルされました。");
         }
 
+        MacroExecutionSession? session = null;
         CancellationTokenSource? linkedCts = null;
         try
         {
             linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            SetMacroRunning(linkedCts);
+            session = new MacroExecutionSession(_macroLock);
+            session.MarkLockHeld();
+            SetMacroRunning(linkedCts, session);
             MacroExecutionResult result;
             try
             {
                 _logger.Info($"Macro execution started (length={scriptToRun.Length} chars).");
-                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token), linkedCts.Token).ConfigureAwait(false);
+                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token, session), linkedCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -217,18 +366,25 @@ public sealed class KeyboardMacroService : IDisposable
         }
         finally
         {
-            ClearMacroRunning();
+            if (session != null)
+            {
+                ClearMacroRunning(session);
+            }
             linkedCts?.Dispose();
-            if (lockTaken)
+            if (session?.LockHeld ?? false)
+            {
+                _macroLock.Release();
+            }
+            else if (lockTaken)
             {
                 _macroLock.Release();
             }
         }
     }
 
-    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken)
+    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfPausedOrCanceled(session, cancellationToken);
         IntPtr target = ResolveTargetWindow();
         bool targetAvailable = target != IntPtr.Zero;
         if (!targetAvailable)
@@ -320,7 +476,7 @@ public sealed class KeyboardMacroService : IDisposable
             }
             foreach (var rawLine in expandedLines)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                ThrowIfPausedOrCanceled(session, cancellationToken);
                 var line = rawLine.Trim();
                 if (line.Length == 0 || line.StartsWith('#')) continue;
 
@@ -400,10 +556,7 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。"));
                     }
-                    if (waitMs > 0 && cancellationToken.WaitHandle.WaitOne(waitMs))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
+                    DelayFor(waitMs, session, cancellationToken);
                     continue;
                 }
 
@@ -505,7 +658,7 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。"));
                     }
-                    if (!TrySendUnicodeText(expandedText, cancellationToken, out var textError))
+                    if (!TrySendUnicodeText(expandedText, session, cancellationToken, out var textError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。"));
                     }
@@ -535,10 +688,7 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushAfterClipError ?? "SendInput の実行に失敗しました。"));
                     }
-                    if (ClipTextAutoWaitMilliseconds > 0 && cancellationToken.WaitHandle.WaitOne(ClipTextAutoWaitMilliseconds))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
+                    DelayFor(ClipTextAutoWaitMilliseconds, session, cancellationToken);
                     continue;
                 }
 
@@ -1261,7 +1411,7 @@ public sealed class KeyboardMacroService : IDisposable
     private static void AppendKey(List<INPUT> buffer, ushort vk, bool keyUp, IntPtr extraInfo) =>
         buffer.Add(CreateVirtualKeyInput(vk, keyUp, extraInfo));
 
-    private bool TrySendUnicodeText(string text, CancellationToken cancellationToken, out string? error)
+    private bool TrySendUnicodeText(string text, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
         error = null;
         if (string.IsNullOrEmpty(text)) return true;
@@ -1281,9 +1431,9 @@ public sealed class KeyboardMacroService : IDisposable
 
         foreach (var rune in text.EnumerateRunes())
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfPausedOrCanceled(session, cancellationToken);
 
-            if (!TrySendRuneUsingKeyboardLayout(rune, keyboardLayout, cancellationToken, out var layoutError))
+            if (!TrySendRuneUsingKeyboardLayout(rune, keyboardLayout, session, cancellationToken, out var layoutError))
             {
                 if (layoutError != null)
                 {
@@ -1291,7 +1441,7 @@ public sealed class KeyboardMacroService : IDisposable
                     return false;
                 }
 
-                if (!TrySendRuneUsingUnicode(rune, runeBuffer, unicodeInputs, cancellationToken, out var unicodeError))
+                if (!TrySendRuneUsingUnicode(rune, runeBuffer, unicodeInputs, session, cancellationToken, out var unicodeError))
                 {
                     error = unicodeError;
                     return false;
@@ -1299,20 +1449,20 @@ public sealed class KeyboardMacroService : IDisposable
             }
 
             bool isWhitespace = Rune.IsWhiteSpace(rune);
-            DelayFor(isWhitespace ? TextSendWhitespaceDelayMilliseconds : TextSendInterCharacterDelayMilliseconds, cancellationToken);
+            DelayFor(isWhitespace ? TextSendWhitespaceDelayMilliseconds : TextSendInterCharacterDelayMilliseconds, session, cancellationToken);
         }
 
         error = null;
         return true;
     }
 
-    private bool TrySendRuneUsingUnicode(Rune rune, Span<char> buffer, INPUT[] inputs, CancellationToken cancellationToken, out string? error)
+    private bool TrySendRuneUsingUnicode(Rune rune, Span<char> buffer, INPUT[] inputs, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
         error = null;
         int length = rune.EncodeToUtf16(buffer);
         for (int i = 0; i < length; i++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            ThrowIfPausedOrCanceled(session, cancellationToken);
             var unit = buffer[i];
             inputs[0] = CreateUnicodeInput(unit, keyUp: false);
             inputs[1] = CreateUnicodeInput(unit, keyUp: true);
@@ -1326,10 +1476,10 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    private bool TrySendRuneUsingKeyboardLayout(Rune rune, IntPtr keyboardLayout, CancellationToken cancellationToken, out string? error)
+    private bool TrySendRuneUsingKeyboardLayout(Rune rune, IntPtr keyboardLayout, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
         error = null;
-        cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfPausedOrCanceled(session, cancellationToken);
         if (!rune.IsBmp)
         {
             return false;
@@ -1445,12 +1595,37 @@ public sealed class KeyboardMacroService : IDisposable
         return false;
     }
 
-    private static void DelayFor(int milliseconds, CancellationToken cancellationToken)
+    private static void ThrowIfPausedOrCanceled(MacroExecutionSession session, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        session.WaitIfPaused(cancellationToken);
+    }
+
+    private static void DelayFor(int milliseconds, MacroExecutionSession session, CancellationToken cancellationToken)
     {
         if (milliseconds <= 0) return;
-        if (cancellationToken.WaitHandle.WaitOne(milliseconds))
+        int remaining = milliseconds;
+        const int Slice = 25;
+        var handles = new[] { cancellationToken.WaitHandle, session.PauseWaitHandle };
+
+        while (remaining > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            int wait = Math.Min(Slice, remaining);
+            int signaled = WaitHandle.WaitAny(handles, wait);
+            if (signaled == WaitHandle.WaitTimeout)
+            {
+                remaining -= wait;
+                continue;
+            }
+
+            if (signaled == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            else if (signaled == 1)
+            {
+                session.WaitIfPaused(cancellationToken);
+            }
         }
     }
 
@@ -2547,6 +2722,212 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
 
         _sendInputOverride = (count, _, size) => overrideFunc(count, size);
     }
+
+    private sealed class MacroSuspensionHandle : IAsyncDisposable
+    {
+        private readonly KeyboardMacroService _owner;
+        private bool _resumed;
+
+        internal MacroSuspensionHandle(KeyboardMacroService owner)
+        {
+            _owner = owner;
+        }
+
+        public Task ResumeAsync(CancellationToken cancellationToken = default)
+        {
+            if (_resumed)
+            {
+                return Task.CompletedTask;
+            }
+            _resumed = true;
+            return _owner.ResumeSuspendedMacroAsync(this, cancellationToken);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_resumed) return;
+            await ResumeAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    private sealed class MacroExecutionSession
+    {
+        private readonly SemaphoreSlim _lock;
+        private readonly MacroPauseCoordinator _pauseCoordinator = new();
+        private bool _lockHeld;
+
+        public MacroExecutionSession(SemaphoreSlim macroLock)
+        {
+            _lock = macroLock;
+        }
+
+        public bool LockHeld => _lockHeld;
+        public bool IsPaused => _pauseCoordinator.IsPaused;
+        public WaitHandle PauseWaitHandle => _pauseCoordinator.PauseRequestHandle;
+
+        public void MarkLockHeld() => _lockHeld = true;
+
+        public void WaitIfPaused(CancellationToken cancellationToken) =>
+            _pauseCoordinator.WaitIfPaused(cancellationToken);
+
+        public async Task<bool> PauseAsync(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            var paused = await _pauseCoordinator.RequestPauseAsync(timeout, cancellationToken).ConfigureAwait(false);
+            if (!paused)
+            {
+                return false;
+            }
+
+            if (_lockHeld)
+            {
+                _lock.Release();
+                _lockHeld = false;
+            }
+
+            return true;
+        }
+
+        public async Task ResumeAsync(CancellationToken cancellationToken)
+        {
+            if (!_lockHeld)
+            {
+                await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                _lockHeld = true;
+            }
+            _pauseCoordinator.Resume();
+        }
+
+        public void ResumeAfterCancel()
+        {
+            if (!_lockHeld)
+            {
+                try
+                {
+                    _lock.Wait();
+                    _lockHeld = true;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // disposing; ignore
+                }
+            }
+            _pauseCoordinator.Resume();
+        }
+    }
+
+    private sealed class MacroPauseCoordinator
+    {
+        private readonly ManualResetEventSlim _resumeEvent = new(true);
+        private readonly ManualResetEventSlim _pauseRequestEvent = new(false);
+        private readonly object _syncRoot = new();
+        private TaskCompletionSource<bool>? _pauseSignal;
+        private bool _pauseRequested;
+        private bool _isPaused;
+
+        public WaitHandle PauseRequestHandle => _pauseRequestEvent.WaitHandle;
+
+        public bool IsPaused
+        {
+            get
+            {
+                lock (_syncRoot)
+                {
+                    return _isPaused;
+                }
+            }
+        }
+
+        public void WaitIfPaused(CancellationToken cancellationToken)
+        {
+            TaskCompletionSource<bool>? signal = null;
+            lock (_syncRoot)
+            {
+                if (!_pauseRequested)
+                {
+                    return;
+                }
+
+                if (!_isPaused)
+                {
+                    _isPaused = true;
+                    signal = _pauseSignal;
+                }
+            }
+
+            signal?.TrySetResult(true);
+            _resumeEvent.Wait(cancellationToken);
+
+            lock (_syncRoot)
+            {
+                if (!_pauseRequested)
+                {
+                    _isPaused = false;
+                }
+            }
+        }
+
+        public async Task<bool> RequestPauseAsync(TimeSpan timeout, CancellationToken cancellationToken)
+        {
+            TaskCompletionSource<bool> signal;
+            lock (_syncRoot)
+            {
+                if (_pauseRequested)
+                {
+                    signal = _pauseSignal ?? new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _pauseSignal = signal;
+                }
+                else
+                {
+                    _pauseRequested = true;
+                    _resumeEvent.Reset();
+                    _pauseRequestEvent.Set();
+                    signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _pauseSignal = signal;
+                    if (_isPaused)
+                    {
+                        signal.TrySetResult(true);
+                    }
+                }
+            }
+
+            if (timeout <= TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+            {
+                timeout = TimeSpan.FromMilliseconds(1);
+            }
+
+            try
+            {
+                if (timeout == Timeout.InfiniteTimeSpan)
+                {
+                    await signal.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    return true;
+                }
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(timeout);
+                await signal.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return false;
+            }
+        }
+
+        public void Resume()
+        {
+            lock (_syncRoot)
+            {
+                _pauseRequested = false;
+                _isPaused = false;
+                _pauseSignal = null;
+                _pauseRequestEvent.Reset();
+                _resumeEvent.Set();
+            }
+        }
+    }
+
+    private readonly record struct MacroExecutionEntry(CancellationTokenSource Cancellation, MacroExecutionSession Session);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);

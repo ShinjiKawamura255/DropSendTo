@@ -127,6 +127,10 @@ public class ConfigService
         {
             cfg.WindowPlacementMode = WindowPlacementMode.Fixed;
         }
+        if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
+        {
+            cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
+        }
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -371,6 +375,17 @@ public class ConfigService
                 changed = true;
             }
             cfg.Version = 13;
+            changed = true;
+        }
+
+        if (cfg.Version < 14)
+        {
+            if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
+            {
+                cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
+                changed = true;
+            }
+            cfg.Version = 14;
             changed = true;
         }
 

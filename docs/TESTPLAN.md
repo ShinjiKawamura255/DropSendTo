@@ -34,7 +34,10 @@
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
-- TC-097 CommandOnlyParallel: マクロ実行中は別スロットのマクロ起動がブロックされる一方、コマンドのみのスロットはショートカット/クリックから並列に実行できる。
+- TC-097 CommandOnlyParallel: マクロ実行中（排他/割り込み/一時停止いずれのモードでも）でもコマンドのみのスロットはショートカット/クリックから並列に実行でき、ログには「Command-only slot triggered while macro is active」が記録される。
+- TC-102 MacroModeExclusive: モード=排他のとき、実行中スロットを再トリガーするとキャンセルが発行され UI が「キャンセル中...」表示になる。他スロットからの実行は警告ダイアログで拒否され、設定を切り替えても再起動後に保持される。
+- TC-103 MacroModeInterrupt: モード=割り込み実行のとき、新規マクロ要求で実行中マクロがキャンセルされ、ログに interrupt が記録されてから新しいマクロが開始される。旧マクロが完全に停止するまで新マクロが開始されないことを確認。
+- TC-104 MacroModeSuspendResume: モード=一時停止して割り込みのとき、実行中マクロが安全ポイントで停止しスロットが「一時停止中...」表示になる。新規マクロ完了後に自動再開し、状態表示が「実行中」に戻る。多段ネストでも LIFO 順で再開されることを確認。
 - TC-098 MinimizeToTray: `Minimize to Tray` メニューおよび Prefix+Shift+Enter でウィンドウがタスクトレイへ格納され、Prefix+Enter やタスクトレイアイコン左クリックで復帰する。
 
 ## Execution

@@ -8,13 +8,13 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
-- MainWindow: 2〜4 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。
+- MainWindow: 2〜4 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey を保持。
 - ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 7 までのマイグレーションを実装し、行列分のスロット容量を保証する。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基にクリップボードの文字列/パス展開（先頭 n 行抽出を含む）を担当する純粋関数。
-- KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。再入防止にセマフォを使用。
+- KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。`MacroExecutionSession` と `_macroStack` で実行中のマクロ/キャンセレーショントークンを追跡し、`_suspensionStack` で一時停止中セッションを管理する。排他モードはセマフォで直列化し、割り込みモードは `CancelAllRunningMacrosAsync` で段階的にキャンセル、一時停止モードは `SuspendCurrentMacroAsync` が `MacroSuspensionHandle` を返して外部処理中は入力を停止、`DisposeAsync`（再開）時にセマフォを再取得して処理を続行する。
 - ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。Prefix+Enter でウィンドウ復帰、Prefix+Shift+Enter でタスクトレイ最小化イベントを発火する。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
 - RegisterDialog / PrefixDialog: スロット情報および Prefix の編集 UI。KeyChordParser で入力を検証し、正規化された結果を反映する。
