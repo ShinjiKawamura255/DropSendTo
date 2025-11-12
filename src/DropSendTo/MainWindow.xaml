@@ -51,13 +51,14 @@
                           Click="OnMacroModeSuspend"/>
             </MenuItem>
             <Separator/>
-            <MenuItem x:Name="MinimizeToTrayMenuItem"
-                      Header="Minimize to Tray"
-                      Click="OnMinimizeToTray"/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
                       IsCheckable="True"
                       Click="OnToggleAlwaysOnTop"/>
+            <Separator/>
+            <MenuItem x:Name="MinimizeToTrayMenuItem"
+                      Header="Minimize to Tray"
+                      Click="OnMinimizeToTray"/>
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
