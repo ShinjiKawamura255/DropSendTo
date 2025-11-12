@@ -29,11 +29,11 @@
                 <MenuItem x:Name="SlotSizeMenuItem"
                           Header="Slot Size"
                           SubmenuOpened="OnSlotSizeMenuOpened"/>
-                <MenuItem x:Name="AlwaysOnTopMenuItem"
-                          Header="常に最前面に表示"
-                          IsCheckable="True"
-                          Click="OnToggleAlwaysOnTop"/>
             </MenuItem>
+            <MenuItem x:Name="AlwaysOnTopMenuItem"
+                      Header="常に最前面に表示"
+                      IsCheckable="True"
+                      Click="OnToggleAlwaysOnTop"/>
             <MenuItem Header="起動・ウィンドウ動作">
                 <MenuItem Header="起動時のウィンドウ">
                     <MenuItem x:Name="StartupAlwaysShowMenuItem"
@@ -45,25 +45,23 @@
                               IsCheckable="True"
                               Click="OnStartupRestoreState"/>
                 </MenuItem>
-                <MenuItem x:Name="MinimizeToTrayMenuItem"
-                          Header="Minimize to Tray"
-                          Click="OnMinimizeToTray"/>
             </MenuItem>
-            <MenuItem Header="Macro 設定">
-                <MenuItem Header="Macro 実行モード">
-                    <MenuItem x:Name="MacroModeExclusiveMenuItem"
-                              Header="排他（従来動作）"
-                              IsCheckable="True"
-                              Click="OnMacroModeExclusive"/>
-                    <MenuItem x:Name="MacroModeInterruptMenuItem"
-                              Header="割り込み実行（実行中マクロを停止）"
-                              IsCheckable="True"
-                              Click="OnMacroModeInterrupt"/>
-                    <MenuItem x:Name="MacroModeSuspendMenuItem"
-                              Header="一時停止して割り込み（完了後に元マクロ再開）"
-                              IsCheckable="True"
-                              Click="OnMacroModeSuspend"/>
-                </MenuItem>
+            <MenuItem x:Name="MinimizeToTrayMenuItem"
+                      Header="Minimize to Tray"
+                      Click="OnMinimizeToTray"/>
+            <MenuItem Header="Macro 実行モード">
+                <MenuItem x:Name="MacroModeExclusiveMenuItem"
+                          Header="排他（単一実行のみ）"
+                          IsCheckable="True"
+                          Click="OnMacroModeExclusive"/>
+                <MenuItem x:Name="MacroModeInterruptMenuItem"
+                          Header="割り込み実行（実行中マクロを停止）"
+                          IsCheckable="True"
+                          Click="OnMacroModeInterrupt"/>
+                <MenuItem x:Name="MacroModeSuspendMenuItem"
+                          Header="一時停止して割り込み（完了後に元マクロ再開）"
+                          IsCheckable="True"
+                          Click="OnMacroModeSuspend"/>
             </MenuItem>
             <Separator/>
             <MenuItem Header="Exit" Click="OnExit"/>
