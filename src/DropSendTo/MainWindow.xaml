@@ -19,9 +19,7 @@
                 <MenuItem Header="Export Config..." Click="OnExportConfig"/>
                 <MenuItem Header="Import Config..." Click="OnImportConfig"/>
             </MenuItem>
-            <MenuItem Header="Prefix / Shortcut">
-                <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
-            </MenuItem>
+            <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
             <MenuItem Header="レイアウト / 表示">
                 <MenuItem x:Name="LayoutMenuItem"
                           Header="Slot Layout"
@@ -34,21 +32,14 @@
                       Header="常に最前面に表示"
                       IsCheckable="True"
                       Click="OnToggleAlwaysOnTop"/>
-            <MenuItem Header="起動・ウィンドウ動作">
-                <MenuItem Header="起動時のウィンドウ">
-                    <MenuItem x:Name="StartupAlwaysShowMenuItem"
-                              Header="常にウィンドウを表示"
-                              IsCheckable="True"
-                              Click="OnStartupAlwaysShow"/>
-                    <MenuItem x:Name="StartupRestoreMenuItem"
-                              Header="前回の状態を復元"
-                              IsCheckable="True"
-                              Click="OnStartupRestoreState"/>
-                </MenuItem>
-            </MenuItem>
-            <MenuItem x:Name="MinimizeToTrayMenuItem"
-                      Header="Minimize to Tray"
-                      Click="OnMinimizeToTray"/>
+            <MenuItem x:Name="StartupAlwaysShowMenuItem"
+                      Header="起動時: 常にウィンドウを表示"
+                      IsCheckable="True"
+                      Click="OnStartupAlwaysShow"/>
+            <MenuItem x:Name="StartupRestoreMenuItem"
+                      Header="起動時: 前回の状態を復元"
+                      IsCheckable="True"
+                      Click="OnStartupRestoreState"/>
             <MenuItem Header="Macro 実行モード">
                 <MenuItem x:Name="MacroModeExclusiveMenuItem"
                           Header="排他（単一実行のみ）"
@@ -64,6 +55,13 @@
                           Click="OnMacroModeSuspend"/>
             </MenuItem>
             <Separator/>
+            <MenuItem x:Name="MinimizeToTrayMenuItem"
+                      Header="Minimize to Tray"
+                      Click="OnMinimizeToTray"/>
+            <MenuItem x:Name="AlwaysOnTopMenuItem"
+                      Header="常に最前面に表示"
+                      IsCheckable="True"
+                      Click="OnToggleAlwaysOnTop"/>
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
