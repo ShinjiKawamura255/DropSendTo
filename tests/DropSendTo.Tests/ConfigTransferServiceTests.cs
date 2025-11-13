@@ -22,6 +22,7 @@ public class ConfigTransferServiceTests
             LastWindowVisibility = WindowVisibilityState.Tray,
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
+            EnablePrefixLayerShortcuts = true,
             SlotRows = 3,
             SlotColumns = 3,
             SlotSize = SlotSize.Medium
@@ -43,6 +44,7 @@ public class ConfigTransferServiceTests
         imported.AlwaysOnTop.Should().BeFalse();
         imported.StartupBehavior.Should().Be(StartupWindowBehavior.RestoreLastState);
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
+        imported.EnablePrefixLayerShortcuts.Should().BeTrue();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");

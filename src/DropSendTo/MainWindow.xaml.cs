@@ -578,7 +578,10 @@ public partial class MainWindow : Window
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixPositionToggleRequested += OnPrefixPositionToggleRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
+            _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
+            _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
+            _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
             _macroService.SetPrefixStateAccessors(
                 () => _shortcutService.CurrentPrefixChord,
                 () => _shortcutService.IsPrefixArmed,
@@ -625,9 +628,33 @@ public partial class MainWindow : Window
 
     private void SetLayer(int index)
     {
-        _currentLayer = index;
+        var totalLayers = _config?.Layers?.Count ?? 4;
+        if (totalLayers <= 0)
+        {
+            return;
+        }
+
+        var target = Math.Clamp(index, 0, totalLayers - 1);
+        _currentLayer = target;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
+    }
+
+    private void ChangeLayer(int delta)
+    {
+        var totalLayers = _config?.Layers?.Count ?? 4;
+        if (totalLayers <= 0)
+        {
+            return;
+        }
+
+        var next = (_currentLayer + delta) % totalLayers;
+        if (next < 0)
+        {
+            next += totalLayers;
+        }
+
+        SetLayer(next);
     }
 
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1080,6 +1107,10 @@ public partial class MainWindow : Window
         if (this.ContextMenu != null)
         {
             AlwaysOnTopMenuItem.IsChecked = this.Topmost;
+            if (PrefixLayerShortcutMenuItem != null)
+            {
+                PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
+            }
             PopulateLayoutMenu(LayoutMenuItem);
             PopulateSlotSizeMenu(SlotSizeMenuItem);
             this.ContextMenu.PlacementTarget = (UIElement)sender;
@@ -1336,6 +1367,16 @@ public partial class MainWindow : Window
         MinimizeWindowToTray();
     }
 
+    private void OnTogglePrefixLayerShortcuts(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item) return;
+        bool enabled = item.IsChecked;
+        if (_config.EnablePrefixLayerShortcuts == enabled) return;
+        _config.EnablePrefixLayerShortcuts = enabled;
+        _shortcutService.SetPrefixLayerShortcutsEnabled(enabled);
+        _configService.Save(_config);
+    }
+
     private void OnToggleAlwaysOnTop(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item) return;
@@ -1398,6 +1439,10 @@ public partial class MainWindow : Window
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
+        if (PrefixLayerShortcutMenuItem != null)
+        {
+            PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
+        }
         if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null)
         {
             StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
@@ -1773,6 +1818,16 @@ public partial class MainWindow : Window
         ToggleWindowPlacementMode();
     }
 
+    private void OnPrefixNextLayerRequested(object? sender, EventArgs e)
+    {
+        ChangeLayer(1);
+    }
+
+    private void OnPrefixPreviousLayerRequested(object? sender, EventArgs e)
+    {
+        ChangeLayer(-1);
+    }
+
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
         if (PrefixIndicator == null || PrefixIndicatorText == null)
@@ -1937,6 +1992,8 @@ public partial class MainWindow : Window
         _shortcutService.PrefixMacroCancelRequested -= OnPrefixMacroCancelRequested;
         _shortcutService.PrefixMinimizeRequested -= OnPrefixMinimizeRequested;
         _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
+        _shortcutService.PrefixNextLayerRequested -= OnPrefixNextLayerRequested;
+        _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();

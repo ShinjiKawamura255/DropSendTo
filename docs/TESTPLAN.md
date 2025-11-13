@@ -26,6 +26,7 @@
 - TC-060 WindowPos: 再起動で位置復元し、画面外に移動しても可視範囲へ補正される。
 - TC-065 LayoutMenu: Slot Layout メニューで 2〜8 行×2〜4 列の候補を選択でき、即時 UI が再構成され、再起動後も構成が保持される。
 - TC-066 SlotSize: Slot Size メニューで Small/Medium/Large を切り替えるとウィンドウ寸法とスロット表示が即時更新され、タイトル行数が 1/2/3 行に制限される。Small 時はステータスを同一行にオーバーレイ表示し、設定を保存・再起動しても保持される。
+- TC-068 PrefixLayerShortcut: コンテキストメニューの「Prefix: Ctrl+N/P でレイヤー切替」を有効化すると、Prefix armed 中に `Ctrl+N`/`Ctrl+P` でレイヤーを前後へ循環でき、無効化すると通常のキー入力として OS に透過する。設定は保存・再起動後も復元される。
 - TC-070 SlotStates: hover/drag/クリックで視覚状態が変化する（UI レベル）。
 - TC-080 ClickExec: クリック実行が有効なときのみ起動する。Command モードはコマンドのみ、Macro Script モードはマクロのみ、Macro Script 拡張モードはマクロ内で `COMMAND` によりコマンドが起動する。無効設定は保存される。
 - TC-085 ShortcutTrigger: Prefix 押下でインジケーターが点灯し、4 秒以内の登録ショートカットでスロットがレイヤー自動切替込みで起動する。Prefix 再入力で前面ウィンドウへ送出される。

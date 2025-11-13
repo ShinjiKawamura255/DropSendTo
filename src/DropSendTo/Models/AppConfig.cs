@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 15;
+    public int Version { get; set; } = 16;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -15,6 +15,7 @@ public class AppConfig
     public WindowPlacementMode WindowPlacementMode { get; set; } = WindowPlacementMode.Fixed;
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
+    public bool EnablePrefixLayerShortcuts { get; set; }
     public MacroConcurrencyMode MacroConcurrencyMode { get; set; } = MacroConcurrencyMode.Exclusive;
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;

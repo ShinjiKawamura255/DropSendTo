@@ -67,6 +67,7 @@ internal sealed class ShortcutService : IDisposable
     private readonly Timer _prefixTimeoutTimer;
     private bool _usingFallbackPrefix;
     private bool _prefixDisabled;
+    private bool _prefixLayerShortcutsEnabled;
 
     public ShortcutService()
     {
@@ -83,6 +84,8 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixMinimizeRequested;
     public event EventHandler? PrefixMacroCancelRequested;
     public event EventHandler? PrefixPositionToggleRequested;
+    public event EventHandler? PrefixNextLayerRequested;
+    public event EventHandler? PrefixPreviousLayerRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -191,6 +194,15 @@ internal sealed class ShortcutService : IDisposable
                     _logger.Warn($"Failed to parse shortcut registration \"{entry}\": {error}");
                 }
             }
+        }
+    }
+
+    public void SetPrefixLayerShortcutsEnabled(bool enabled)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        lock (_stateLock)
+        {
+            _prefixLayerShortcutsEnabled = enabled;
         }
     }
 
@@ -364,6 +376,31 @@ internal sealed class ShortcutService : IDisposable
             return ShortcutAction.CreatePrefixMinimize();
         }
 
+        if (_prefixLayerShortcutsEnabled)
+        {
+            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
+            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
+            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
+            if (ctrlActive &&
+                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
+                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
+            {
+                if (vk == VK_N)
+                {
+                    MarkKeyForSuppression(vk);
+                    suppress = true;
+                    return ShortcutAction.CreatePrefixNextLayer();
+                }
+
+                if (vk == VK_P)
+                {
+                    MarkKeyForSuppression(vk);
+                    suppress = true;
+                    return ShortcutAction.CreatePrefixPreviousLayer();
+                }
+            }
+        }
+
         if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
         {
             MarkKeyForSuppression(vk);
@@ -486,6 +523,12 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixTogglePosition:
                 _dispatcher.BeginInvoke(() => PrefixPositionToggleRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixNextLayer:
+                _dispatcher.BeginInvoke(() => PrefixNextLayerRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixPreviousLayer:
+                _dispatcher.BeginInvoke(() => PrefixPreviousLayerRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -614,6 +657,53 @@ internal sealed class ShortcutService : IDisposable
         }
 
         return removed;
+    }
+
+    private static bool ContainsVirtualKey(IReadOnlyCollection<ushort> source, ushort value)
+    {
+        if (source == null || source.Count == 0) return false;
+        foreach (var entry in source)
+        {
+            if (entry == value)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HasModifiersOtherThan(HashSet<ushort> source, ushort allowed)
+    {
+        if (source.Count == 0) return false;
+        if (allowed == 0)
+        {
+            return source.Count > 0;
+        }
+        foreach (var entry in source)
+        {
+            if (entry != allowed)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HasModifiersOtherThan(IReadOnlyCollection<ushort> source, ushort allowed)
+    {
+        if (source == null || source.Count == 0) return false;
+        if (allowed == 0)
+        {
+            return source.Count > 0;
+        }
+        foreach (var entry in source)
+        {
+            if (entry != allowed)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private HashSet<ushort> CollectActiveModifierKeysLocked()
@@ -798,6 +888,12 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixTogglePosition() =>
             new(ShortcutActionType.PrefixTogglePosition, 0, null, null, null);
+
+        public static ShortcutAction CreatePrefixNextLayer() =>
+            new(ShortcutActionType.PrefixNextLayer, 0, null, null, null);
+
+        public static ShortcutAction CreatePrefixPreviousLayer() =>
+            new(ShortcutActionType.PrefixPreviousLayer, 0, null, null, null);
     }
 
     private enum ShortcutActionType
@@ -808,7 +904,9 @@ internal sealed class ShortcutService : IDisposable
         PrefixActivate,
         PrefixMinimize,
         PrefixCancelMacro,
-        PrefixTogglePosition
+        PrefixTogglePosition,
+        PrefixNextLayer,
+        PrefixPreviousLayer
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -860,6 +958,8 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_RWIN = 0x5C;
     private const ushort VK_RETURN = 0x0D;
     private const ushort VK_TAB = 0x09;
+    private const ushort VK_N = 0x4E;
+    private const ushort VK_P = 0x50;
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);

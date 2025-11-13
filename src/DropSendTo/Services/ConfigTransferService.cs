@@ -138,6 +138,7 @@ internal sealed class ConfigTransferService
         public WindowVisibilityState LastWindowVisibility { get; set; }
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
+        public bool EnablePrefixLayerShortcuts { get; set; }
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
@@ -156,6 +157,7 @@ internal sealed class ConfigTransferService
                 LastWindowVisibility = config.LastWindowVisibility,
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
+                EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
                 SlotSize = config.SlotSize,
@@ -184,6 +186,7 @@ internal sealed class ConfigTransferService
                 LastWindowVisibility = LastWindowVisibility,
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
+                EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,
                 SlotSize = SlotSize,

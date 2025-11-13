@@ -52,6 +52,10 @@
                           IsCheckable="True"
                           Click="OnMacroModeSuspend"/>
             </MenuItem>
+            <MenuItem x:Name="PrefixLayerShortcutMenuItem"
+                      Header="Prefix: Ctrl+N/P でレイヤー切替"
+                      IsCheckable="True"
+                      Click="OnTogglePrefixLayerShortcuts"/>
             <Separator/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
