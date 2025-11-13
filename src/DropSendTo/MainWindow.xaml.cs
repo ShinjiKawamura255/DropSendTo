@@ -16,6 +16,7 @@ using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 using MediaColor = System.Windows.Media.Color;
 using DragEventArgs = System.Windows.DragEventArgs;
+using System.Windows.Media.Effects;
 using WpfMessageBox = System.Windows.MessageBox;
 using WpfHorizontalAlignment = System.Windows.HorizontalAlignment;
 using WpfVerticalAlignment = System.Windows.VerticalAlignment;
@@ -39,6 +40,8 @@ public partial class MainWindow : Window
     private readonly ConfigTransferService _configTransferService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
+    private bool _keyboardNavigationActive;
+    private int _keyboardSelectedSlotIndex = -1;
     private Forms.NotifyIcon? _notifyIcon;
     private DrawingIcon? _notifyIconDefault;
     private DrawingIcon? _notifyIconActive;
@@ -244,6 +247,38 @@ public partial class MainWindow : Window
         }
     }
 
+    private void UpdateKeyboardSelectionVisual()
+    {
+        if (_slotVisuals.Count == 0)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _slotVisuals.Count; i++)
+        {
+            bool isSelected = _keyboardNavigationActive && i == _keyboardSelectedSlotIndex;
+            ApplyKeyboardSelectionVisual(_slotVisuals[i], isSelected);
+        }
+    }
+
+    private static void ApplyKeyboardSelectionVisual(SlotVisual visual, bool isSelected)
+    {
+        if (isSelected)
+        {
+            visual.Border.Effect = new DropShadowEffect
+            {
+                Color = System.Windows.Media.Colors.DeepSkyBlue,
+                ShadowDepth = 0,
+                BlurRadius = 12,
+                Opacity = 0.9
+            };
+        }
+        else
+        {
+            visual.Border.Effect = null;
+        }
+    }
+
     private void UpdateNotifyIconState(bool macroRunning)
     {
         if (_notifyIcon == null)
@@ -376,6 +411,7 @@ public partial class MainWindow : Window
 
         UpdateWindowSize(rows, columns);
         ClampWindowWithinBounds();
+        UpdateKeyboardSelectionVisual();
     }
 
     private void RestoreWindowPosition()
@@ -621,6 +657,34 @@ public partial class MainWindow : Window
         Close();
     }
 
+    protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+    {
+        if (HandleKeyboardNavigationKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
+        base.OnPreviewKeyDown(e);
+    }
+
+    protected override void OnPreviewMouseDown(System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_keyboardNavigationActive)
+        {
+            DeactivateKeyboardNavigation();
+        }
+        base.OnPreviewMouseDown(e);
+    }
+
+    protected override void OnDeactivated(EventArgs e)
+    {
+        base.OnDeactivated(e);
+        if (_keyboardNavigationActive)
+        {
+            DeactivateKeyboardNavigation();
+        }
+    }
+
     private void OnLayer1(object sender, RoutedEventArgs e) => SetLayer(0);
     private void OnLayer2(object sender, RoutedEventArgs e) => SetLayer(1);
     private void OnLayer3(object sender, RoutedEventArgs e) => SetLayer(2);
@@ -655,6 +719,108 @@ public partial class MainWindow : Window
         }
 
         SetLayer(next);
+        if (_keyboardNavigationActive)
+        {
+            NormalizeKeyboardSelectionIndex();
+            UpdateKeyboardSelectionVisual();
+        }
+    }
+
+    private void ActivateKeyboardNavigation()
+    {
+        _keyboardNavigationActive = true;
+        _keyboardSelectedSlotIndex = -1;
+        UpdateKeyboardSelectionVisual();
+    }
+
+    private void DeactivateKeyboardNavigation()
+    {
+        _keyboardNavigationActive = false;
+        _keyboardSelectedSlotIndex = -1;
+        UpdateKeyboardSelectionVisual();
+    }
+
+    private void NormalizeKeyboardSelectionIndex()
+    {
+        int totalSlots = _config.SlotRows * _config.SlotColumns;
+        if (_keyboardSelectedSlotIndex >= totalSlots)
+        {
+            _keyboardSelectedSlotIndex = totalSlots - 1;
+        }
+        if (_keyboardSelectedSlotIndex < 0 && totalSlots == 0)
+        {
+            _keyboardSelectedSlotIndex = -1;
+        }
+    }
+
+    private void MoveKeyboardSelection(int deltaRow, int deltaColumn)
+    {
+        if (!_keyboardNavigationActive)
+        {
+            return;
+        }
+
+        int rows = _config.SlotRows;
+        int columns = _config.SlotColumns;
+        if (rows <= 0 || columns <= 0)
+        {
+            return;
+        }
+
+        int row;
+        int column;
+        if (_keyboardSelectedSlotIndex < 0)
+        {
+            row = 0;
+            column = 0;
+        }
+        else
+        {
+            row = _keyboardSelectedSlotIndex / columns;
+            column = _keyboardSelectedSlotIndex % columns;
+        }
+
+        row = Math.Clamp(row + deltaRow, 0, rows - 1);
+        column = Math.Clamp(column + deltaColumn, 0, columns - 1);
+        _keyboardSelectedSlotIndex = row * columns + column;
+        UpdateKeyboardSelectionVisual();
+    }
+
+    private bool HandleKeyboardNavigationKey(System.Windows.Input.KeyEventArgs e)
+    {
+        if (!_keyboardNavigationActive)
+        {
+            return false;
+        }
+
+        switch (e.Key)
+        {
+            case System.Windows.Input.Key.Up:
+                MoveKeyboardSelection(-1, 0);
+                return true;
+            case System.Windows.Input.Key.Down:
+                MoveKeyboardSelection(1, 0);
+                return true;
+            case System.Windows.Input.Key.Left:
+                MoveKeyboardSelection(0, -1);
+                return true;
+            case System.Windows.Input.Key.Right:
+                MoveKeyboardSelection(0, 1);
+                return true;
+            case System.Windows.Input.Key.Enter:
+                if (_keyboardSelectedSlotIndex >= 0)
+                {
+                    int index = _keyboardSelectedSlotIndex;
+                    DeactivateKeyboardNavigation();
+                    _ = TriggerSlotAsync(_currentLayer, index, SlotTriggerSource.Shortcut);
+                }
+                return true;
+            case System.Windows.Input.Key.Escape:
+                DeactivateKeyboardNavigation();
+                return true;
+            default:
+                return false;
+        }
     }
 
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1752,6 +1918,10 @@ public partial class MainWindow : Window
     private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
+        if (_keyboardNavigationActive)
+        {
+            DeactivateKeyboardNavigation();
+        }
         int idx = GetSlotIndex(fe);
         await TriggerSlotAsync(_currentLayer, idx, SlotTriggerSource.Mouse);
     }
@@ -1785,6 +1955,7 @@ public partial class MainWindow : Window
             PositionWindowAtMouse();
         }
         BringWindowToForeground();
+        ActivateKeyboardNavigation();
     }
 
     private void OnPrefixMinimizeRequested(object? sender, EventArgs e)
