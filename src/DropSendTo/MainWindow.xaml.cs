@@ -88,11 +88,11 @@ public partial class MainWindow : Window
         OverlayStatus: false);
 
     private static readonly SlotSizeMetrics MediumSlotMetrics = new(
-        BaseWidth: 220,
-        BaseHeight: 160,
-        ColumnStep: 85,
-        RowStep: 60,
-        SlotHeight: 52,
+        BaseWidth: 218,
+        BaseHeight: 148,
+        ColumnStep: 82,
+        RowStep: 55,
+        SlotHeight: 46,
         TitleFontSize: 11,
         StatusFontSize: 10,
         TitleWrapping: TextWrapping.Wrap,
