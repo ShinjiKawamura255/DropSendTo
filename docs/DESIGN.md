@@ -8,7 +8,7 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
-- MainWindow: 2〜4 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。
+- MainWindow: 2〜8 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。Slot Size メニューで Small/Medium/Large を切り替え（既定は Medium）、Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現するためにスロット高さと行レイアウトを再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey を保持。
 - ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 7 までのマイグレーションを実装し、行列分のスロット容量を保証する。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。

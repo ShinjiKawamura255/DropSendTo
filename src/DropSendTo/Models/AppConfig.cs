@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 14;
+    public int Version { get; set; } = 15;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -18,7 +18,7 @@ public class AppConfig
     public MacroConcurrencyMode MacroConcurrencyMode { get; set; } = MacroConcurrencyMode.Exclusive;
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;
-    public SlotSize SlotSize { get; set; } = SlotSize.Large;
+    public SlotSize SlotSize { get; set; } = SlotSize.Medium;
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()

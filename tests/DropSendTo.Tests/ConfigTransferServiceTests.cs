@@ -24,7 +24,7 @@ public class ConfigTransferServiceTests
             ShortcutPrefixDisabled = true,
             SlotRows = 3,
             SlotColumns = 3,
-            SlotSize = SlotSize.Small
+            SlotSize = SlotSize.Medium
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";

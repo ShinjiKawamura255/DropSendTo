@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using DropSendTo.Models;
 using DropSendTo.Services;
 using FluentAssertions;
@@ -206,5 +207,49 @@ public class ConfigServiceTests
         var reloaded = svc.LoadOrCreate();
         reloaded.Layers[0].Slots[0].ExecutionMode.Should().Be(SlotExecutionMode.MacroScript);
         reloaded.Layers[0].Slots[1].ExecutionMode.Should().Be(SlotExecutionMode.MacroScriptExtended);
+    }
+
+    [Fact]
+    public void LoadOrCreate_Should_Migrate_V14_SlotSizes_To_NewScale()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+
+        var smallDir = Path.Combine(tempRoot, "small");
+        var legacySmall = new AppConfig
+        {
+            Version = 14,
+            SlotSize = SlotSize.Small,
+            SlotRows = 10,
+            SlotColumns = 5
+        };
+        WriteLegacyConfig(smallDir, legacySmall);
+
+        var smallService = new ConfigService(smallDir);
+        var migratedSmall = smallService.LoadOrCreate();
+        migratedSmall.SlotSize.Should().Be(SlotSize.Medium);
+        migratedSmall.SlotRows.Should().Be(8);
+        migratedSmall.SlotColumns.Should().Be(4);
+
+        var largeDir = Path.Combine(tempRoot, "large");
+        var legacyLarge = new AppConfig
+        {
+            Version = 14,
+            SlotSize = SlotSize.Medium,
+            SlotRows = 3,
+            SlotColumns = 2
+        };
+        WriteLegacyConfig(largeDir, legacyLarge);
+
+        var largeService = new ConfigService(largeDir);
+        var migratedLarge = largeService.LoadOrCreate();
+        migratedLarge.SlotSize.Should().Be(SlotSize.Large);
+    }
+
+    private static void WriteLegacyConfig(string baseDir, AppConfig config)
+    {
+        var cfgDir = Path.Combine(baseDir, "DropSendTo");
+        Directory.CreateDirectory(cfgDir);
+        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(cfgDir, "config.json"), json);
     }
 }

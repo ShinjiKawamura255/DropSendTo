@@ -47,16 +47,17 @@ public partial class MainWindow : Window
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
+    private const int MinSlotRows = 2;
+    private const int MaxSlotRows = 8;
+    private const int MinSlotColumns = 2;
+    private const int MaxSlotColumns = 4;
     private static readonly (int rows, int columns)[] SlotLayoutOptions =
-    {
-        (2, 2), (2, 3), (2, 4),
-        (3, 2), (3, 3), (3, 4),
-        (4, 2), (4, 3), (4, 4)
-    };
+        BuildSlotLayoutOptions();
 
     private static readonly (SlotSize size, string header)[] SlotSizeOptions =
     {
         (SlotSize.Large, "Large"),
+        (SlotSize.Medium, "Medium"),
         (SlotSize.Small, "Small")
     };
 
@@ -67,25 +68,63 @@ public partial class MainWindow : Window
         double RowStep,
         double SlotHeight,
         double TitleFontSize,
-        double StatusFontSize);
+        double StatusFontSize,
+        TextWrapping TitleWrapping,
+        TextTrimming TitleTrimming,
+        int TitleVisibleLines,
+        bool OverlayStatus);
 
     private static readonly SlotSizeMetrics LargeSlotMetrics = new(
-        BaseWidth: 234,
-        BaseHeight: 148,
+        BaseWidth: 240,
+        BaseHeight: 180,
         ColumnStep: 95,
-        RowStep: 60,
-        SlotHeight: 48,
+        RowStep: 70,
+        SlotHeight: 64,
         TitleFontSize: 12,
-        StatusFontSize: 11);
+        StatusFontSize: 11,
+        TitleWrapping: TextWrapping.Wrap,
+        TitleTrimming: TextTrimming.CharacterEllipsis,
+        TitleVisibleLines: 3,
+        OverlayStatus: false);
+
+    private static readonly SlotSizeMetrics MediumSlotMetrics = new(
+        BaseWidth: 220,
+        BaseHeight: 160,
+        ColumnStep: 85,
+        RowStep: 60,
+        SlotHeight: 52,
+        TitleFontSize: 11,
+        StatusFontSize: 10,
+        TitleWrapping: TextWrapping.Wrap,
+        TitleTrimming: TextTrimming.CharacterEllipsis,
+        TitleVisibleLines: 2,
+        OverlayStatus: false);
 
     private static readonly SlotSizeMetrics SmallSlotMetrics = new(
-        BaseWidth: 210,
-        BaseHeight: 126,
-        ColumnStep: 80,
-        RowStep: 50,
-        SlotHeight: 40,
-        TitleFontSize: 11,
-        StatusFontSize: 10);
+        BaseWidth: 200,
+        BaseHeight: 120,
+        ColumnStep: 70,
+        RowStep: 36,
+        SlotHeight: 32,
+        TitleFontSize: 10,
+        StatusFontSize: 9,
+        TitleWrapping: TextWrapping.NoWrap,
+        TitleTrimming: TextTrimming.CharacterEllipsis,
+        TitleVisibleLines: 1,
+        OverlayStatus: true);
+
+    private static (int rows, int columns)[] BuildSlotLayoutOptions()
+    {
+        var options = new List<(int rows, int columns)>();
+        for (int rows = MinSlotRows; rows <= MaxSlotRows; rows++)
+        {
+            for (int columns = MinSlotColumns; columns <= MaxSlotColumns; columns++)
+            {
+                options.Add((rows, columns));
+            }
+        }
+        return options.ToArray();
+    }
     static MainWindow()
     {
         PrefixArmedBackgroundBrush = CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x82, 0x4C));
@@ -191,6 +230,17 @@ public partial class MainWindow : Window
         {
             _logger.Warn($"Failed to load tray icon \"{resourcePath}\": {ex.Message}");
             return null;
+        }
+    }
+
+    private static void UpdateSlotStatusVisual(SlotVisual visual, string text, MediaColor color, bool isVisible)
+    {
+        visual.Status.Text = text;
+        visual.Status.Foreground = new System.Windows.Media.SolidColorBrush(color);
+        visual.Status.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (visual.OverlayStatus)
+        {
+            visual.Title.Visibility = isVisible ? Visibility.Collapsed : Visibility.Visible;
         }
     }
 
@@ -301,8 +351,8 @@ public partial class MainWindow : Window
 
     private void ApplySlotLayout()
     {
-        int rows = Math.Clamp(_config.SlotRows, 2, 4);
-        int columns = Math.Clamp(_config.SlotColumns, 2, 4);
+        int rows = Math.Clamp(_config.SlotRows, MinSlotRows, MaxSlotRows);
+        int columns = Math.Clamp(_config.SlotColumns, MinSlotColumns, MaxSlotColumns);
         _config.SlotRows = rows;
         _config.SlotColumns = columns;
 
@@ -387,7 +437,12 @@ public partial class MainWindow : Window
 
     private SlotSizeMetrics GetSlotSizeMetrics()
     {
-        return _config?.SlotSize == SlotSize.Small ? SmallSlotMetrics : LargeSlotMetrics;
+        return _config?.SlotSize switch
+        {
+            SlotSize.Small => SmallSlotMetrics,
+            SlotSize.Medium => MediumSlotMetrics,
+            _ => LargeSlotMetrics
+        };
     }
 
     private static void EnsureLayerSlotCapacity(Layer layer, int requiredSlots)
@@ -414,22 +469,46 @@ public partial class MainWindow : Window
             Tag = index
         };
 
-        var stack = new StackPanel
+        UIElement content;
+        StackPanel? stackingPanel = null;
+        Grid? overlayGrid = null;
+        if (metrics.OverlayStatus)
         {
-            HorizontalAlignment = WpfHorizontalAlignment.Center,
-            VerticalAlignment = WpfVerticalAlignment.Center,
-            Tag = index
-        };
+            overlayGrid = new Grid
+            {
+                HorizontalAlignment = WpfHorizontalAlignment.Center,
+                VerticalAlignment = WpfVerticalAlignment.Center,
+                Tag = index
+            };
+            content = overlayGrid;
+        }
+        else
+        {
+            stackingPanel = new StackPanel
+            {
+                HorizontalAlignment = WpfHorizontalAlignment.Center,
+                VerticalAlignment = WpfVerticalAlignment.Center,
+                Tag = index
+            };
+            content = stackingPanel;
+        }
 
         var title = new TextBlock
         {
             Text = $"Slot {index + 1}",
             FontSize = metrics.TitleFontSize,
-            TextWrapping = TextWrapping.Wrap,
+            TextWrapping = metrics.TitleWrapping,
+            TextTrimming = metrics.TitleTrimming,
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
             Tag = index
         };
+        if (metrics.TitleVisibleLines > 0)
+        {
+            title.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            title.LineHeight = metrics.TitleFontSize * 1.2;
+            title.MaxHeight = title.LineHeight * metrics.TitleVisibleLines;
+        }
 
         var status = new TextBlock
         {
@@ -438,13 +517,23 @@ public partial class MainWindow : Window
             Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0)),
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
+            VerticalAlignment = WpfVerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
             Tag = index
         };
 
-        stack.Children.Add(title);
-        stack.Children.Add(status);
-        border.Child = stack;
+        if (metrics.OverlayStatus && overlayGrid != null)
+        {
+            overlayGrid.Children.Add(title);
+            overlayGrid.Children.Add(status);
+        }
+        else if (stackingPanel != null)
+        {
+            stackingPanel.Children.Add(title);
+            stackingPanel.Children.Add(status);
+        }
+
+        border.Child = content;
 
         border.Drop += OnSlotDrop;
         border.MouseRightButtonUp += OnSlotContextMenu;
@@ -455,7 +544,7 @@ public partial class MainWindow : Window
         border.MouseLeftButtonDown += OnSlotMouseDown;
         border.MouseLeftButtonUp += OnSlotClick;
 
-        return new SlotVisual(border, title, status);
+        return new SlotVisual(border, title, status, metrics.OverlayStatus);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -603,7 +692,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
-    private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status);
+    private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status, bool OverlayStatus);
     private sealed class SlotRunContext
     {
         public SlotRunContext(int layerIndex, int slotIndex)
@@ -633,37 +722,28 @@ public partial class MainWindow : Window
 
         var visual = _slotVisuals[index];
         var border = visual.Border;
-        var status = visual.Status;
 
         switch (state)
         {
             case SlotMacroState.Running:
                 border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1A, 0x2E, 0x1A));
                 border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x5A, 0xD6, 0x6B));
-                status.Text = "マクロ実行中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
-                status.Visibility = Visibility.Visible;
+                UpdateSlotStatusVisual(visual, "マクロ実行中...", MediaColor.FromRgb(0x7C, 0xFF, 0xB0), true);
                 break;
             case SlotMacroState.Cancelling:
                 border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x2E, 0x28, 0x1A));
                 border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xC6, 0x4D));
-                status.Text = "キャンセル中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xD7, 0x66));
-                status.Visibility = Visibility.Visible;
+                UpdateSlotStatusVisual(visual, "キャンセル中...", MediaColor.FromRgb(0xFF, 0xD7, 0x66), true);
                 break;
             case SlotMacroState.Paused:
                 border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1E, 0x1A, 0x2E));
                 border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x98, 0x7C, 0xFF));
-                status.Text = "一時停止中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xC9, 0xB6, 0xFF));
-                status.Visibility = Visibility.Visible;
+                UpdateSlotStatusVisual(visual, "一時停止中...", MediaColor.FromRgb(0xC9, 0xB6, 0xFF), true);
                 break;
             default:
                 border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
                 border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33));
-                status.Text = "マクロ実行中...";
-                status.Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
-                status.Visibility = Visibility.Collapsed;
+                UpdateSlotStatusVisual(visual, "マクロ実行中...", MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
                 break;
         }
     }

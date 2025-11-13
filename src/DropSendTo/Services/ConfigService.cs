@@ -90,11 +90,13 @@ public class ConfigService
         _logger.Info($"Config saved to {ConfigPath}.");
     }
 
-    private const int MinSlotDimension = 2;
-    private const int MaxSlotDimension = 4;
+    private const int MinSlotRows = 2;
+    private const int MaxSlotRows = 8;
+    private const int MinSlotColumns = 2;
+    private const int MaxSlotColumns = 4;
 
-    private static int NormalizeSlotDimension(int value) =>
-        value is >= MinSlotDimension and <= MaxSlotDimension ? value : MinSlotDimension;
+    private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
+    private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
 
     private static void EnsureSlotCapacity(Layer layer, int requiredSlots)
     {
@@ -108,11 +110,11 @@ public class ConfigService
     {
         if (cfg.Layers.Count != 4) throw new InvalidDataException("Config must have 4 layers.");
         cfg.ShortcutPrefix ??= string.Empty;
-        cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
-        cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
+        cfg.SlotRows = NormalizeSlotRows(cfg.SlotRows);
+        cfg.SlotColumns = NormalizeSlotColumns(cfg.SlotColumns);
         if (!Enum.IsDefined(typeof(SlotSize), cfg.SlotSize))
         {
-            cfg.SlotSize = SlotSize.Large;
+            cfg.SlotSize = SlotSize.Medium;
         }
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
         if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
@@ -269,8 +271,8 @@ public class ConfigService
 
         if (cfg.Version < 7)
         {
-            cfg.SlotRows = NormalizeSlotDimension(cfg.SlotRows);
-            cfg.SlotColumns = NormalizeSlotDimension(cfg.SlotColumns);
+            cfg.SlotRows = NormalizeSlotRows(cfg.SlotRows);
+            cfg.SlotColumns = NormalizeSlotColumns(cfg.SlotColumns);
             int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
             foreach (var layer in cfg.Layers)
             {
@@ -293,7 +295,7 @@ public class ConfigService
         {
             if (!Enum.IsDefined(typeof(SlotSize), cfg.SlotSize))
             {
-                cfg.SlotSize = SlotSize.Large;
+                cfg.SlotSize = SlotSize.Medium;
             }
             cfg.Version = 9;
             changed = true;
@@ -386,6 +388,25 @@ public class ConfigService
                 changed = true;
             }
             cfg.Version = 14;
+            changed = true;
+        }
+
+        if (cfg.Version < 15)
+        {
+            if (cfg.SlotSize == SlotSize.Small)
+            {
+                cfg.SlotSize = SlotSize.Medium;
+                changed = true;
+            }
+            else if (cfg.SlotSize == SlotSize.Medium)
+            {
+                cfg.SlotSize = SlotSize.Large;
+                changed = true;
+            }
+
+            cfg.SlotRows = NormalizeSlotRows(cfg.SlotRows);
+            cfg.SlotColumns = NormalizeSlotColumns(cfg.SlotColumns);
+            cfg.Version = 15;
             changed = true;
         }
 
