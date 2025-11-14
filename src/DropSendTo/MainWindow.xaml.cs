@@ -109,7 +109,7 @@ public partial class MainWindow : Window
         OverlayStatus: false);
 
     private static readonly SlotSizeMetrics SmallSlotMetrics = new(
-        BaseWidth: 200,
+        BaseWidth: 234,
         BaseHeight: 120,
         ColumnStep: 70,
         RowStep: 36,
