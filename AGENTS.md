@@ -13,7 +13,7 @@
 - Run: `dotnet run --project src/DropSendTo`.
 - Test: `dotnet test` (xUnit default).
 - Format: `dotnet format` (requires `dotnet-format` in SDK workloads).
-- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す（`powershell.exe` 経由の実機で確認済み）。
+- **WSL での .NET 実行**: 本環境の WSL には .NET SDK が無いため、Windows 側の `dotnet` を PowerShell 経由で呼び出す（`powershell.exe` 経由の実行を実機で確認済み）。
   - 共通準備: `WIN_REPO=$(wslpath -w "$PWD")`
   - Build: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet build"`
   - Test: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '$WIN_REPO'; dotnet test"`
@@ -21,9 +21,9 @@
   - 動作確認例: `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "dotnet --version"`
   - 注意: Codex 環境では `powershell.exe` による初回呼び出し時に `Permission denied` が返る場合があります。Codex 側のアクセス制御が原因のため、同様のエラーが出た場合はユーザに実行許可を求めてから再実行してください。
 - **PowerShell スクリプト**:
-  - `scripts/Run-Tests-And-Build.ps1 [-Release] [-KillRunning] [-NoRestore]`  
+  - `scripts/Run-Tests-And-Build.ps1 [-Release] [-KillRunning] [-NoRestore]`
     - `-KillRunning` で常駐中の DropSendTo.exe を終了してから `dotnet restore/build/test` を実行。`-Release` 追加で Release ビルドを後続実行し、`test_results.trx` をルートに保存。
-  - `scripts/Build-Release.ps1 [-Rid win-x64] [-Version vX.Y.Z] [-SelfContained] [-Portable] [-KillRunning] [-NoZip] [-InvariantGlobalization]`  
+  - `scripts/Build-Release.ps1 [-Rid win-x64] [-Version vX.Y.Z] [-SelfContained] [-Portable] [-KillRunning] [-NoZip] [-InvariantGlobalization]`
     - 既定で Framework Dependent の単一ファイル配布を `dist/DropSendTo_<Rid>_<Version>/` に生成し、`dist/latest/` に最新コピーを展開。`-SelfContained` や `-Portable` で追加バリアントを作り、`USER_GUIDE.md` を成果物へ同梱。`-CertificatePath/-CertificatePassword` 指定で署名、`-NoZip` 無指定なら各バリアントを Zip 化する。
   - リリース工程では `dist/` 内を直接編集しない。必要に応じ `dist/latest/` の中身を配布用に再梱包する。
 
@@ -47,9 +47,9 @@
 - 設定 I/O/移行: `ConfigService` が JSON 読み書き、`.bak` バックアップ、バージョンアップマイグレーションを担当。`ConfigTransferService` は AES-GCM + PBKDF2（200k iterations）で暗号化したエクスポート payload を扱い、`PasswordPromptDialog` から渡されるパスワードで復号後に `AppConfig` へマッピングする。
 - レイヤー/ショートカット: `LayerManager` が 0〜3 のレイヤーインデックスを巡回し、`ShortcutService` が Prefix armed 状態と Prefix+Ctrl+N/P（任意設定）をディスパッチ。Prefix+Enter 後は矢印キー選択を `MainWindow` に送出して `_slotVisuals` を更新する。
 - ウィンドウ配置: `ScreenBoundsResolver` がマルチモニターの DPI を考慮した `ScreenBounds` を求め、`WindowPlacementService.Clamp` が可視領域へ収める。座標に NaN/Infinity が来た場合も安全にデフォルトへ戻す。
-- 代表テスト:  
-  - Config/設定系 → `tests/DropSendTo.Tests/ConfigServiceTests.cs`, `ConfigTransferServiceTests.cs`（暗号化 round-trip, パスワード誤り検証）  
-  - マクロ/ショートカット → `KeyboardMacroService*`（mouse/variable/key parsing）、`MacroRecordingOptimizerTests.cs`、`ShortcutServicePrefix*Tests.cs`（STA + Dispatcher 必須）  
+- 代表テスト:
+  - Config/設定系 → `tests/DropSendTo.Tests/ConfigServiceTests.cs`, `ConfigTransferServiceTests.cs`（暗号化 round-trip, パスワード誤り検証）
+  - マクロ/ショートカット → `KeyboardMacroService*`（mouse/variable/key parsing）、`MacroRecordingOptimizerTests.cs`、`ShortcutServicePrefix*Tests.cs`（STA + Dispatcher 必須）
   - UI/ユーティリティ → `UiLayoutBudgetTests.cs`（XAML 定数のレイアウト保証）、`LayerManagerTests.cs`, `ScreenBoundsResolverTests.cs`, `WindowPlacementService` 系
 - 新機能追加時は該当サービス配下のテストに追記しつつ、必要があれば `docs/` 配下の SPEC/DESIGN/TESTPLAN を更新する。STA 要求のテストは `Thread.SetApartmentState(ApartmentState.STA)` を忘れずに。
 
