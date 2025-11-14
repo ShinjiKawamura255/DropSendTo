@@ -4,12 +4,14 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using DropSendTo.Models;
 using DropSendTo.Services;
 using Microsoft.Win32;
@@ -42,6 +44,8 @@ public partial class MainWindow : Window
     private readonly List<SlotVisual> _slotVisuals = new();
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
+    private bool _suppressLayerSelectionForPrefix;
+    private int _prefixGuardToken;
     private Forms.NotifyIcon? _notifyIcon;
     private DrawingIcon? _notifyIconDefault;
     private DrawingIcon? _notifyIconActive;
@@ -377,11 +381,53 @@ public partial class MainWindow : Window
     private void BringWindowToForeground()
     {
         RestoreWindowFromTray();
+
+        var helper = new WindowInteropHelper(this);
+        var handle = helper.Handle;
+        if (handle != IntPtr.Zero)
+        {
+            ForceForegroundWindow(handle);
+        }
+
         Activate();
         Focus();
+
         bool desiredTopmost = _config?.AlwaysOnTop ?? true;
         Topmost = true;
         Topmost = desiredTopmost;
+    }
+
+    private static void ForceForegroundWindow(IntPtr handle)
+    {
+        if (NativeMethods.IsIconic(handle))
+        {
+            NativeMethods.ShowWindow(handle, NativeMethods.SW_RESTORE);
+        }
+
+        var foreground = NativeMethods.GetForegroundWindow();
+        uint foregroundThread = foreground != IntPtr.Zero
+            ? NativeMethods.GetWindowThreadProcessId(foreground, out _)
+            : 0;
+        uint currentThread = NativeMethods.GetCurrentThreadId();
+        bool attached = false;
+
+        try
+        {
+            if (foregroundThread != 0 && foregroundThread != currentThread)
+            {
+                attached = NativeMethods.AttachThreadInput(currentThread, foregroundThread, true);
+            }
+
+            NativeMethods.BringWindowToTop(handle);
+            NativeMethods.SetForegroundWindow(handle);
+        }
+        finally
+        {
+            if (attached)
+            {
+                NativeMethods.AttachThreadInput(currentThread, foregroundThread, false);
+            }
+        }
     }
 
     private void ApplySlotLayout()
@@ -659,7 +705,7 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
-        if (HandleKeyboardNavigationKey(e))
+        if (HandleKeyboardNavigationKey(e) || HandleLayerSelectionKey(e))
         {
             e.Handled = true;
             return;
@@ -702,6 +748,11 @@ public partial class MainWindow : Window
         _currentLayer = target;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
+        if (_keyboardNavigationActive)
+        {
+            NormalizeKeyboardSelectionIndex();
+            UpdateKeyboardSelectionVisual();
+        }
     }
 
     private void ChangeLayer(int delta)
@@ -719,11 +770,6 @@ public partial class MainWindow : Window
         }
 
         SetLayer(next);
-        if (_keyboardNavigationActive)
-        {
-            NormalizeKeyboardSelectionIndex();
-            UpdateKeyboardSelectionVisual();
-        }
     }
 
     private void ActivateKeyboardNavigation()
@@ -790,7 +836,11 @@ public partial class MainWindow : Window
     {
         if (!_keyboardNavigationActive)
         {
-            return false;
+            if (!IsActive || !IsArrowKey(e.Key))
+            {
+                return false;
+            }
+            ActivateKeyboardNavigation();
         }
 
         switch (e.Key)
@@ -821,6 +871,73 @@ public partial class MainWindow : Window
             default:
                 return false;
         }
+    }
+
+    private bool HandleLayerSelectionKey(System.Windows.Input.KeyEventArgs e)
+    {
+        if (!IsActive || _suppressLayerSelectionForPrefix)
+        {
+            return false;
+        }
+
+        if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.None)
+        {
+            return false;
+        }
+
+        if (!TryGetLayerIndexFromKey(e.Key, out var targetLayer))
+        {
+            return false;
+        }
+
+        var totalLayers = _config?.Layers?.Count ?? 0;
+        if (totalLayers == 0)
+        {
+            return false;
+        }
+
+        targetLayer = Math.Clamp(targetLayer, 0, totalLayers - 1);
+        if (targetLayer == _currentLayer)
+        {
+            return true;
+        }
+
+        SetLayer(targetLayer);
+        return true;
+    }
+
+    private static bool TryGetLayerIndexFromKey(System.Windows.Input.Key key, out int layerIndex)
+    {
+        switch (key)
+        {
+            case System.Windows.Input.Key.D1:
+            case System.Windows.Input.Key.NumPad1:
+                layerIndex = 0;
+                return true;
+            case System.Windows.Input.Key.D2:
+            case System.Windows.Input.Key.NumPad2:
+                layerIndex = 1;
+                return true;
+            case System.Windows.Input.Key.D3:
+            case System.Windows.Input.Key.NumPad3:
+                layerIndex = 2;
+                return true;
+            case System.Windows.Input.Key.D4:
+            case System.Windows.Input.Key.NumPad4:
+                layerIndex = 3;
+                return true;
+            default:
+                layerIndex = -1;
+                return false;
+        }
+    }
+
+    private static bool IsArrowKey(System.Windows.Input.Key key)
+    {
+        return key is System.Windows.Input.Key.Up
+            or System.Windows.Input.Key.Down
+            or System.Windows.Input.Key.Left
+            or System.Windows.Input.Key.Right;
     }
 
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -2001,6 +2118,8 @@ public partial class MainWindow : Window
 
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
+        UpdatePrefixGuard(e.IsArmed);
+
         if (PrefixIndicator == null || PrefixIndicatorText == null)
         {
             return;
@@ -2018,6 +2137,25 @@ public partial class MainWindow : Window
         {
             PrefixIndicator.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void UpdatePrefixGuard(bool isArmed)
+    {
+        if (isArmed)
+        {
+            _prefixGuardToken++;
+            _suppressLayerSelectionForPrefix = true;
+            return;
+        }
+
+        var token = ++_prefixGuardToken;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_prefixGuardToken == token)
+            {
+                _suppressLayerSelectionForPrefix = false;
+            }
+        }), DispatcherPriority.Background);
     }
 
     private async Task SendPrefixPassthroughAsync(string prefixText)
@@ -2241,5 +2379,34 @@ public partial class MainWindow : Window
         {
             _logger.Warn($"Failed to position window at mouse: {ex.Message}");
         }
+    }
+
+    private static class NativeMethods
+    {
+        internal const int SW_RESTORE = 9;
+
+        [DllImport("user32.dll")]
+        internal static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        internal static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("kernel32.dll")]
+        internal static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
     }
 }
