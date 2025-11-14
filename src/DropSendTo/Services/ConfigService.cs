@@ -161,6 +161,11 @@ public class ConfigService
                     slot.ExecutionMode = SlotExecutionMode.Command;
                 }
 
+                if (!Enum.IsDefined(typeof(SlotAccentColor), slot.AccentColor))
+                {
+                    slot.AccentColor = SlotAccentColor.Default;
+                }
+
                 if (slot.KeyboardMacroScript == null)
                 {
                     slot.KeyboardMacroScript = string.Empty;
@@ -414,6 +419,25 @@ public class ConfigService
         {
             cfg.EnablePrefixLayerShortcuts = false;
             cfg.Version = 16;
+            changed = true;
+        }
+
+        if (cfg.Version < 17)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
+                {
+                    if (!Enum.IsDefined(typeof(SlotAccentColor), slot.AccentColor))
+                    {
+                        slot.AccentColor = SlotAccentColor.Default;
+                        changed = true;
+                    }
+                }
+            }
+
+            cfg.Version = 17;
             changed = true;
         }
 

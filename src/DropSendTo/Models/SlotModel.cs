@@ -14,6 +14,7 @@ public class SlotModel
     [JsonConverter(typeof(KeyboardMacroScriptJsonConverter))]
     public string? KeyboardMacroScript { get; set; } = string.Empty;
     public SlotExecutionMode ExecutionMode { get; set; } = SlotExecutionMode.Command;
+    public SlotAccentColor AccentColor { get; set; } = SlotAccentColor.Default;
 }
 
 public enum SlotExecutionMode
@@ -21,4 +22,14 @@ public enum SlotExecutionMode
     Command = 0,
     MacroScript = 1,
     MacroScriptExtended = 2
+}
+
+public enum SlotAccentColor
+{
+    Default = 0,
+    Teal = 1,
+    Indigo = 2,
+    Amber = 3,
+    Olive = 4,
+    Crimson = 5
 }

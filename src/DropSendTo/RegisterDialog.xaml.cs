@@ -12,11 +12,22 @@ using DropSendTo.Models;
 using DropSendTo.Services;
 using System.Windows.Interop;
 using System.Text;
+using System.Windows.Media;
 
 namespace DropSendTo;
 
 public partial class RegisterDialog : Window
 {
+    private static readonly IReadOnlyList<SlotColorOption> AccentColorOptions = new[]
+    {
+        new SlotColorOption(SlotAccentColor.Default, "Default", CreatePreviewBrush(0x11, 0x11, 0x11)),
+        new SlotColorOption(SlotAccentColor.Teal, "Teal", CreatePreviewBrush(0x10, 0x2A, 0x30)),
+        new SlotColorOption(SlotAccentColor.Indigo, "Indigo", CreatePreviewBrush(0x16, 0x15, 0x2E)),
+        new SlotColorOption(SlotAccentColor.Amber, "Amber", CreatePreviewBrush(0x2D, 0x1F, 0x0F)),
+        new SlotColorOption(SlotAccentColor.Olive, "Olive", CreatePreviewBrush(0x20, 0x27, 0x12)),
+        new SlotColorOption(SlotAccentColor.Crimson, "Crimson", CreatePreviewBrush(0x2B, 0x11, 0x16))
+    };
+
     public string AppTitle => TitleBox.Text.Trim();
     public string CommandPath => ExecutionMode == SlotExecutionMode.MacroScript
         ? string.Empty
@@ -71,6 +82,11 @@ public partial class RegisterDialog : Window
         {
             RecordingStatusText.Text = "「記録開始」を押すと操作が Macro Script に追記されます。";
         }
+        if (ColorComboBox != null)
+        {
+            ColorComboBox.ItemsSource = AccentColorOptions;
+            ColorComboBox.SelectedValue = SlotAccentColor.Default;
+        }
         UpdateModeState();
     }
 
@@ -88,6 +104,13 @@ public partial class RegisterDialog : Window
                 ? slot.ExecutionMode
                 : (!string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) ? SlotExecutionMode.MacroScript : SlotExecutionMode.Command);
             ModeComboBox.SelectedValue = mode;
+        }
+        if (ColorComboBox != null)
+        {
+            var accent = Enum.IsDefined(typeof(SlotAccentColor), slot.AccentColor)
+                ? slot.AccentColor
+                : SlotAccentColor.Default;
+            ColorComboBox.SelectedValue = accent;
         }
         UpdateModeState();
     }
@@ -151,7 +174,7 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode));
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor()));
         Close();
     }
 
@@ -422,11 +445,55 @@ public partial class RegisterDialog : Window
 
         base.OnPreviewKeyDown(e);
     }
+
+    private SlotAccentColor GetSelectedAccentColor()
+    {
+        if (ColorComboBox?.SelectedValue is SlotAccentColor color)
+        {
+            return color;
+        }
+
+        return SlotAccentColor.Default;
+    }
+
+    private static System.Windows.Media.Brush CreatePreviewBrush(byte r, byte g, byte b)
+    {
+        var baseColor = System.Windows.Media.Color.FromRgb(r, g, b);
+        var highlight = BlendWithWhite(baseColor, 0.65);
+        var brush = new LinearGradientBrush(highlight, baseColor, 45);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static System.Windows.Media.Color BlendWithWhite(System.Windows.Media.Color color, double ratio)
+    {
+        byte Blend(byte component)
+        {
+            var blended = component + (255 - component) * ratio;
+            return (byte)Math.Clamp(blended, 0, 255);
+        }
+
+        return System.Windows.Media.Color.FromRgb(Blend(color.R), Blend(color.G), Blend(color.B));
+    }
+
+    private sealed class SlotColorOption
+    {
+        public SlotColorOption(SlotAccentColor color, string name, System.Windows.Media.Brush brush)
+        {
+            Color = color;
+            Name = name;
+            Brush = brush;
+        }
+
+        public SlotAccentColor Color { get; }
+        public string Name { get; }
+        public System.Windows.Media.Brush Brush { get; }
+    }
 }
 
 public sealed class SlotSavedEventArgs : EventArgs
 {
-    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode)
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor)
     {
         AppTitle = appTitle;
         CommandPath = commandPath;
@@ -434,6 +501,7 @@ public sealed class SlotSavedEventArgs : EventArgs
         MacroScript = macroScript;
         ShortcutChord = shortcutChord;
         ExecutionMode = executionMode;
+        AccentColor = accentColor;
     }
 
     public string AppTitle { get; }
@@ -442,4 +510,5 @@ public sealed class SlotSavedEventArgs : EventArgs
     public string MacroScript { get; }
     public string ShortcutChord { get; }
     public SlotExecutionMode ExecutionMode { get; }
+    public SlotAccentColor AccentColor { get; }
 }

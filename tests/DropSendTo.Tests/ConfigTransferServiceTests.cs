@@ -33,6 +33,7 @@ public class ConfigTransferServiceTests
         config.Layers[0].Slots[0].ArgumentsTemplate = "{args}";
         config.Layers[0].Slots[0].ShortcutKey = "Ctrl+1";
         config.Layers[0].Slots[0].KeyboardMacroScript = "KEY A";
+        config.Layers[0].Slots[0].AccentColor = SlotAccentColor.Amber;
 
         var payload = service.CreateExportPayload(config, "secret-pass");
         payload.Should().NotBeNullOrWhiteSpace();
@@ -48,6 +49,7 @@ public class ConfigTransferServiceTests
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
+        imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);
     }
 
     [Fact]

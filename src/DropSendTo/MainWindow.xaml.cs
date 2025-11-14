@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
+    private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemes;
     private const int MinSlotRows = 2;
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
@@ -137,6 +138,33 @@ public partial class MainWindow : Window
         PrefixArmedBackgroundBrush = CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x82, 0x4C));
         PrefixArmedBorderBrush = CreateFrozenBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
         PrefixArmedForegroundBrush = CreateFrozenBrush(System.Windows.Media.Colors.White);
+        SlotColorSchemes = new Dictionary<SlotAccentColor, SlotColorScheme>
+        {
+            [SlotAccentColor.Default] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x11, 0x11, 0x11)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x33, 0x33, 0x33)),
+                CreateFrozenBrush(System.Windows.Media.Colors.White)),
+            [SlotAccentColor.Teal] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x10, 0x2A, 0x30)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x1F, 0x76, 0x7D)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xE4, 0xFD, 0xFF))),
+            [SlotAccentColor.Indigo] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x16, 0x15, 0x2E)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x4E, 0x52, 0xA6)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xF4, 0xF2, 0xFF))),
+            [SlotAccentColor.Amber] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x2D, 0x1F, 0x0F)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x6B, 0x17)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE8, 0xC2))),
+            [SlotAccentColor.Olive] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x20, 0x27, 0x12)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x6E, 0x8C, 0x23)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xF0, 0xFF, 0xD8))),
+            [SlotAccentColor.Crimson] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x2B, 0x11, 0x16)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x45, 0x4F)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE3, 0xE7)))
+        };
     }
 
     private static SolidColorBrush CreateFrozenBrush(MediaColor color)
@@ -249,6 +277,37 @@ public partial class MainWindow : Window
         {
             visual.Title.Visibility = isVisible ? Visibility.Collapsed : Visibility.Visible;
         }
+    }
+
+    private static SlotColorScheme GetSlotColorScheme(SlotAccentColor accent)
+    {
+        if (SlotColorSchemes.TryGetValue(accent, out var scheme))
+        {
+            return scheme;
+        }
+
+        return SlotColorSchemes[SlotAccentColor.Default];
+    }
+
+    private void ApplySlotColor(int slotIndex)
+    {
+        if (_config == null || slotIndex < 0 || slotIndex >= _slotVisuals.Count)
+        {
+            return;
+        }
+
+        var layer = _config.Layers[_currentLayer];
+        if (slotIndex >= layer.Slots.Count)
+        {
+            return;
+        }
+
+        var slot = layer.Slots[slotIndex];
+        var scheme = GetSlotColorScheme(slot.AccentColor);
+        var visual = _slotVisuals[slotIndex];
+        visual.Border.Background = scheme.Background;
+        visual.Border.BorderBrush = scheme.Border;
+        visual.Title.Foreground = scheme.Title;
     }
 
     private void UpdateKeyboardSelectionVisual()
@@ -1003,6 +1062,7 @@ public partial class MainWindow : Window
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
     private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status, bool OverlayStatus);
+    private sealed record SlotColorScheme(SolidColorBrush Background, SolidColorBrush Border, SolidColorBrush Title);
     private sealed class SlotRunContext
     {
         public SlotRunContext(int layerIndex, int slotIndex)
@@ -1051,8 +1111,7 @@ public partial class MainWindow : Window
                 UpdateSlotStatusVisual(visual, "一時停止中...", MediaColor.FromRgb(0xC9, 0xB6, 0xFF), true);
                 break;
             default:
-                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33));
+                ApplySlotColor(index);
                 UpdateSlotStatusVisual(visual, "マクロ実行中...", MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
                 break;
         }
@@ -1200,6 +1259,7 @@ public partial class MainWindow : Window
             slot.KeyboardMacroScript = args.MacroScript;
             slot.ShortcutKey = args.ShortcutChord;
             slot.ExecutionMode = args.ExecutionMode;
+            slot.AccentColor = args.AccentColor;
             _configService.Save(_config);
             RefreshUi();
         };
@@ -1252,7 +1312,8 @@ public partial class MainWindow : Window
             ClickEnabled = source.ClickEnabled,
             ShortcutKey = source.ShortcutKey,
             KeyboardMacroScript = source.KeyboardMacroScript,
-            ExecutionMode = source.ExecutionMode
+            ExecutionMode = source.ExecutionMode,
+            AccentColor = source.AccentColor
         };
     }
 
@@ -2198,6 +2259,7 @@ public partial class MainWindow : Window
                 ? $"Slot {baseNo + i + 1}"
                 : slot.Title;
             _slotVisuals[i].Title.Text = title;
+            ApplySlotColor(i);
         }
         // Layer button highlight with stronger contrast
         UpdateLayerButtonVisuals();

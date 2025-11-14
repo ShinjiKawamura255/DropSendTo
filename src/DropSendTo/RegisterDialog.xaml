@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -26,9 +27,32 @@
         <TextBox x:Name="TitleBox" Grid.Row="0" Grid.Column="1" Margin="6,2" AcceptsReturn="True" TextWrapping="Wrap" ToolTip="Shift+Enter で改行 / ↵ ボタンで挿入"/>
         <Button Content="↵" Grid.Row="0" Grid.Column="2" Margin="6,2" Width="28" Click="OnInsertNewline"/>
 
-        <TextBlock Text="登録モード" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
-        <ComboBox x:Name="ModeComboBox"
+        <TextBlock Text="Slot Color" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
+        <ComboBox x:Name="ColorComboBox"
                   Grid.Row="1"
+                  Grid.Column="1"
+                  Grid.ColumnSpan="2"
+                  Margin="6,2"
+                  HorizontalAlignment="Stretch"
+                  SelectedValuePath="Color">
+            <ComboBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="24"
+                                Height="16"
+                                CornerRadius="4"
+                                BorderThickness="1"
+                                BorderBrush="#666"
+                                Background="{Binding Brush}"/>
+                        <TextBlock Text="{Binding Name}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock Text="登録モード" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"/>
+        <ComboBox x:Name="ModeComboBox"
+                  Grid.Row="2"
                   Grid.Column="1"
                   Margin="6,2"
                   HorizontalAlignment="Stretch"
@@ -39,19 +63,19 @@
             <ComboBoxItem Content="Macro Script 拡張モード" Tag="{x:Static models:SlotExecutionMode.MacroScriptExtended}"/>
         </ComboBox>
 
-        <TextBlock Text="Command" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="CommandBox" Grid.Row="2" Grid.Column="1" Margin="6,2"/>
-        <Button x:Name="CommandBrowseButton" Content="..." Grid.Row="2" Grid.Column="2" Margin="6,2" Width="28" Click="OnBrowse"/>
+        <TextBlock Text="Command" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="CommandBox" Grid.Row="3" Grid.Column="1" Margin="6,2"/>
+        <Button x:Name="CommandBrowseButton" Content="..." Grid.Row="3" Grid.Column="2" Margin="6,2" Width="28" Click="OnBrowse"/>
 
-        <TextBlock Text="Args Template" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="ArgsBox" Grid.Row="3" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" Text="{}{args}" ToolTip="テンプレート内の {args} が選択したパス列に置き換わります。&#x0a;{clipboard} はクリップボード文字列を展開します。&#x0a;{clipboard_args} はクリップボード内のパスを引用付きで展開します。&#x0a;{clipboard_args:n} は直近 n 行（1〜20）を古い順に展開します。&#x0a;例: /select {args}"/>
+        <TextBlock Text="Args Template" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="ArgsBox" Grid.Row="4" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" Text="{}{args}" ToolTip="テンプレート内の {args} が選択したパス列に置き換わります。&#x0a;{clipboard} はクリップボード文字列を展開します。&#x0a;{clipboard_args} はクリップボード内のパスを引用付きで展開します。&#x0a;{clipboard_args:n} は直近 n 行（1〜20）を古い順に展開します。&#x0a;例: /select {args}"/>
 
-        <TextBlock Text="Shortcut" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="ShortcutBox" Grid.Row="4" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" ToolTip="例: Ctrl+Shift+1 / F5 / Alt+S&#x0a;prefix+Shortcut ボタンでショートカットを実行できます"/>
+        <TextBlock Text="Shortcut" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="ShortcutBox" Grid.Row="5" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" ToolTip="例: Ctrl+Shift+1 / F5 / Alt+S&#x0a;prefix+Shortcut ボタンでショートカットを実行できます"/>
 
-        <TextBlock Text="Macro Script" Grid.Row="5" Grid.Column="0" VerticalAlignment="Top" Margin="0,4,0,0"/>
+        <TextBlock Text="Macro Script" Grid.Row="6" Grid.Column="0" VerticalAlignment="Top" Margin="0,4,0,0"/>
         <TextBox x:Name="MacroBox"
-                 Grid.Row="5"
+                 Grid.Row="6"
                  Grid.Column="1"
                  Margin="6,2"
                  AcceptsReturn="True"
@@ -61,7 +85,7 @@
                  MinHeight="110"
                  MinLines="5"
                  MaxLines="50"/>
-        <StackPanel Grid.Row="5" Grid.Column="2" Margin="6,6,6,0" VerticalAlignment="Top">
+        <StackPanel Grid.Row="6" Grid.Column="2" Margin="6,6,6,0" VerticalAlignment="Top">
             <Button Content="?" Width="32" Height="26" Click="OnShowMacroTips" ToolTip="マクロスクリプトの書き方ヒントを表示"/>
             <Separator Margin="0,6,0,6"/>
             <Button x:Name="RecordStartButton"
@@ -79,7 +103,7 @@
         </StackPanel>
 
         <TextBlock x:Name="RecordingStatusText"
-                   Grid.Row="6"
+                   Grid.Row="7"
                    Grid.Column="0"
                    Grid.ColumnSpan="3"
                    Margin="6,2,6,0"
@@ -88,14 +112,14 @@
                    TextWrapping="Wrap"
                    Text=""/>
 
-        <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="3"
+        <TextBlock Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="3"
                    Margin="6,8,0,0"
                    Foreground="#CCCCCC"
                    FontSize="11"
                    TextWrapping="Wrap"
                    Text="ヒント: マクロの詳細は「?」から開く Tips で確認できます。行頭が # の行と空行はスキップされます。"/>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Margin="0,10,0,0">
+        <StackPanel Orientation="Horizontal" Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="3" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
             <Button Content="Cancel" Width="90" Height="32" Margin="4" Click="OnCancel"/>
         </StackPanel>

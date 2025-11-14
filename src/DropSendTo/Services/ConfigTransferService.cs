@@ -226,6 +226,8 @@ internal sealed class ConfigTransferService
         public bool ClickEnabled { get; set; } = true;
         public string? ShortcutKey { get; set; }
         public string? KeyboardMacroScript { get; set; }
+        public SlotExecutionMode ExecutionMode { get; set; }
+        public SlotAccentColor AccentColor { get; set; }
 
         public static ExportSlotSnapshot FromSlot(SlotModel slot)
         {
@@ -237,7 +239,9 @@ internal sealed class ConfigTransferService
                 IconPath = slot.IconPath,
                 ClickEnabled = slot.ClickEnabled,
                 ShortcutKey = slot.ShortcutKey,
-                KeyboardMacroScript = slot.KeyboardMacroScript
+                KeyboardMacroScript = slot.KeyboardMacroScript,
+                ExecutionMode = slot.ExecutionMode,
+                AccentColor = slot.AccentColor
             };
         }
 
@@ -251,7 +255,9 @@ internal sealed class ConfigTransferService
                 IconPath = IconPath,
                 ClickEnabled = ClickEnabled,
                 ShortcutKey = ShortcutKey ?? string.Empty,
-                KeyboardMacroScript = KeyboardMacroScript ?? string.Empty
+                KeyboardMacroScript = KeyboardMacroScript ?? string.Empty,
+                ExecutionMode = ExecutionMode,
+                AccentColor = AccentColor
             };
         }
     }
