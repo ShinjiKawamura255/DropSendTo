@@ -31,7 +31,6 @@
         <ComboBox x:Name="ColorComboBox"
                   Grid.Row="1"
                   Grid.Column="1"
-                  Grid.ColumnSpan="2"
                   Margin="6,2"
                   HorizontalAlignment="Stretch"
                   SelectedValuePath="Color">
