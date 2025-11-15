@@ -161,13 +161,13 @@ public partial class RegisterDialog : Window
         var shortcutText = ShortcutBox.Text.Trim();
         if (shortcutText.Length > 0)
         {
-            if (!KeyChordParser.TryParse(shortcutText, out var chord, out var error))
+            if (!ShortcutSequenceParser.TryParse(shortcutText, out var sequence, out var error))
             {
                 WpfMessageBox.Show(error ?? "ショートカットの書式が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            ShortcutChord = chord.NormalizedString;
-            ShortcutBox.Text = chord.NormalizedString;
+            ShortcutChord = sequence.NormalizedString;
+            ShortcutBox.Text = sequence.NormalizedString;
         }
         else
         {

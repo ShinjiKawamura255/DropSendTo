@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using DropSendTo.Services;
 using FluentAssertions;
 using Xunit;
 
@@ -33,6 +34,9 @@ public class ShortcutServiceResetTests
                 [0x41] = 2
             });
             SetField(instance, "_prefixArmed", false);
+            SetField(instance, "_availableSequences", new List<ShortcutSequence>());
+            SetListField(instance, "_sequenceCandidates");
+            SetListField(instance, "_sequenceCandidatesBuffer");
             SetField(instance, "_disposed", false);
 
             var resetMethod = serviceType.GetMethod(
@@ -59,6 +63,15 @@ public class ShortcutServiceResetTests
         var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
         field.Should().NotBeNull($"field {name} should exist");
         field!.SetValue(target, value);
+    }
+
+    private static void SetListField(object target, string name)
+    {
+        var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+        field.Should().NotBeNull($"field {name} should exist");
+        var value = Activator.CreateInstance(field!.FieldType);
+        value.Should().NotBeNull($"field {name} could not be instantiated");
+        field.SetValue(target, value);
     }
 
     private static T GetField<T>(object target, string name)

@@ -45,7 +45,10 @@ public class ShortcutServicePrefixToggleTests
                 SetField(instance, "_prefixModifiers", new List<ModifierKind> { ModifierKind.Control });
                 SetField(instance, "_prefixArmed", true);
                 SetField(instance, "_prefixArmedAtUtc", DateTime.UtcNow.Subtract(TimeSpan.FromMilliseconds(200)));
-                SetField(instance, "_availableShortcuts", new List<KeyChord>());
+                SetField(instance, "_availableSequences", new List<ShortcutSequence>());
+                SetListField(instance, "_sequenceCandidates");
+                SetListField(instance, "_sequenceCandidatesBuffer");
+                SetField(instance, "_awaitingFirstShortcutKey", true);
                 SetField(instance, "_disposed", false);
 
                 var processKeyDown = serviceType.GetMethod(
@@ -98,5 +101,14 @@ public class ShortcutServicePrefixToggleTests
         var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
         field.Should().NotBeNull($"field {name} should exist");
         field!.SetValue(target, value);
+    }
+
+    private static void SetListField(object target, string name)
+    {
+        var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+        field.Should().NotBeNull($"field {name} should exist");
+        var value = Activator.CreateInstance(field!.FieldType);
+        value.Should().NotBeNull($"field {name} could not be instantiated");
+        field.SetValue(target, value);
     }
 }

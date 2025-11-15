@@ -2106,7 +2106,7 @@ public partial class MainWindow : Window
 
     private void OnShortcutTriggered(object? sender, ShortcutTriggeredEventArgs e)
     {
-        var normalized = e.RegisteredChord.NormalizedString;
+        var normalized = e.RegisteredText;
         foreach (var binding in _shortcutBindings)
         {
             if (string.Equals(binding.NormalizedKey, normalized, StringComparison.Ordinal))
@@ -2291,12 +2291,12 @@ public partial class MainWindow : Window
                 var shortcutText = layer.Slots[slotIndex].ShortcutKey;
                 if (string.IsNullOrWhiteSpace(shortcutText)) continue;
                 var trimmed = shortcutText.Trim();
-                if (!KeyChordParser.TryParse(trimmed, out var chord, out var error))
+                if (!ShortcutSequenceParser.TryParse(trimmed, out var sequence, out var error))
                 {
                     _logger.Warn($"ショートカット設定の解析に失敗しました (Layer={layerIndex + 1}, Slot={slotIndex + 1}): {error}");
                     continue;
                 }
-                orderedBindings.Add(new ShortcutBinding(chord.NormalizedString, layerIndex, slotIndex));
+                orderedBindings.Add(new ShortcutBinding(sequence.NormalizedString, layerIndex, slotIndex));
             }
         }
 

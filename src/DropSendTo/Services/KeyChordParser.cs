@@ -32,6 +32,19 @@ internal sealed class KeyChord
     public bool HasModifiers => Modifiers.Count > 0;
 }
 
+internal sealed class ShortcutSequence
+{
+    public ShortcutSequence(IReadOnlyList<KeyChord> chords, string normalizedString)
+    {
+        Chords = chords;
+        NormalizedString = normalizedString;
+    }
+
+    public IReadOnlyList<KeyChord> Chords { get; }
+    public string NormalizedString { get; }
+    public bool IsSingleChord => Chords.Count == 1;
+}
+
 internal static class KeyChordParser
 {
     private static readonly Dictionary<string, ushort> KeyMap = CreateKeyMap();
@@ -480,4 +493,43 @@ internal static class KeyChordParser
     private const ushort VK_OEM_5 = 0xDC;
     private const ushort VK_OEM_6 = 0xDD;
     private const ushort VK_OEM_7 = 0xDE;
+}
+
+internal static class ShortcutSequenceParser
+{
+    private static readonly char[] Separators = { ' ', '\t', '\r', '\n', ',', '>' };
+
+    public static bool TryParse(string? expression, out ShortcutSequence sequence, out string? error)
+    {
+        sequence = null!;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(expression))
+        {
+            error = "ショートカットが空です。";
+            return false;
+        }
+
+        var segments = expression.Split(Separators, StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            error = "ショートカットの書式が不正です。";
+            return false;
+        }
+
+        var chords = new List<KeyChord>(segments.Length);
+        foreach (var segment in segments)
+        {
+            if (!KeyChordParser.TryParse(segment.Trim(), out var chord, out var chordError))
+            {
+                error = chordError ?? $"ショートカットの解析に失敗しました: \"{segment}\"";
+                return false;
+            }
+            chords.Add(chord);
+        }
+
+        var normalized = string.Join(" ", chords.Select(c => c.NormalizedString));
+        sequence = new ShortcutSequence(chords, normalized);
+        return true;
+    }
 }

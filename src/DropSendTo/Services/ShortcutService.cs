@@ -10,17 +10,13 @@ namespace DropSendTo.Services;
 
 internal sealed class ShortcutTriggeredEventArgs : EventArgs
 {
-    public ShortcutTriggeredEventArgs(ushort mainKey, IReadOnlyList<ushort> modifierKeys, KeyChord registeredChord)
+    public ShortcutTriggeredEventArgs(ShortcutSequence sequence)
     {
-        MainKey = mainKey;
-        ModifierKeys = modifierKeys;
-        RegisteredChord = registeredChord;
+        Sequence = sequence;
     }
 
-    public ushort MainKey { get; }
-    public IReadOnlyList<ushort> ModifierKeys { get; }
-    public KeyChord RegisteredChord { get; }
-    public string RegisteredText => RegisteredChord.NormalizedString;
+    public ShortcutSequence Sequence { get; }
+    public string RegisteredText => Sequence.NormalizedString;
 }
 
 internal sealed class PrefixPassthroughEventArgs : EventArgs
@@ -61,13 +57,17 @@ internal sealed class ShortcutService : IDisposable
     private DateTime _prefixArmedAtUtc;
     private IReadOnlyList<ModifierKind> _prefixModifiers = Array.Empty<ModifierKind>();
     private readonly Dictionary<ushort, int> _suppressedKeyUps = new();
-    private readonly List<KeyChord> _availableShortcuts = new();
+    private readonly List<ShortcutSequence> _availableSequences = new();
+    private readonly List<SequenceProgress> _sequenceCandidates = new();
+    private readonly List<SequenceProgress> _sequenceCandidatesBuffer = new();
     private readonly HashSet<ushort> _activeModifiers = new();
     private readonly Dictionary<ushort, DateTime> _modifierLastPressedUtc = new();
     private readonly Timer _prefixTimeoutTimer;
     private bool _usingFallbackPrefix;
     private bool _prefixDisabled;
     private bool _prefixLayerShortcutsEnabled;
+    private bool _sequenceCaptureInProgress;
+    private bool _awaitingFirstShortcutKey;
 
     public ShortcutService()
     {
@@ -181,19 +181,24 @@ internal sealed class ShortcutService : IDisposable
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
         lock (_stateLock)
         {
-            _availableShortcuts.Clear();
+            _availableSequences.Clear();
             foreach (var entry in shortcuts ?? Array.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(entry)) continue;
-                if (KeyChordParser.TryParse(entry, out var chord, out var error))
+                if (ShortcutSequenceParser.TryParse(entry, out var sequence, out var error))
                 {
-                    _availableShortcuts.Add(chord);
+                    if (sequence.Chords.Count == 0)
+                    {
+                        continue;
+                    }
+                    _availableSequences.Add(sequence);
                 }
                 else
                 {
                     _logger.Warn($"Failed to parse shortcut registration \"{entry}\": {error}");
                 }
             }
+            ResetSequenceTrackingLocked();
         }
     }
 
@@ -237,9 +242,27 @@ internal sealed class ShortcutService : IDisposable
         }
 
         _prefixArmed = armed;
-        _prefixArmedAtUtc = armed ? timestampUtc : DateTime.MinValue;
+        if (armed)
+        {
+            _prefixArmedAtUtc = timestampUtc;
+            ResetSequenceTrackingLocked();
+            _awaitingFirstShortcutKey = true;
+        }
+        else
+        {
+            _prefixArmedAtUtc = DateTime.MinValue;
+            ResetSequenceTrackingLocked();
+        }
         SchedulePrefixTimeoutLocked();
         NotifyPrefixState(armed);
+    }
+
+    private void ResetSequenceTrackingLocked()
+    {
+        _sequenceCaptureInProgress = false;
+        _sequenceCandidates.Clear();
+        _sequenceCandidatesBuffer.Clear();
+        _awaitingFirstShortcutKey = false;
     }
 
     private void NotifyPrefixState(bool armed)
@@ -339,77 +362,44 @@ internal sealed class ShortcutService : IDisposable
 
         if (TryNormalizeModifierVirtualKey(vk, out _))
         {
-            // Modifiers should not remain latched system-wide, so we only block the key down event.
             suppress = true;
             return ShortcutAction.None;
         }
 
         var modifiers = CollectActiveModifierKeysLocked();
-        var prefixResidue = RemovePrefixModifiers(modifiers, _prefixModifiers, _prefixArmedAtUtc);
-        SetPrefixArmedLocked(false, now);
+        IReadOnlyCollection<ushort> prefixResidue = Array.Empty<ushort>();
+        if (_awaitingFirstShortcutKey)
+        {
+            prefixResidue = RemovePrefixModifiers(modifiers, _prefixModifiers, _prefixArmedAtUtc);
+            _awaitingFirstShortcutKey = false;
+        }
 
-        if (TryMatchAvailableShortcut(vk, modifiers, prefixResidue, out var matchedChord))
+        if (TryResolveSpecialCommand(vk, modifiers, prefixResidue, out var specialAction))
         {
             MarkKeyForSuppression(vk);
             suppress = true;
-            return ShortcutAction.CreateShortcut(vk, modifiers, matchedChord);
+            SetPrefixArmedLocked(false, now);
+            return specialAction;
         }
 
-        if (vk == VK_TAB && modifiers.Count == 0 && prefixResidue.Count == 0)
+        var sequenceResult = EvaluateSequenceKey(vk, modifiers, prefixResidue, out var matchedSequence);
+        switch (sequenceResult)
         {
-            MarkKeyForSuppression(vk);
-            suppress = true;
-            return ShortcutAction.CreatePrefixTogglePosition();
+            case SequenceEvaluationResult.CompletedMatch when matchedSequence != null:
+                MarkKeyForSuppression(vk);
+                suppress = true;
+                SetPrefixArmedLocked(false, now);
+                return ShortcutAction.CreateShortcut(matchedSequence);
+            case SequenceEvaluationResult.PartialMatch:
+                MarkKeyForSuppression(vk);
+                suppress = true;
+                SetPrefixArmedLocked(true, now);
+                return ShortcutAction.None;
+            default:
+                SetPrefixArmedLocked(false, now);
+                suppress = false;
+                return ShortcutAction.None;
         }
-
-        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
-        {
-            MarkKeyForSuppression(vk);
-            suppress = true;
-            return ShortcutAction.CreatePrefixCancelMacro();
-        }
-
-        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_SHIFT) && prefixResidue.Count == 0)
-        {
-            MarkKeyForSuppression(vk);
-            suppress = true;
-            return ShortcutAction.CreatePrefixMinimize();
-        }
-
-        if (_prefixLayerShortcutsEnabled)
-        {
-            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
-            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
-            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
-            if (ctrlActive &&
-                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
-                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
-            {
-                if (vk == VK_N)
-                {
-                    MarkKeyForSuppression(vk);
-                    suppress = true;
-                    return ShortcutAction.CreatePrefixNextLayer();
-                }
-
-                if (vk == VK_P)
-                {
-                    MarkKeyForSuppression(vk);
-                    suppress = true;
-                    return ShortcutAction.CreatePrefixPreviousLayer();
-                }
-            }
-        }
-
-        if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
-        {
-            MarkKeyForSuppression(vk);
-            suppress = true;
-            return ShortcutAction.CreatePrefixActivation();
-        }
-
-        suppress = false;
-        return ShortcutAction.None;
     }
 
     private bool ProcessKeyUp(uint vkCode)
@@ -433,19 +423,137 @@ internal sealed class ShortcutService : IDisposable
         return false;
     }
 
-    private bool TryMatchAvailableShortcut(ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue, out KeyChord matchedChord)
+    private bool TryResolveSpecialCommand(ushort vk, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue, out ShortcutAction action)
     {
-        matchedChord = null!;
-        if (_availableShortcuts.Count == 0) return false;
-        foreach (var chord in _availableShortcuts)
+        action = ShortcutAction.None;
+        if (vk == VK_TAB && modifiers.Count == 0 && prefixResidue.Count == 0)
         {
-            if (ShortcutMatches(chord, mainKey, modifiers, prefixResidue))
+            action = ShortcutAction.CreatePrefixTogglePosition();
+            return true;
+        }
+
+        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
+        {
+            action = ShortcutAction.CreatePrefixCancelMacro();
+            return true;
+        }
+
+        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_SHIFT) && prefixResidue.Count == 0)
+        {
+            action = ShortcutAction.CreatePrefixMinimize();
+            return true;
+        }
+
+        if (_prefixLayerShortcutsEnabled)
+        {
+            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
+            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
+            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
+            if (ctrlActive &&
+                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
+                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
             {
-                matchedChord = chord;
-                return true;
+                if (vk == VK_N)
+                {
+                    action = ShortcutAction.CreatePrefixNextLayer();
+                    return true;
+                }
+
+                if (vk == VK_P)
+                {
+                    action = ShortcutAction.CreatePrefixPreviousLayer();
+                    return true;
+                }
             }
         }
+
+        if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
+        {
+            action = ShortcutAction.CreatePrefixActivation();
+            return true;
+        }
+
         return false;
+    }
+
+    private SequenceEvaluationResult EvaluateSequenceKey(ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue, out ShortcutSequence? matchedSequence)
+    {
+        matchedSequence = null;
+        if (_availableSequences.Count == 0)
+        {
+            return SequenceEvaluationResult.None;
+        }
+
+        _sequenceCandidatesBuffer.Clear();
+        bool isFirstChord = !_sequenceCaptureInProgress;
+        if (isFirstChord)
+        {
+            foreach (var sequence in _availableSequences)
+            {
+                if (sequence.Chords.Count == 0)
+                {
+                    continue;
+                }
+                var chord = sequence.Chords[0];
+                if (!ShortcutMatches(chord, mainKey, modifiers, prefixResidue))
+                {
+                    continue;
+                }
+
+                if (sequence.Chords.Count == 1)
+                {
+                    matchedSequence = sequence;
+                    break;
+                }
+
+                _sequenceCandidatesBuffer.Add(new SequenceProgress(sequence, 1));
+            }
+        }
+        else
+        {
+            foreach (var candidate in _sequenceCandidates)
+            {
+                if (candidate.NextIndex >= candidate.Sequence.Chords.Count)
+                {
+                    continue;
+                }
+
+                var chord = candidate.Sequence.Chords[candidate.NextIndex];
+                if (!ShortcutMatches(chord, mainKey, modifiers, Array.Empty<ushort>()))
+                {
+                    continue;
+                }
+
+                if (candidate.NextIndex + 1 == candidate.Sequence.Chords.Count)
+                {
+                    matchedSequence = candidate.Sequence;
+                    break;
+                }
+
+                _sequenceCandidatesBuffer.Add(new SequenceProgress(candidate.Sequence, candidate.NextIndex + 1));
+            }
+        }
+
+        _sequenceCandidates.Clear();
+
+        if (matchedSequence != null)
+        {
+            _sequenceCandidatesBuffer.Clear();
+            _sequenceCaptureInProgress = false;
+            return SequenceEvaluationResult.CompletedMatch;
+        }
+
+        if (_sequenceCandidatesBuffer.Count > 0)
+        {
+            _sequenceCandidates.AddRange(_sequenceCandidatesBuffer);
+            _sequenceCandidatesBuffer.Clear();
+            _sequenceCaptureInProgress = true;
+            return SequenceEvaluationResult.PartialMatch;
+        }
+
+        _sequenceCandidatesBuffer.Clear();
+        _sequenceCaptureInProgress = false;
+        return SequenceEvaluationResult.None;
     }
 
     private bool ShortcutMatches(KeyChord chord, ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue)
@@ -504,12 +612,11 @@ internal sealed class ShortcutService : IDisposable
                 _dispatcher.BeginInvoke(() => PrefixPassthroughRequested?.Invoke(this, prefixArgs));
                 break;
             case ShortcutActionType.TriggerShortcut:
-                if (action.RegisteredChord is null)
+                if (action.RegisteredSequence is null)
                 {
                     return;
                 }
-                var modifiers = action.ModifierKeys ?? Array.Empty<ushort>();
-                var args = new ShortcutTriggeredEventArgs(action.MainKey, modifiers, action.RegisteredChord);
+                var args = new ShortcutTriggeredEventArgs(action.RegisteredSequence);
                 _dispatcher.BeginInvoke(() => ShortcutTriggered?.Invoke(this, args));
                 break;
             case ShortcutActionType.PrefixActivate:
@@ -848,52 +955,63 @@ internal sealed class ShortcutService : IDisposable
         return true;
     }
 
+    private enum SequenceEvaluationResult
+    {
+        None,
+        PartialMatch,
+        CompletedMatch
+    }
+
+    private readonly struct SequenceProgress
+    {
+        public SequenceProgress(ShortcutSequence sequence, int nextIndex)
+        {
+            Sequence = sequence;
+            NextIndex = nextIndex;
+        }
+
+        public ShortcutSequence Sequence { get; }
+        public int NextIndex { get; }
+    }
+
     private struct ShortcutAction
     {
-        public static readonly ShortcutAction None = new(ShortcutActionType.None, 0, null, null, null);
+        public static readonly ShortcutAction None = new(ShortcutActionType.None, null, null);
 
-        private ShortcutAction(ShortcutActionType type, ushort mainKey, IReadOnlyList<ushort>? modifiers, string? text, KeyChord? chord)
+        private ShortcutAction(ShortcutActionType type, string? text, ShortcutSequence? sequence)
         {
             Type = type;
-            MainKey = mainKey;
-            ModifierKeys = modifiers;
             PrefixText = text;
-            RegisteredChord = chord;
+            RegisteredSequence = sequence;
         }
 
         public ShortcutActionType Type { get; }
-        public ushort MainKey { get; }
-        public IReadOnlyList<ushort>? ModifierKeys { get; }
         public string? PrefixText { get; }
-        public KeyChord? RegisteredChord { get; }
+        public ShortcutSequence? RegisteredSequence { get; }
 
-        public static ShortcutAction CreateShortcut(ushort mainKey, HashSet<ushort> modifiers, KeyChord chord)
-        {
-            var buffer = new ushort[modifiers.Count];
-            modifiers.CopyTo(buffer);
-            return new ShortcutAction(ShortcutActionType.TriggerShortcut, mainKey, buffer, null, chord);
-        }
+        public static ShortcutAction CreateShortcut(ShortcutSequence sequence) =>
+            new(ShortcutActionType.TriggerShortcut, null, sequence);
 
         public static ShortcutAction CreatePrefixPassthrough(string text) =>
-            new(ShortcutActionType.PrefixPassthrough, 0, null, text, null);
+            new(ShortcutActionType.PrefixPassthrough, text, null);
 
         public static ShortcutAction CreatePrefixActivation() =>
-            new(ShortcutActionType.PrefixActivate, 0, null, null, null);
+            new(ShortcutActionType.PrefixActivate, null, null);
 
         public static ShortcutAction CreatePrefixMinimize() =>
-            new(ShortcutActionType.PrefixMinimize, 0, null, null, null);
+            new(ShortcutActionType.PrefixMinimize, null, null);
 
         public static ShortcutAction CreatePrefixCancelMacro() =>
-            new(ShortcutActionType.PrefixCancelMacro, 0, null, null, null);
+            new(ShortcutActionType.PrefixCancelMacro, null, null);
 
         public static ShortcutAction CreatePrefixTogglePosition() =>
-            new(ShortcutActionType.PrefixTogglePosition, 0, null, null, null);
+            new(ShortcutActionType.PrefixTogglePosition, null, null);
 
         public static ShortcutAction CreatePrefixNextLayer() =>
-            new(ShortcutActionType.PrefixNextLayer, 0, null, null, null);
+            new(ShortcutActionType.PrefixNextLayer, null, null);
 
         public static ShortcutAction CreatePrefixPreviousLayer() =>
-            new(ShortcutActionType.PrefixPreviousLayer, 0, null, null, null);
+            new(ShortcutActionType.PrefixPreviousLayer, null, null);
     }
 
     private enum ShortcutActionType

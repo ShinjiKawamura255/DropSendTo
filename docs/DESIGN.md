@@ -15,7 +15,7 @@
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基にクリップボードの文字列/パス展開（先頭 n 行抽出を含む）を担当する純粋関数。
 - KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。`MacroExecutionSession` と `_macroStack` で実行中のマクロ/キャンセレーショントークンを追跡し、`_suspensionStack` で一時停止中セッションを管理する。排他モードはセマフォで直列化し、割り込みモードは `CancelAllRunningMacrosAsync` で段階的にキャンセル、一時停止モードは `SuspendCurrentMacroAsync` が `MacroSuspensionHandle` を返して外部処理中は入力を停止、`DisposeAsync`（再開）時にセマフォを再取得して処理を続行する。
-- ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。Prefix+Enter でウィンドウ復帰、Prefix+Shift+Enter でタスクトレイ最小化イベントを発火し、設定で有効化されている場合は Prefix+Ctrl+N / Prefix+Ctrl+P でレイヤー前後を巡回させる。Prefix+Enter 後は MainWindow に矢印キー入力を通知し、ドロップシャドウによる選択状態を更新する。
+- ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。Prefix+Enter でウィンドウ復帰、Prefix+Shift+Enter でタスクトレイ最小化イベントを発火し、設定で有効化されている場合は Prefix+Ctrl+N / Prefix+Ctrl+P でレイヤー前後を巡回させる。Prefix+Enter 後は MainWindow に矢印キー入力を通知し、ドロップシャドウによる選択状態を更新する。ショートカットの文字列は空白/カンマ/`>` 区切りで複数 KeyChord を表現でき、Prefix 後は 1 キーずつシーケンス状態を進める。部分一致中は入力を抑止し、候補がなくなるか特殊操作が押されると待機を解除する。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
 - RegisterDialog / PrefixDialog: スロット情報および Prefix の編集 UI。KeyChordParser で入力を検証し、正規化された結果を反映する。
 - LoggerService: UTF-8 でログを追記し、1MB 超でタイムスタンプ付きへローテーション。7日より古いファイルを起動時に削除する。

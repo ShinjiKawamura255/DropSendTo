@@ -70,7 +70,7 @@
         <TextBox x:Name="ArgsBox" Grid.Row="4" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" Text="{}{args}" ToolTip="テンプレート内の {args} が選択したパス列に置き換わります。&#x0a;{clipboard} はクリップボード文字列を展開します。&#x0a;{clipboard_args} はクリップボード内のパスを引用付きで展開します。&#x0a;{clipboard_args:n} は直近 n 行（1〜20）を古い順に展開します。&#x0a;例: /select {args}"/>
 
         <TextBlock Text="Shortcut" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center"/>
-        <TextBox x:Name="ShortcutBox" Grid.Row="5" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" ToolTip="例: Ctrl+Shift+1 / F5 / Alt+S&#x0a;prefix+Shortcut ボタンでショートカットを実行できます"/>
+        <TextBox x:Name="ShortcutBox" Grid.Row="5" Grid.Column="1" Margin="6,2" Grid.ColumnSpan="2" ToolTip="例: Ctrl+Shift+1 / F5 / Alt+S / B A&#x0a;複数キーはスペース/カンマ/&gt; で区切って入力できます&#x0a;prefix+Shortcut ボタンでショートカットを実行できます"/>
 
         <TextBlock Text="Macro Script" Grid.Row="6" Grid.Column="0" VerticalAlignment="Top" Margin="0,4,0,0"/>
         <TextBox x:Name="MacroBox"
