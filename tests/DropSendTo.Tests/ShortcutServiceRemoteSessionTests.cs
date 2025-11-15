@@ -10,15 +10,12 @@ using Xunit;
 
 namespace DropSendTo.Tests;
 
-public class ShortcutServicePrefixCancelTests
+public class ShortcutServiceRemoteSessionTests
 {
-    private const ushort VkMenu = 0x12;
-    private const ushort VkControl = 0x11;
     private const ushort VkQ = 0x51;
-    private const uint VkReturn = 0x0D;
 
     [Fact]
-    public void ProcessKeyDown_WithPrefixAltEnter_ShouldReturnPrefixCancelAction()
+    public void ProcessKeyDown_ShouldBypass_WhenRemoteSessionPreferred()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -35,37 +32,32 @@ public class ShortcutServicePrefixCancelTests
                 SetField(instance, "_stateLock", new object());
                 SetField(instance, "_dispatcher", dispatcher);
                 SetField(instance, "_prefixTimeoutTimer", timer);
-                SetField(instance, "_activeModifiers", new HashSet<ushort> { VkMenu });
-                SetField(instance, "_modifierLastPressedUtc", new Dictionary<ushort, DateTime>
-                {
-                    [VkMenu] = DateTime.UtcNow,
-                    [VkControl] = DateTime.UtcNow.Subtract(TimeSpan.FromMilliseconds(500))
-                });
+                SetField(instance, "_activeModifiers", new HashSet<ushort>());
+                SetField(instance, "_modifierLastPressedUtc", new Dictionary<ushort, DateTime>());
                 SetField(instance, "_suppressedKeyUps", new Dictionary<ushort, int>());
-                SetField(instance, "_remoteSessionDetector", (Func<bool>)(() => false));
-                SetField(instance, "_prefixChord", new KeyChord(VkQ, "Q", new[] { ModifierKind.Control }, "CTRL+Q"));
-                SetField(instance, "_prefixText", "CTRL+Q");
-                SetField(instance, "_prefixModifiers", new List<ModifierKind> { ModifierKind.Control });
-                SetField(instance, "_prefixArmed", true);
-                SetField(instance, "_prefixArmedAtUtc", DateTime.UtcNow.Subtract(TimeSpan.FromMilliseconds(400)));
                 SetField(instance, "_availableSequences", new List<ShortcutSequence>());
                 SetListField(instance, "_sequenceCandidates");
                 SetListField(instance, "_sequenceCandidatesBuffer");
-                SetField(instance, "_awaitingFirstShortcutKey", true);
+                SetField(instance, "_prefixChord", new KeyChord(VkQ, "Q", new List<ModifierKind>(), "Q"));
+                SetField(instance, "_prefixText", "Q");
+                SetField(instance, "_prefixModifiers", new List<ModifierKind>());
+                SetField(instance, "_prefixArmed", false);
+                SetField(instance, "_prefixArmedAtUtc", DateTime.UtcNow);
+                SetField(instance, "_remoteSessionDetector", (Func<bool>)(() => true));
+                SetField(instance, "_preferRemoteSessions", true);
                 SetField(instance, "_disposed", false);
 
                 var processKeyDown = serviceType.GetMethod(
                     "ProcessKeyDown",
                     BindingFlags.Instance | BindingFlags.NonPublic)!;
 
-                var args = new object?[] { VkReturn, false };
+                var args = new object?[] { VkQ, false };
                 var action = processKeyDown.Invoke(instance, args)!;
                 var suppress = (bool)args[1]!;
 
-                suppress.Should().BeTrue();
-
-                var actionType = GetActionTypeName(serviceType, action);
-                actionType.Should().Be("PrefixCancelMacro");
+                suppress.Should().BeFalse();
+                GetActionTypeName(serviceType, action).Should().Be("None");
+                GetField<bool>(instance, "_prefixArmed").Should().BeFalse();
             }
             catch (Exception ex)
             {
@@ -114,5 +106,12 @@ public class ShortcutServicePrefixCancelTests
         var value = Activator.CreateInstance(field!.FieldType);
         value.Should().NotBeNull($"field {name} could not be instantiated");
         field.SetValue(target, value);
+    }
+
+    private static T GetField<T>(object target, string name)
+    {
+        var field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic);
+        field.Should().NotBeNull($"field {name} should exist");
+        return (T)field!.GetValue(target)!;
     }
 }

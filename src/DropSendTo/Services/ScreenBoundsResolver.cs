@@ -146,10 +146,16 @@ internal static class ScreenBoundsResolver
         if (scaleX <= 0) scaleX = 1;
         if (scaleY <= 0) scaleY = 1;
 
-        double left = screen.Bounds.Left / scaleX;
-        double top = screen.Bounds.Top / scaleY;
-        double width = screen.Bounds.Width / scaleX;
-        double height = screen.Bounds.Height / scaleY;
+        var working = screen.WorkingArea;
+        if (working.Width <= 0 || working.Height <= 0)
+        {
+            working = screen.Bounds;
+        }
+
+        double left = working.Left / scaleX;
+        double top = working.Top / scaleY;
+        double width = working.Width / scaleX;
+        double height = working.Height / scaleY;
 
         return new ScreenBounds(left, top, width, height);
     }

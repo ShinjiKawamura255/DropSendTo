@@ -723,6 +723,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
+            _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
             _macroService.SetPrefixStateAccessors(
                 () => _shortcutService.CurrentPrefixChord,
                 () => _shortcutService.IsPrefixArmed,
@@ -1746,6 +1747,16 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnToggleRemoteSessionPriority(object sender, RoutedEventArgs e)
+    {
+        if (_config == null || _shortcutService == null || RemoteSessionPriorityMenuItem == null) return;
+        bool enabled = RemoteSessionPriorityMenuItem.IsChecked;
+        if (_config.PreferRemoteSessions == enabled) return;
+        _config.PreferRemoteSessions = enabled;
+        _shortcutService.SetRemoteSessionPreference(enabled);
+        _configService.Save(_config);
+    }
+
     private void OnStartupRestoreState(object sender, RoutedEventArgs e)
     {
         if (StartupRestoreMenuItem != null)
@@ -1786,6 +1797,10 @@ public partial class MainWindow : Window
         if (PrefixLayerShortcutMenuItem != null)
         {
             PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
+        }
+        if (RemoteSessionPriorityMenuItem != null)
+        {
+            RemoteSessionPriorityMenuItem.IsChecked = _config.PreferRemoteSessions;
         }
         if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null)
         {

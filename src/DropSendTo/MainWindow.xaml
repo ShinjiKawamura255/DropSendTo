@@ -56,6 +56,10 @@
                       Header="Prefix: Ctrl+N/P でレイヤー切替"
                       IsCheckable="True"
                       Click="OnTogglePrefixLayerShortcuts"/>
+            <MenuItem x:Name="RemoteSessionPriorityMenuItem"
+                      Header="Prefix: リモートセッション優先 (RDP/Citrix)"
+                      IsCheckable="True"
+                      Click="OnToggleRemoteSessionPriority"/>
             <Separator/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using Timer = System.Threading.Timer;
-using System.Threading;
 
 namespace DropSendTo.Services;
 
@@ -42,6 +44,27 @@ internal sealed class PrefixStateChangedEventArgs : EventArgs
 internal sealed class ShortcutService : IDisposable
 {
     private const int PrefixTimeoutMilliseconds = 4_000;
+    private static readonly string[] RemoteWindowClassNames =
+    {
+        "TscShellContainerClass",
+        "TscShellContainerClass2",
+        "TSSHELLWND",
+        "TscShellWindowClass",
+        "TransparentWndClass",
+        "CitrixHDXClientWindowClass",
+        "CitrixWorkspaceDesktop",
+        "CtxGPCClass"
+    };
+
+    private static readonly string[] RemoteProcessNames =
+    {
+        "mstsc",
+        "mstsc64",
+        "wfica32",
+        "wfcrun32",
+        "citrixworkspace",
+        "citrixviewer"
+    };
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
     private readonly Dispatcher _dispatcher;
@@ -66,12 +89,15 @@ internal sealed class ShortcutService : IDisposable
     private bool _usingFallbackPrefix;
     private bool _prefixDisabled;
     private bool _prefixLayerShortcutsEnabled;
+    private bool _preferRemoteSessions;
+    private Func<bool> _remoteSessionDetector;
     private bool _sequenceCaptureInProgress;
     private bool _awaitingFirstShortcutKey;
 
     public ShortcutService()
     {
         _dispatcher = ApplicationDispatcherProvider.GetDispatcher();
+        _remoteSessionDetector = DetectRemoteSessionForeground;
         _prefixTimeoutTimer = new Timer(OnPrefixTimeout, null, Timeout.Infinite, Timeout.Infinite);
         SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
         SystemEvents.SessionSwitch += OnSystemSessionSwitch;
@@ -211,6 +237,15 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
+    public void SetRemoteSessionPreference(bool enabled)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        lock (_stateLock)
+        {
+            _preferRemoteSessions = enabled;
+        }
+    }
+
     public void ResetPrefixState(bool clearModifiers = false)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
@@ -329,6 +364,15 @@ internal sealed class ShortcutService : IDisposable
         var now = DateTime.UtcNow;
         var vk = (ushort)vkCode;
         TrackModifierKeyDownLocked(vk);
+        if (_preferRemoteSessions && IsRemoteSessionActive())
+        {
+            if (_prefixArmed)
+            {
+                SetPrefixArmedLocked(false, now);
+            }
+            suppress = false;
+            return ShortcutAction.None;
+        }
         if (_prefixArmed && (now - _prefixArmedAtUtc).TotalMilliseconds > PrefixTimeoutMilliseconds)
         {
             ResetPrefixStateLocked();
@@ -554,6 +598,112 @@ internal sealed class ShortcutService : IDisposable
         _sequenceCandidatesBuffer.Clear();
         _sequenceCaptureInProgress = false;
         return SequenceEvaluationResult.None;
+    }
+
+    private bool IsRemoteSessionActive()
+    {
+        var detector = _remoteSessionDetector;
+        if (detector == null) return false;
+        try
+        {
+            return detector();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Remote session detection failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private bool DetectRemoteSessionForeground()
+    {
+        var hwnd = GetForegroundWindow();
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (TryGetWindowClassName(hwnd, out var className) && IsRemoteClassName(className))
+        {
+            return true;
+        }
+
+        if (TryGetProcessName(hwnd, out var processName) && IsRemoteProcessName(processName))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetWindowClassName(IntPtr hwnd, out string className)
+    {
+        var buffer = new StringBuilder(256);
+        if (GetClassName(hwnd, buffer, buffer.Capacity) > 0)
+        {
+            className = buffer.ToString();
+            return true;
+        }
+
+        className = string.Empty;
+        return false;
+    }
+
+    private static bool TryGetProcessName(IntPtr hwnd, out string processName)
+    {
+        processName = string.Empty;
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (GetWindowThreadProcessId(hwnd, out var pid) == 0 || pid == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var proc = Process.GetProcessById((int)pid);
+            var name = proc.ProcessName;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                processName = name;
+                return true;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return false;
+    }
+
+    private static bool IsRemoteClassName(string? className)
+    {
+        if (string.IsNullOrWhiteSpace(className)) return false;
+        foreach (var candidate in RemoteWindowClassNames)
+        {
+            if (string.Equals(className, candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsRemoteProcessName(string? processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return false;
+        foreach (var candidate in RemoteProcessNames)
+        {
+            if (string.Equals(processName, candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private bool ShortcutMatches(KeyChord chord, ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue)
@@ -1078,6 +1228,15 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_TAB = 0x09;
     private const ushort VK_N = 0x4E;
     private const ushort VK_P = 0x50;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);

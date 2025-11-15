@@ -142,6 +142,7 @@ internal sealed class ConfigTransferService
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
+        public bool PreferRemoteSessions { get; set; } = true;
         public List<ExportLayerSnapshot> Layers { get; set; } = new();
 
         public static ExportConfigSnapshot FromAppConfig(AppConfig config)
@@ -158,6 +159,7 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
+                PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
                 SlotSize = config.SlotSize,
@@ -187,6 +189,7 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
+                PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,
                 SlotSize = SlotSize,

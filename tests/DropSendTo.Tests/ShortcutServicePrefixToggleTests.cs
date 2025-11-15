@@ -40,6 +40,7 @@ public class ShortcutServicePrefixToggleTests
                     [VkControl] = DateTime.UtcNow.Subtract(TimeSpan.FromMilliseconds(500))
                 });
                 SetField(instance, "_suppressedKeyUps", new Dictionary<ushort, int>());
+                SetField(instance, "_remoteSessionDetector", (Func<bool>)(() => false));
                 SetField(instance, "_prefixChord", new KeyChord(VkQ, "Q", new[] { ModifierKind.Control }, "CTRL+Q"));
                 SetField(instance, "_prefixText", "CTRL+Q");
                 SetField(instance, "_prefixModifiers", new List<ModifierKind> { ModifierKind.Control });

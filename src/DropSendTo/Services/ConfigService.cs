@@ -441,6 +441,13 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 18)
+        {
+            cfg.PreferRemoteSessions = true;
+            cfg.Version = 18;
+            changed = true;
+        }
+
         return changed;
     }
 }

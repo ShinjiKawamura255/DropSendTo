@@ -33,6 +33,7 @@ public class ShortcutServiceResetTests
             {
                 [0x41] = 2
             });
+            SetField(instance, "_remoteSessionDetector", (Func<bool>)(() => false));
             SetField(instance, "_prefixArmed", false);
             SetField(instance, "_availableSequences", new List<ShortcutSequence>());
             SetListField(instance, "_sequenceCandidates");
