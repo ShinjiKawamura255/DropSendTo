@@ -242,7 +242,7 @@ public partial class MainWindow : Window
 
         _layerHoverTimer = new System.Windows.Threading.DispatcherTimer
         {
-            Interval = System.TimeSpan.FromMilliseconds(800)
+            Interval = System.TimeSpan.FromMilliseconds(480)
         };
         _layerHoverTimer.Tick += (_, _) =>
         {
