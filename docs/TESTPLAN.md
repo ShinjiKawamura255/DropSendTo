@@ -29,6 +29,7 @@
 - TC-068 PrefixLayerShortcut: コンテキストメニューの「Prefix: Ctrl+N/P でレイヤー切替」を有効化すると、Prefix armed 中に `Ctrl+N`/`Ctrl+P` でレイヤーを前後へ循環でき、無効化すると通常のキー入力として OS に透過する。設定は保存・再起動後も復元される。
 - TC-069 PrefixArrowSelect: Prefix+Enter でウィンドウを前面に復帰した後、矢印キーでスロットが順次選択され Enter で実行されること、矢印を押すまで選択枠が表示されず、Esc/マウス操作でキーボード選択モードが解除されることを確認する。
 - TC-070 SlotStates: hover/drag/クリックで視覚状態が変化する（UI レベル）。
+- TC-071 SlotLayoutEditMode: ツールバーの ✎/メニューで Slot Layout Edit Mode を有効にすると左上インジケーターが「EDIT MODE」に変わりクリック/ファイルドロップが無効化されること、スロットをドラッグすると元位置にプレビューが表示されドロップ時のみ入れ替えが確定すること、ドラッグ中にレイヤーボタンへ 0.8s ホバーすると表示レイヤーが切り替わり別レイヤーとのスワップ/空スロットへの移動が行えることを確認する。
 - TC-080 ClickExec: クリック実行が有効なときのみ起動する。Command モードはコマンドのみ、Macro Script モードはマクロのみ、Macro Script 拡張モードはマクロ内で `COMMAND` によりコマンドが起動する。無効設定は保存される。
 - TC-085 ShortcutTrigger: Prefix 押下でインジケーターが点灯し、4 秒以内の登録ショートカットでスロットがレイヤー自動切替込みで起動する。Prefix 再入力で前面ウィンドウへ送出される。
 - TC-086 ShortcutSharedModifier: Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → `Ctrl+X`）は修飾キーを押し直さなくても発火し、再押下でも動作する。

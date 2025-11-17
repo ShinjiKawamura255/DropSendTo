@@ -27,6 +27,10 @@
                 <MenuItem x:Name="SlotSizeMenuItem"
                           Header="Slot Size"
                           SubmenuOpened="OnSlotSizeMenuOpened"/>
+                <MenuItem x:Name="SlotLayoutEditModeMenuItem"
+                          Header="Slot Layout Edit Mode"
+                          IsCheckable="True"
+                          Click="OnSlotLayoutEditModeMenuItemClick"/>
             </MenuItem>
             <MenuItem Header="起動時のウィンドウ">
                 <MenuItem x:Name="StartupAlwaysShowMenuItem"
@@ -129,11 +133,37 @@
                        FontWeight="SemiBold"
                        Foreground="#FFFFFF"/>
         </Border>
+        <Border x:Name="EditModeIndicator"
+                Grid.Row="1"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="0,4,0,0"
+                Padding="8,2"
+                CornerRadius="8"
+                Background="#33252200"
+                BorderBrush="#66FFCC66"
+                BorderThickness="1"
+                Visibility="Collapsed"
+                Panel.ZIndex="11"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="EditModeIndicatorText"
+                       Text="LAYOUT EDIT MODE"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="#FFE4FFCC"/>
+        </Border>
         <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
         <DockPanel Grid.Row="0" LastChildFill="False" Background="Transparent" MouseLeftButtonDown="OnDragMoveArea">
             <!-- Drag handle area to move window -->
-            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="60" MouseLeftButtonDown="OnDragMove"/>
+            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="40" MouseLeftButtonDown="OnDragMove"/>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <Button x:Name="EditModeToggleButton"
+                        Content="✎"
+                        Width="24"
+                        Height="24"
+                        Margin="2"
+                        ToolTip="Slot Layout Edit Mode"
+                        Click="OnEditModeToggleButtonClick"/>
                 <Button x:Name="MenuBtn" Content="≡" Width="24" Height="24" Margin="2" Click="OnOpenMenu"/>
                 <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
                 <Button x:Name="LayerBtn2" Content="2" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>

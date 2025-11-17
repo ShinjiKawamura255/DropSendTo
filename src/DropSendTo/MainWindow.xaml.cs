@@ -68,6 +68,9 @@ public partial class MainWindow : Window
         (SlotSize.Medium, "Medium"),
         (SlotSize.Small, "Small")
     };
+    private const double LayoutEditIndicatorTopSpacing = 4;
+    private const double LayoutEditIndicatorBottomSpacing = 6;
+    private const double LayoutEditIndicatorFallbackHeight = 22;
 
     private readonly record struct SlotSizeMetrics(
         double BaseWidth,
@@ -180,6 +183,14 @@ public partial class MainWindow : Window
     private readonly Stack<SlotRunContext> _slotRunStack = new();
     private SlotRunContext? _currentSlotRun;
     private WindowPlacementMode _windowPlacementMode;
+    private bool _isSlotLayoutEditMode;
+    private System.Windows.Point? _slotDragStartPoint;
+    private bool _isSlotLayoutDragInProgress;
+    private int _slotLayoutDragSourceLayer = -1;
+    private int _slotLayoutDragSourceIndex = -1;
+    private int _slotLayoutPreviewTargetLayer = -1;
+    private int _slotLayoutPreviewTargetIndex = -1;
+    private const string SlotLayoutDragFormat = "DropSendTo/SlotLayoutEdit";
 
     public MainWindow()
     {
@@ -195,6 +206,17 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         Topmost = _config.AlwaysOnTop;
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+        if (EditModeIndicator is { } indicator)
+        {
+            indicator.SizeChanged += (_, _) =>
+            {
+                if (_isSlotLayoutEditMode)
+                {
+                    UpdateSlotPanelEditModePadding();
+                    UpdateWindowSize(_config.SlotRows, _config.SlotColumns);
+                }
+            };
+        }
 
         ApplySlotLayout();
         RestoreWindowPosition();
@@ -514,6 +536,7 @@ public partial class MainWindow : Window
             SlotsPanel.Children.Add(visual.Border);
         }
 
+        UpdateSlotPanelEditModePadding();
         UpdateWindowSize(rows, columns);
         ClampWindowWithinBounds();
         UpdateKeyboardSelectionVisual();
@@ -573,7 +596,7 @@ public partial class MainWindow : Window
     {
         var metrics = GetSlotSizeMetrics();
         Width = metrics.BaseWidth + (columns - 2) * metrics.ColumnStep;
-        Height = metrics.BaseHeight + (rows - 2) * metrics.RowStep;
+        Height = metrics.BaseHeight + (rows - 2) * metrics.RowStep + GetEditModeReservedHeight();
     }
 
     private SlotSizeMetrics GetSlotSizeMetrics()
@@ -674,7 +697,35 @@ public partial class MainWindow : Window
             stackingPanel.Children.Add(status);
         }
 
-        border.Child = content;
+        var container = new Grid
+        {
+            Tag = index
+        };
+        container.Children.Add(content);
+
+        var previewBorder = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromArgb(0xBB, 0x10, 0x24, 0x10)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x66, 0xFF, 0xCC)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(4),
+            Visibility = Visibility.Collapsed,
+            Tag = index
+        };
+        var previewText = new TextBlock
+        {
+            FontSize = Math.Max(metrics.StatusFontSize - 1, 9),
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextAlignment = TextAlignment.Center,
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White),
+            Tag = index
+        };
+        previewBorder.Child = previewText;
+        container.Children.Add(previewBorder);
+
+        border.Child = container;
 
         border.Drop += OnSlotDrop;
         border.MouseRightButtonUp += OnSlotContextMenu;
@@ -682,10 +733,12 @@ public partial class MainWindow : Window
         border.MouseLeave += OnSlotMouseLeave;
         border.DragEnter += OnSlotDragEnter;
         border.DragLeave += OnSlotDragLeave;
+        border.DragOver += OnSlotDragOver;
         border.MouseLeftButtonDown += OnSlotMouseDown;
         border.MouseLeftButtonUp += OnSlotClick;
+        border.MouseMove += OnSlotMouseMove;
 
-        return new SlotVisual(border, title, status, metrics.OverlayStatus);
+        return new SlotVisual(border, title, status, metrics.OverlayStatus, previewBorder, previewText);
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -1062,7 +1115,14 @@ public partial class MainWindow : Window
     }
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
-    private sealed record SlotVisual(Border Border, TextBlock Title, TextBlock Status, bool OverlayStatus);
+    private sealed record SlotLayoutDragData(int SourceLayerIndex, int SourceSlotIndex);
+    private sealed record SlotVisual(
+        Border Border,
+        TextBlock Title,
+        TextBlock Status,
+        bool OverlayStatus,
+        Border DragPreviewHost,
+        TextBlock DragPreviewText);
     private sealed record SlotColorScheme(SolidColorBrush Background, SolidColorBrush Border, SolidColorBrush Title);
     private sealed class SlotRunContext
     {
@@ -1318,6 +1378,185 @@ public partial class MainWindow : Window
         };
     }
 
+    private string DescribeSlotForEditMode(int layerIndex, int slotIndex)
+    {
+        if (layerIndex < 0 || layerIndex >= _config.Layers.Count)
+        {
+            return $"Layer {layerIndex + 1} / Slot {slotIndex + 1}";
+        }
+
+        var layer = _config.Layers[layerIndex];
+        if (slotIndex < 0 || slotIndex >= layer.Slots.Count)
+        {
+            return $"Layer {layerIndex + 1} / Slot {slotIndex + 1}";
+        }
+
+        var slot = layer.Slots[slotIndex];
+        string title = string.IsNullOrWhiteSpace(slot.Title) ? $"Slot {slotIndex + 1}" : slot.Title.Trim();
+        if (IsSlotEmpty(slot))
+        {
+            title += " (Empty)";
+        }
+        return $"L{layerIndex + 1}-S{slotIndex + 1}: {title}";
+    }
+
+    private void TryBeginSlotLayoutDrag(FrameworkElement? fe)
+    {
+        if (!_isSlotLayoutEditMode || fe == null || _isSlotLayoutDragInProgress)
+        {
+            return;
+        }
+
+        int index = GetSlotIndex(fe);
+        var layer = _config.Layers[_currentLayer];
+        if (index < 0 || index >= layer.Slots.Count)
+        {
+            return;
+        }
+
+        var slot = layer.Slots[index];
+        if (IsSlotEmpty(slot))
+        {
+            return;
+        }
+
+        if (HasAnyRunningSlot())
+        {
+            WpfMessageBox.Show("マクロ実行中はレイアウトを編集できません。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _isSlotLayoutDragInProgress = true;
+        _slotLayoutDragSourceLayer = _currentLayer;
+        _slotLayoutDragSourceIndex = index;
+        HighlightSlotDragSource(index, true);
+        UpdateEditModeIndicatorText();
+        HideSlotDragPreview();
+
+        var payload = new SlotLayoutDragData(_slotLayoutDragSourceLayer, _slotLayoutDragSourceIndex);
+        var data = new System.Windows.DataObject(SlotLayoutDragFormat, payload);
+        try
+        {
+            DragDrop.DoDragDrop(fe, data, WpfDragDropEffects.Move);
+        }
+        finally
+        {
+            HighlightSlotDragSource(index, false);
+            HideSlotDragPreview();
+            _slotLayoutDragSourceLayer = -1;
+            _slotLayoutDragSourceIndex = -1;
+            _isSlotLayoutDragInProgress = false;
+            UpdateEditModeIndicatorText();
+        }
+    }
+
+    private void HighlightSlotDragSource(int index, bool isActive)
+    {
+        if (index < 0 || index >= _slotVisuals.Count)
+        {
+            return;
+        }
+
+        var border = _slotVisuals[index].Border;
+        if (isActive)
+        {
+            border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
+            border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1A, 0x35, 0x1A));
+        }
+        else
+        {
+            RenderSlotMacroState(index, GetSlotMacroState(index));
+        }
+    }
+
+    private void UpdateSlotLayoutPreview(int targetLayer, int targetSlot)
+    {
+        if (!_isSlotLayoutDragInProgress || _slotLayoutDragSourceIndex < 0 || _slotLayoutDragSourceIndex >= _slotVisuals.Count)
+        {
+            return;
+        }
+
+        _slotLayoutPreviewTargetLayer = targetLayer;
+        _slotLayoutPreviewTargetIndex = targetSlot;
+
+        var visual = _slotVisuals[_slotLayoutDragSourceIndex];
+        if (targetLayer == _slotLayoutDragSourceLayer && targetSlot == _slotLayoutDragSourceIndex)
+        {
+            visual.DragPreviewHost.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var description = DescribeSlotForEditMode(targetLayer, targetSlot);
+        visual.DragPreviewText.Text = $"Swap with\n{description}";
+        visual.DragPreviewHost.Visibility = Visibility.Visible;
+    }
+
+    private void HideSlotDragPreview()
+    {
+        if (_slotLayoutDragSourceIndex >= 0 && _slotLayoutDragSourceIndex < _slotVisuals.Count)
+        {
+            _slotVisuals[_slotLayoutDragSourceIndex].DragPreviewHost.Visibility = Visibility.Collapsed;
+        }
+        _slotLayoutPreviewTargetLayer = -1;
+        _slotLayoutPreviewTargetIndex = -1;
+    }
+
+    private bool TryHandleSlotLayoutDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(SlotLayoutDragFormat))
+        {
+            return false;
+        }
+
+        e.Handled = true;
+        HideSlotDragPreview();
+        if (sender is not FrameworkElement fe)
+        {
+            return true;
+        }
+
+        if (e.Data.GetData(SlotLayoutDragFormat) is not SlotLayoutDragData payload)
+        {
+            return true;
+        }
+
+        int targetSlot = GetSlotIndex(fe);
+        int targetLayer = _currentLayer;
+        CompleteSlotSwap(payload.SourceLayerIndex, payload.SourceSlotIndex, targetLayer, targetSlot);
+        return true;
+    }
+
+    private void CompleteSlotSwap(int sourceLayer, int sourceSlot, int targetLayer, int targetSlot)
+    {
+        if (sourceLayer < 0 || sourceLayer >= _config.Layers.Count ||
+            targetLayer < 0 || targetLayer >= _config.Layers.Count)
+        {
+            return;
+        }
+
+        var sourceSlots = _config.Layers[sourceLayer].Slots;
+        var targetSlots = _config.Layers[targetLayer].Slots;
+        if (sourceSlot < 0 || sourceSlot >= sourceSlots.Count ||
+            targetSlot < 0 || targetSlot >= targetSlots.Count)
+        {
+            return;
+        }
+
+        if (sourceLayer == targetLayer && sourceSlot == targetSlot)
+        {
+            return;
+        }
+
+        (sourceSlots[sourceSlot], targetSlots[targetSlot]) = (targetSlots[targetSlot], sourceSlots[sourceSlot]);
+        _configService.Save(_config);
+        RefreshUi();
+    }
+
+    private static bool IsSlotLayoutDrag(DragEventArgs e)
+    {
+        return e.Data.GetDataPresent(SlotLayoutDragFormat);
+    }
+
     private List<SlotSelectionOption> GetEmptySlotOptions()
     {
         var options = new List<SlotSelectionOption>();
@@ -1419,6 +1658,15 @@ public partial class MainWindow : Window
     {
         try
         {
+            if (TryHandleSlotLayoutDrop(sender, e))
+            {
+                return;
+            }
+            if (_isSlotLayoutEditMode)
+            {
+                e.Handled = true;
+                return;
+            }
             if (!e.Data.GetDataPresent(WpfDataFormats.FileDrop)) return;
             var paths = (string[])e.Data.GetData(WpfDataFormats.FileDrop);
             if (sender is not FrameworkElement fe) return;
@@ -1455,6 +1703,10 @@ public partial class MainWindow : Window
             if (PrefixLayerShortcutMenuItem != null)
             {
                 PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
+            }
+            if (SlotLayoutEditModeMenuItem != null)
+            {
+                SlotLayoutEditModeMenuItem.IsChecked = _isSlotLayoutEditMode;
             }
             PopulateLayoutMenu(LayoutMenuItem);
             PopulateSlotSizeMenu(SlotSizeMenuItem);
@@ -1534,6 +1786,114 @@ public partial class MainWindow : Window
             item.Click += OnSlotSizeOptionSelected;
             menuItem.Items.Add(item);
         }
+    }
+
+    private void OnSlotLayoutEditModeMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem)
+        {
+            return;
+        }
+        SetSlotLayoutEditMode(menuItem.IsChecked);
+    }
+
+    private void OnEditModeToggleButtonClick(object sender, RoutedEventArgs e)
+    {
+        SetSlotLayoutEditMode(!_isSlotLayoutEditMode);
+    }
+
+    private void SetSlotLayoutEditMode(bool isEnabled)
+    {
+        if (isEnabled == _isSlotLayoutEditMode)
+        {
+            UpdateEditModeIndicatorText();
+            return;
+        }
+
+        if (isEnabled && HasAnyRunningSlot())
+        {
+            WpfMessageBox.Show("マクロ実行中はレイアウト編集モードに切り替えられません。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (SlotLayoutEditModeMenuItem != null)
+            {
+                SlotLayoutEditModeMenuItem.IsChecked = false;
+            }
+            return;
+        }
+
+        _isSlotLayoutEditMode = isEnabled;
+        if (!isEnabled)
+        {
+            HideSlotDragPreview();
+        }
+        _slotDragStartPoint = null;
+
+        if (EditModeIndicator != null)
+        {
+            EditModeIndicator.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
+        }
+        UpdateEditModeIndicatorText();
+        UpdateSlotPanelEditModePadding();
+        UpdateWindowSize(_config.SlotRows, _config.SlotColumns);
+        ClampWindowWithinBounds();
+
+        if (SlotLayoutEditModeMenuItem != null)
+        {
+            SlotLayoutEditModeMenuItem.IsChecked = isEnabled;
+        }
+        if (EditModeToggleButton != null)
+        {
+            EditModeToggleButton.Content = isEnabled ? "✕" : "✎";
+            EditModeToggleButton.ToolTip = isEnabled ? "Exit Slot Layout Edit Mode" : "Slot Layout Edit Mode";
+        }
+    }
+
+    private void UpdateEditModeIndicatorText()
+    {
+        if (EditModeIndicatorText == null)
+        {
+            return;
+        }
+
+        if (!_isSlotLayoutEditMode)
+        {
+            EditModeIndicatorText.Text = string.Empty;
+            return;
+        }
+
+        EditModeIndicatorText.Text = "LAYOUT EDIT MODE";
+    }
+
+    private void UpdateSlotPanelEditModePadding()
+    {
+        if (SlotsPanel == null)
+        {
+            return;
+        }
+
+        if (_isSlotLayoutEditMode)
+        {
+            SlotsPanel.Margin = new Thickness(0, GetEditModeReservedHeight(), 0, 0);
+        }
+        else
+        {
+            SlotsPanel.Margin = new Thickness(0);
+        }
+    }
+
+    private double GetEditModeReservedHeight()
+    {
+        if (!_isSlotLayoutEditMode)
+        {
+            return 0;
+        }
+
+        double indicatorHeight = EditModeIndicator?.ActualHeight ?? LayoutEditIndicatorFallbackHeight;
+        if (double.IsNaN(indicatorHeight) || indicatorHeight <= 0)
+        {
+            indicatorHeight = LayoutEditIndicatorFallbackHeight;
+        }
+
+        return LayoutEditIndicatorTopSpacing + indicatorHeight + LayoutEditIndicatorBottomSpacing;
     }
 
     private void OnOpenConfig(object sender, RoutedEventArgs e)
@@ -1864,36 +2224,42 @@ public partial class MainWindow : Window
 
     private void OnLayerDragEnter(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+        if (!e.Data.GetDataPresent(WpfDataFormats.FileDrop) && !IsSlotLayoutDrag(e))
         {
-            if (sender == LayerBtn1) _hoverTargetLayer = 0;
-            else if (sender == LayerBtn2) _hoverTargetLayer = 1;
-            else if (sender == LayerBtn3) _hoverTargetLayer = 2;
-            else if (sender == LayerBtn4) _hoverTargetLayer = 3;
-            _layerHoverTimer.Stop();
-            _layerHoverTimer.Start();
-            e.Handled = true;
+            return;
         }
+
+        if (sender == LayerBtn1) _hoverTargetLayer = 0;
+        else if (sender == LayerBtn2) _hoverTargetLayer = 1;
+        else if (sender == LayerBtn3) _hoverTargetLayer = 2;
+        else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+        _layerHoverTimer.Stop();
+        _layerHoverTimer.Start();
+        e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
+        e.Handled = true;
     }
 
     private void OnLayerDragOver(object sender, DragEventArgs e)
     {
-        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+        if (!e.Data.GetDataPresent(WpfDataFormats.FileDrop) && !IsSlotLayoutDrag(e))
         {
-            if (sender == LayerBtn1) _hoverTargetLayer = 0;
-            else if (sender == LayerBtn2) _hoverTargetLayer = 1;
-            else if (sender == LayerBtn3) _hoverTargetLayer = 2;
-            else if (sender == LayerBtn4) _hoverTargetLayer = 3;
-            if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
-            e.Effects = WpfDragDropEffects.Link;
-            e.Handled = true;
+            return;
         }
+
+        if (sender == LayerBtn1) _hoverTargetLayer = 0;
+        else if (sender == LayerBtn2) _hoverTargetLayer = 1;
+        else if (sender == LayerBtn3) _hoverTargetLayer = 2;
+        else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+        if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
+        e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
+        e.Handled = true;
     }
 
     private void OnLayerDragLeave(object sender, DragEventArgs e)
     {
         _hoverTargetLayer = -1;
         _layerHoverTimer.Stop();
+        e.Handled = true;
     }
 
     private void OnSlotMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
@@ -1910,10 +2276,23 @@ public partial class MainWindow : Window
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
         RenderSlotMacroState(idx, SlotMacroState.Idle);
+        if (_isSlotLayoutEditMode)
+        {
+            _slotDragStartPoint = null;
+        }
     }
     private void OnSlotMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not Border b) return;
+        if (_isSlotLayoutEditMode)
+        {
+            if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+            {
+                _slotDragStartPoint = e.GetPosition(null);
+            }
+            return;
+        }
+
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
         b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
@@ -1923,6 +2302,21 @@ public partial class MainWindow : Window
     private void OnSlotDragEnter(object sender, DragEventArgs e)
     {
         if (sender is not Border b) return;
+        if (IsSlotLayoutDrag(e))
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.Move;
+            b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(40, 48, 56));
+            b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
+            UpdateSlotLayoutPreview(_currentLayer, GetSlotIndex(b));
+            return;
+        }
+        if (_isSlotLayoutEditMode)
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.None;
+            return;
+        }
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
         b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
@@ -1930,7 +2324,69 @@ public partial class MainWindow : Window
     }
     private void OnSlotDragLeave(object sender, DragEventArgs e)
     {
+        if (sender is not Border b) return;
+        if (IsSlotLayoutDrag(e))
+        {
+            e.Handled = true;
+            int idx = GetSlotIndex(b);
+            if (_slotLayoutPreviewTargetLayer == _currentLayer && _slotLayoutPreviewTargetIndex == idx)
+            {
+                HideSlotDragPreview();
+            }
+            RenderSlotMacroState(idx, GetSlotMacroState(idx));
+            return;
+        }
         OnSlotMouseLeave(sender, null!);
+    }
+    private void OnSlotDragOver(object sender, DragEventArgs e)
+    {
+        if (IsSlotLayoutDrag(e))
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.Move;
+            if (sender is Border b)
+            {
+                UpdateSlotLayoutPreview(_currentLayer, GetSlotIndex(b));
+            }
+            return;
+        }
+
+        if (_isSlotLayoutEditMode)
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.None;
+            return;
+        }
+
+        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.Link;
+        }
+    }
+
+    private void OnSlotMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isSlotLayoutEditMode || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        if (_slotDragStartPoint == null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(null);
+        var start = _slotDragStartPoint.Value;
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _slotDragStartPoint = null;
+        TryBeginSlotLayoutDrag(sender as FrameworkElement);
     }
 
     private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source)
@@ -2111,6 +2567,11 @@ public partial class MainWindow : Window
     private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
+        _slotDragStartPoint = null;
+        if (_isSlotLayoutEditMode)
+        {
+            return;
+        }
         if (_keyboardNavigationActive)
         {
             DeactivateKeyboardNavigation();
@@ -2213,6 +2674,10 @@ public partial class MainWindow : Window
         {
             PrefixIndicator.Visibility = Visibility.Collapsed;
         }
+        if (_isSlotLayoutEditMode)
+        {
+            UpdateSlotPanelEditModePadding();
+        }
     }
 
     private void UpdatePrefixGuard(bool isArmed)
@@ -2273,7 +2738,9 @@ public partial class MainWindow : Window
             string title = string.IsNullOrWhiteSpace(slot.Title)
                 ? $"Slot {baseNo + i + 1}"
                 : slot.Title;
-            _slotVisuals[i].Title.Text = title;
+            var visual = _slotVisuals[i];
+            visual.Title.Text = title;
+            visual.DragPreviewHost.Visibility = Visibility.Collapsed;
             ApplySlotColor(i);
         }
         // Layer button highlight with stronger contrast
