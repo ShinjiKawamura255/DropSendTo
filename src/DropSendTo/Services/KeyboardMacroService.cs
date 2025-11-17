@@ -9,6 +9,7 @@ using System.Windows.Interop;
 using System.Windows;
 using System.Text;
 using System.Globalization;
+using System.Linq;
 using DropSendTo.Models;
 
 namespace DropSendTo.Services;
@@ -458,7 +459,10 @@ public sealed class KeyboardMacroService : IDisposable
         {
             var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var clipboardSnapshot = ClipboardHistoryService.Instance.GetSnapshot(null);
-            var specialResolver = CreateSpecialVariableResolver(clipboardSnapshot);
+            var dropPaths = context?.DroppedPaths;
+            var specialResolver = CreateSpecialVariableResolver(clipboardSnapshot, dropPaths);
+            var ifStack = new Stack<IfBlockState>();
+            int inactiveIfDepth = 0;
 
             if (targetAvailable)
             {
@@ -479,6 +483,49 @@ public sealed class KeyboardMacroService : IDisposable
                 ThrowIfPausedOrCanceled(session, cancellationToken);
                 var line = rawLine.Trim();
                 if (line.Length == 0 || line.StartsWith('#')) continue;
+
+                if (StartsWithCommand(line, "IF"))
+                {
+                    var conditionText = line.Length > 2 ? line[2..].Trim() : string.Empty;
+                    if (!TryHandleIfDirective(conditionText, variables, specialResolver, ifStack, ref inactiveIfDepth, out var ifError))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(ifError ?? $"IF 条件の解釈に失敗しました: \"{line}\""));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "ELSE"))
+                {
+                    var trailing = line.Length > 4 ? line[4..].Trim() : string.Empty;
+                    if (!string.IsNullOrWhiteSpace(trailing))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail("ELSE の後ろに余分な記述があります。"));
+                    }
+                    if (!TryHandleElseDirective(ifStack, ref inactiveIfDepth, out var elseError))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(elseError ?? "ELSE の解釈に失敗しました。"));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "ENDIF"))
+                {
+                    var trailing = line.Length > 5 ? line[5..].Trim() : string.Empty;
+                    if (!string.IsNullOrWhiteSpace(trailing))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail("ENDIF の後ろに余分な記述があります。"));
+                    }
+                    if (!TryHandleEndIfDirective(ifStack, ref inactiveIfDepth, out var endifError))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(endifError ?? "ENDIF の解釈に失敗しました。"));
+                    }
+                    continue;
+                }
+
+                if (inactiveIfDepth > 0)
+                {
+                    continue;
+                }
 
                 if (StartsWithCommand(line, "SET"))
                 {
@@ -765,6 +812,11 @@ public sealed class KeyboardMacroService : IDisposable
                 return CompleteResult(MacroExecutionResult.Fail($"未知のマクロ命令です: \"{line}\""));
             }
 
+            if (ifStack.Count > 0)
+            {
+                return CompleteResult(MacroExecutionResult.Fail("IF ブロックが ENDIF で閉じられていません。"));
+            }
+
             return CompleteResult(MacroExecutionResult.Ok());
         }
         catch (OperationCanceledException)
@@ -855,13 +907,295 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    private static bool TryHandleIfDirective(
+        string args,
+        Dictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        Stack<IfBlockState> stack,
+        ref int inactiveDepth,
+        out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            error = "IF 条件を指定してください。";
+            return false;
+        }
+
+        bool parentActive = inactiveDepth == 0;
+        bool conditionResult = false;
+        if (parentActive)
+        {
+            if (!TryEvaluateCondition(args, variables, specialResolver, out conditionResult, out error))
+            {
+                return false;
+            }
+        }
+
+        var frame = new IfBlockState
+        {
+            ParentActive = parentActive,
+            ConditionResult = conditionResult,
+            Executing = parentActive && conditionResult,
+            ElseEncountered = false
+        };
+        if (!frame.Executing)
+        {
+            inactiveDepth++;
+        }
+        stack.Push(frame);
+        return true;
+    }
+
+    private static bool TryHandleElseDirective(Stack<IfBlockState> stack, ref int inactiveDepth, out string? error)
+    {
+        error = null;
+        if (stack.Count == 0)
+        {
+            error = "ELSE に対応する IF が見つかりません。";
+            return false;
+        }
+
+        var frame = stack.Pop();
+        if (frame.ElseEncountered)
+        {
+            error = "1 つの IF に複数の ELSE は使用できません。";
+            return false;
+        }
+
+        bool newExecuting = frame.ParentActive && !frame.ConditionResult;
+        UpdateIfExecutionState(ref frame, newExecuting, ref inactiveDepth);
+        frame.ElseEncountered = true;
+        stack.Push(frame);
+        return true;
+    }
+
+    private static bool TryHandleEndIfDirective(Stack<IfBlockState> stack, ref int inactiveDepth, out string? error)
+    {
+        error = null;
+        if (stack.Count == 0)
+        {
+            error = "ENDIF に対応する IF が見つかりません。";
+            return false;
+        }
+
+        var frame = stack.Pop();
+        if (!frame.Executing && inactiveDepth > 0)
+        {
+            inactiveDepth--;
+        }
+        return true;
+    }
+
+    private static void UpdateIfExecutionState(ref IfBlockState frame, bool newExecuting, ref int inactiveDepth)
+    {
+        if (!frame.Executing && inactiveDepth > 0)
+        {
+            inactiveDepth--;
+        }
+        frame.Executing = newExecuting;
+        if (!frame.Executing)
+        {
+            inactiveDepth++;
+        }
+    }
+
+    internal static bool TryEvaluateCondition(string args, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, out bool result, out string? error)
+    {
+        result = false;
+        error = null;
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            error = "IF 条件を指定してください。";
+            return false;
+        }
+
+        if (!TryExpandVariables(args, variables, out var expanded, out var expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+
+        if (!TrySplitConditionTokens(expanded, out var tokens, out var splitError))
+        {
+            error = splitError;
+            return false;
+        }
+
+        if (tokens.Count != 3)
+        {
+            error = "IF 条件は「左辺 演算子 右辺」の形式で指定してください（空白を含む値は \"\" で囲んでください）。";
+            return false;
+        }
+
+        var left = tokens[0];
+        var op = tokens[1].Trim();
+        var right = tokens[2];
+        var opNormalized = op.ToUpperInvariant();
+
+        bool IsNumeric(string value, out long number) =>
+            long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number);
+
+        static bool CompareStrings(string l, string r) => string.Equals(l, r, StringComparison.Ordinal);
+
+        switch (opNormalized)
+        {
+            case "==":
+            case "=":
+                if (IsNumeric(left, out var eqLeft) && IsNumeric(right, out var eqRight))
+                {
+                    result = eqLeft == eqRight;
+                    return true;
+                }
+                result = CompareStrings(left, right);
+                return true;
+            case "!=":
+                if (IsNumeric(left, out var neLeft) && IsNumeric(right, out var neRight))
+                {
+                    result = neLeft != neRight;
+                    return true;
+                }
+                result = !CompareStrings(left, right);
+                return true;
+            case ">":
+            case "<":
+            case ">=":
+            case "<=":
+                if (!IsNumeric(left, out var numLeft) || !IsNumeric(right, out var numRight))
+                {
+                    error = $"IF の演算子 \"{op}\" には整数を指定してください。";
+                    return false;
+                }
+                result = opNormalized switch
+                {
+                    ">" => numLeft > numRight,
+                    "<" => numLeft < numRight,
+                    ">=" => numLeft >= numRight,
+                    "<=" => numLeft <= numRight,
+                    _ => false
+                };
+                return true;
+            case "CONTAINS":
+            case "CONTAIN":
+                result = left.Contains(right, StringComparison.Ordinal);
+                return true;
+            case "NOTCONTAINS":
+                result = !left.Contains(right, StringComparison.Ordinal);
+                return true;
+            case "STARTSWITH":
+            case "SW":
+                result = left.StartsWith(right, StringComparison.Ordinal);
+                return true;
+            case "ENDSWITH":
+            case "EW":
+                result = left.EndsWith(right, StringComparison.Ordinal);
+                return true;
+            default:
+                error = $"IF でサポートされていない演算子です: \"{op}\"";
+                return false;
+        }
+    }
+
+    private static bool TrySplitConditionTokens(string input, out List<string> tokens, out string? error)
+    {
+        tokens = new List<string>(capacity: 3);
+        error = null;
+        int index = 0;
+        while (index < input.Length)
+        {
+            while (index < input.Length && char.IsWhiteSpace(input[index]))
+            {
+                index++;
+            }
+            if (index >= input.Length)
+            {
+                break;
+            }
+
+            if (!TryParseConditionToken(input, ref index, out var token, out error))
+            {
+                return false;
+            }
+            tokens.Add(token);
+        }
+
+        return true;
+    }
+
+    private static bool TryParseConditionToken(string input, ref int index, out string token, out string? error)
+    {
+        token = string.Empty;
+        error = null;
+        while (index < input.Length && char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        if (index >= input.Length)
+        {
+            error = "IF 条件が不完全です。";
+            return false;
+        }
+
+        if (input[index] != '"')
+        {
+            int start = index;
+            while (index < input.Length && !char.IsWhiteSpace(input[index]))
+            {
+                index++;
+            }
+            token = input[start..index];
+            return true;
+        }
+
+        index++;
+        var sb = new StringBuilder();
+        bool closed = false;
+        while (index < input.Length)
+        {
+            char ch = input[index++];
+            if (ch == '\\' && index < input.Length)
+            {
+                char escape = input[index++];
+                sb.Append(escape switch
+                {
+                    '\\' => '\\',
+                    '"' => '"',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    _ => escape
+                });
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                closed = true;
+                break;
+            }
+
+            sb.Append(ch);
+        }
+
+        if (!closed)
+        {
+            error = "IF 条件の引用符が閉じられていません。";
+            return false;
+        }
+
+        token = sb.ToString();
+        return true;
+    }
+
     private const int ClipboardVariableLimit = 20;
 
-    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot)
+    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null)
     {
         var rawText = snapshot.RawText?.Trim() ?? string.Empty;
         var latestEntries = snapshot.LatestEntries ?? Array.Empty<string>();
         var historyEntries = snapshot.Entries ?? Array.Empty<string>();
+        var dropEntries = droppedPaths ?? Array.Empty<string>();
 
         return (string token, out string value, out string? error) =>
         {
@@ -892,11 +1226,71 @@ public sealed class KeyboardMacroService : IDisposable
                 return TryResolveClipboardHistory(suffix, historyEntries, out value, out error);
             }
 
+            if (string.Equals(token, "drop_args", StringComparison.OrdinalIgnoreCase))
+            {
+                value = BuildDropArgs(dropEntries);
+                return true;
+            }
+
+            if (string.Equals(token, "drop_count", StringComparison.OrdinalIgnoreCase))
+            {
+                value = dropEntries.Count.ToString(CultureInfo.InvariantCulture);
+                return true;
+            }
+
+            if (token.StartsWith("drop_path", StringComparison.OrdinalIgnoreCase))
+            {
+                if (dropEntries.Count == 0)
+                {
+                    value = string.Empty;
+                    return true;
+                }
+
+                if (token.Length == "drop_path".Length)
+                {
+                    value = dropEntries[0];
+                    return true;
+                }
+
+                if (!token.StartsWith("drop_path:", StringComparison.OrdinalIgnoreCase))
+                {
+                    error = $"drop_path の指定が不正です: \"{token}\"";
+                    value = string.Empty;
+                    return true;
+                }
+
+                var indexToken = token["drop_path:".Length..];
+                if (!int.TryParse(indexToken, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
+                {
+                    error = $"drop_path のインデックスが不正です: \"{indexToken}\"";
+                    value = string.Empty;
+                    return true;
+                }
+
+                if (index <= 0)
+                {
+                    error = "drop_path のインデックスは 1 以上を指定してください。";
+                    value = string.Empty;
+                    return true;
+                }
+
+                var zeroBased = index - 1;
+                if (zeroBased < 0 || zeroBased >= dropEntries.Count)
+                {
+                    value = string.Empty;
+                    return true;
+                }
+
+                value = dropEntries[zeroBased];
+                return true;
+            }
+
             return false;
         };
     }
 
-    internal static SpecialVariableResolver CreateSpecialVariableResolverForTesting(ClipboardSnapshot snapshot) => CreateSpecialVariableResolver(snapshot);
+    internal static SpecialVariableResolver CreateSpecialVariableResolverForTesting(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null) =>
+        CreateSpecialVariableResolver(snapshot, droppedPaths);
 
     private static bool TryResolveClipboardHistory(string suffix, IReadOnlyList<string> entries, out string value, out string? error)
     {
@@ -935,7 +1329,44 @@ public sealed class KeyboardMacroService : IDisposable
         return string.Join(Environment.NewLine, entries);
     }
 
+    private static string BuildDropArgs(IReadOnlyList<string> entries)
+    {
+        if (entries.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(" ", entries.Select(QuoteArgumentPath));
+    }
+
+    private static string QuoteArgumentPath(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return "\"\"";
+        }
+
+        bool alreadyQuoted = path.Length >= 2 &&
+                             path.StartsWith("\"", StringComparison.Ordinal) &&
+                             path.EndsWith("\"", StringComparison.Ordinal);
+        bool needsQuoting = path.Any(char.IsWhiteSpace);
+        if (needsQuoting && !alreadyQuoted)
+        {
+            return $"\"{path}\"";
+        }
+
+        return path;
+    }
+
     internal delegate bool SpecialVariableResolver(string token, out string value, out string? error);
+
+    private struct IfBlockState
+    {
+        public bool ParentActive;
+        public bool ConditionResult;
+        public bool Executing;
+        public bool ElseEncountered;
+    }
 
     internal static bool TryExpandVariables(string input, IReadOnlyDictionary<string, string> variables, out string result, out string? error, SpecialVariableResolver? specialResolver = null)
     {

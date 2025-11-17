@@ -28,6 +28,7 @@
 
 ### Step 3: 実行してみる
 - ファイル/フォルダをスロットへドラッグ＆ドロップ → `{args}` を展開したコマンドが実行されます。  
+- Macro Script 拡張モードでマクロ＋コマンドを両方登録しているスロットにドロップした場合は、まずマクロが実行され (`{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` でドロップしたパスを参照可能)、そのマクロ内で `COMMAND` を呼ぶことで加工後の引数を登録コマンドへ受け渡せます。  
 - スロットクリックでも同じ動作。Command モードならマクロ実行中でも並列で起動できます。  
 - `DropSendTo.exe "<path>"` のように CLI 引数を渡すと、現在レイヤーで最初に登録されているスロットが自動で処理します。
 
@@ -73,6 +74,8 @@
 - `{clipboard}`: 最新クリップボード文字列  
 - `{clipboard_args}` / `{clipboard_args:n}`: クリップボード内のパスを引用付きで展開  
 - `{clipboard:n}`: 直近 n 行をそのまま展開
+- Macro Script 拡張モードのスロットへドロップした場合はマクロ内から `{{drop_args}}`（コマンド引数形式で連結）、`{{drop_count}}`（件数）、`{{drop_path}}` または `{{drop_path:n}}`（1=先頭）で個別パスを参照でき、`COMMAND "{{drop_path:1}}_processed"` のように加工して登録コマンドへ渡せます。
+- `IF <左辺> <演算子> <右辺>` / `ELSE` / `ENDIF` で条件分岐を記述できます。演算子は `==`/`!=`/`>`/`>=`/`<`/`<=`（整数比較）と `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH`（文字列比較）をサポートし、空白を含む値は `""` で囲んでください。親が偽のときは内側の `IF` 条件式を評価しないため、未定義変数を参照しても安全です。
 
 ### 2.4 Macro Script クイックリファレンス
 | コマンド | 説明 | 例 |
@@ -87,6 +90,9 @@
 | `REPLACE <変数> "検索" "置換"` | 変数内文字列を空白含め置換（`""` で削除） | `REPLACE Body " " "_"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
+| `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |
+| `IF <左> <演算子> <右>` | 条件分岐（`ELSE`/`ENDIF` と組み合わせ） | `IF {{Count}} >= 10` |
+| `ELSE` / `ENDIF` | `IF` ブロックの分岐・終了 | `ELSE` → `COMMAND "fallback"` |
 | `PREFIX ARM/SEND/PASSTHROUGH` | Prefix 状態の制御と送出 | `PREFIX ARM` |
 
 #### サンプル 1: クリップボードを検索サイトへ投げる

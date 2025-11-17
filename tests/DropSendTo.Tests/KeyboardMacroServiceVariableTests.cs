@@ -283,6 +283,39 @@ public class KeyboardMacroServiceVariableTests
     }
 
     [Fact]
+    public void TryExpandVariables_ShouldResolveDropVariables()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var dropPaths = new[] { @"C:\Data\file one.txt", @"D:\Second.bin" };
+        var resolver = KeyboardMacroService.CreateSpecialVariableResolverForTesting(ClipboardSnapshot.Empty, dropPaths);
+
+        var okArgs = KeyboardMacroService.TryExpandVariables("{{drop_args}}", variables, out var joined, out var argsError, resolver);
+        okArgs.Should().BeTrue();
+        argsError.Should().BeNull();
+        joined.Should().Be("\"C:\\Data\\file one.txt\" D:\\Second.bin");
+
+        var okCount = KeyboardMacroService.TryExpandVariables("{{drop_count}}", variables, out var count, out var countError, resolver);
+        okCount.Should().BeTrue();
+        countError.Should().BeNull();
+        count.Should().Be("2");
+
+        var okFirst = KeyboardMacroService.TryExpandVariables("{{drop_path}}", variables, out var first, out var firstError, resolver);
+        okFirst.Should().BeTrue();
+        firstError.Should().BeNull();
+        first.Should().Be(@"C:\Data\file one.txt");
+
+        var okSecond = KeyboardMacroService.TryExpandVariables("{{drop_path:2}}", variables, out var second, out var secondError, resolver);
+        okSecond.Should().BeTrue();
+        secondError.Should().BeNull();
+        second.Should().Be(@"D:\Second.bin");
+
+        var okInvalid = KeyboardMacroService.TryExpandVariables("{{drop_path:abc}}", variables, out _, out var invalidError, resolver);
+        okInvalid.Should().BeFalse();
+        invalidError.Should().NotBeNull();
+        invalidError.Should().Contain("drop_path");
+    }
+
+    [Fact]
     public void TryExpandVariables_ShouldReportError_OnInvalidClipboardSpecifier()
     {
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -314,5 +347,62 @@ public class KeyboardMacroServiceVariableTests
         result.Should().Be(199);
         variables.Should().ContainKey("PosX").WhoseValue.Should().Be("199");
         error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryEvaluateCondition_ShouldCompareStrings()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Mode"] = "Admin"
+        };
+
+        var ok = KeyboardMacroService.TryEvaluateCondition("{{Mode}} == Admin", variables, null, out var result, out var error);
+
+        ok.Should().BeTrue();
+        result.Should().BeTrue();
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryEvaluateCondition_ShouldCompareNumbers()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Count"] = "10"
+        };
+
+        var ok = KeyboardMacroService.TryEvaluateCondition("{{Count}} >= 5", variables, null, out var result, out var error);
+
+        ok.Should().BeTrue();
+        result.Should().BeTrue();
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryEvaluateCondition_ShouldSupportContains()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var ok = KeyboardMacroService.TryEvaluateCondition("\"Hello World\" CONTAINS \"World\"", variables, null, out var result, out var error);
+
+        ok.Should().BeTrue();
+        result.Should().BeTrue();
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryEvaluateCondition_ShouldFail_OnUnknownOperator()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Flag"] = "1"
+        };
+
+        var ok = KeyboardMacroService.TryEvaluateCondition("{{Flag}} ??? 1", variables, null, out _, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("演算子");
     }
 }

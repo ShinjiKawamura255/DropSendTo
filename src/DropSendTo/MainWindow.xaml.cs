@@ -1111,7 +1111,8 @@ public partial class MainWindow : Window
     private enum SlotTriggerSource
     {
         Mouse,
-        Shortcut
+        Shortcut,
+        Drop
     }
 
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
@@ -1683,6 +1684,15 @@ public partial class MainWindow : Window
                 WpfMessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            bool shouldInvokeMacro = mode == SlotExecutionMode.MacroScriptExtended &&
+                                     !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
+            if (shouldInvokeMacro)
+            {
+                _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerSource.Drop, paths);
+                e.Handled = true;
+                return;
+            }
+
             var result = _launcher.Launch(slot, paths);
             if (!result.Success)
             {
@@ -2389,7 +2399,7 @@ public partial class MainWindow : Window
         TryBeginSlotLayoutDrag(sender as FrameworkElement);
     }
 
-    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source)
+    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source, IReadOnlyList<string>? droppedPaths = null)
     {
         if (slotIndex < 0 || slotIndex >= _slotVisuals.Count) return;
         var layer = _config.Layers[layerIndex];
@@ -2401,6 +2411,13 @@ public partial class MainWindow : Window
         {
             slotTitle = "(untitled)";
         }
+        var dropPathArray = droppedPaths switch
+        {
+            null => null,
+            string[] existing => existing,
+            _ => droppedPaths.ToArray()
+        };
+        var dropPathsOrEmpty = dropPathArray ?? Array.Empty<string>();
         var mode = slot.ExecutionMode;
         var script = slot.KeyboardMacroScript ?? string.Empty;
         var macroConfigured = !string.IsNullOrWhiteSpace(script);
@@ -2485,7 +2502,7 @@ public partial class MainWindow : Window
                 SlotExecutionMode.MacroScriptExtended,
                 overrideArgs =>
                 {
-                    var launchResult = _launcher.Launch(slot, Array.Empty<string>(), overrideArgs);
+                    var launchResult = _launcher.Launch(slot, dropPathsOrEmpty, overrideArgs);
                     if (!launchResult.Success)
                     {
                         _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {launchResult.Message}");
@@ -2493,7 +2510,8 @@ public partial class MainWindow : Window
                     return launchResult;
                 },
                 contextTitle,
-                slot.Command ?? string.Empty);
+                slot.Command ?? string.Empty,
+                dropPathsOrEmpty);
         }
 
         if (shouldRunMacro)
@@ -2535,7 +2553,7 @@ public partial class MainWindow : Window
         if (mode == SlotExecutionMode.Command && commandConfigured)
         {
             _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
-            var result = _launcher.Launch(slot, Array.Empty<string>());
+            var result = _launcher.Launch(slot, dropPathsOrEmpty);
             if (!result.Success)
             {
                 _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {result.Message}");

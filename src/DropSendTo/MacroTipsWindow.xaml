@@ -48,7 +48,19 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="APPEND/PREPEND &lt;名前&gt; &lt;文字列&gt; : 前後に文字列を結合 (例: APPEND Message !)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPLACE &lt;名前&gt; &quot;検索&quot; &quot;置換&quot; : 文字列をまとめて置換（空文字列を指定すると削除）" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="プレースホルダー {{名前}}   : 任意のコマンドで値を展開 (例: TEXT Hello {{UserName}})" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ドロップ引数 {{drop_args}} / {{drop_count}} : Macro Script 拡張でパスをドロップした時の引数/件数を参照 (例: COMMAND {{drop_args}})" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ドロップパス {{drop_path}} / {{drop_path:n}} : 先頭または n 番目(1〜)のパスを取得 (例: SET First {{drop_path:1}})" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="変数名は英数字と「_」のみ。先頭は文字か「_」を指定してください。" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="条件分岐" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
+                <Border Background="#1E1E1E" CornerRadius="4" Padding="8" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="IF &lt;左辺&gt; &lt;演算子&gt; &lt;右辺&gt; : 例) IF {{Mode}} == Admin" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ELSE / ENDIF              : IF ブロックの分岐と終了" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="演算子: ==, !=, &gt;, &gt;=, &lt;, &lt;=, CONTAINS, NOTCONTAINS, STARTSWITH, ENDSWITH" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="空白を含む値は &quot;&quot; で囲んでください（例: IF &quot;Hello World&quot; CONTAINS &quot;World&quot;）" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
