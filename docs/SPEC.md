@@ -72,6 +72,7 @@
 - MUST: `UNSET <名前>` は変数を削除し、未定義の名前が指定されてもエラーとはせず実行ログに通知を残す。
 - MUST: `ADD`/`SUB`/`MUL`/`DIV <名前> <整数>` は対象変数を 64bit 整数として読み出し、指定した整数を加算・減算・乗算・除算する。`DIV` の除数に 0 は指定できず、演算結果が範囲外の場合はエラーとする。
 - MUST: `APPEND`/`PREPEND <名前> <値>` は対象変数に文字列を末尾/先頭へ結合する。変数が未定義の場合は空文字列として扱う。
+- MUST: `REPLACE <名前> "検索" "置換"` は対象変数の文字列から検索文字列と一致する部分を全て Ordinal で置換し、検索文字列は空を許容しない。置換文字列には空文字列（削除）と `\"`/`\\` などエスケープシーケンスを使用でき、検索/置換の両引数は変数展開が可能とする。
 - MUST: 任意のコマンド引数内で `{{名前}}` を使用すると変数を展開し、未定義または閉じ括弧の欠落はマクロ失敗として扱う。展開後の文字列は既存コマンドの書式に従い検証する。
 - MUST: `MOUSEMOVEABS <X> <Y>` は仮想スクリーン座標（ピクセル）を絶対移動として送出し、範囲外指定は仮想スクリーン内へクランプする。引数として `WIN_TOPLEFT` / `WIN_TOPCENTER` / `WIN_TOPRIGHT` / `WIN_LEFTCENTER` / `WIN_RIGHTCENTER` / `WIN_BOTTOMLEFT` / `WIN_BOTTOMCENTER` / `WIN_BOTTOMRIGHT` / `WIN_CENTER` のいずれか 1 個を指定した場合は、その時点のアクティブウィンドウ境界から座標を算出する。`*_X` / `*_Y` サフィックスを付けた場合（例: `WIN_TOPLEFT_X`）は座標成分を整数として解決し、`SET` / `ADD` / `SUB` / `MUL` / `DIV` のオペランドや変数格納に利用できる。マクロ開始時点のカーソル座標は `CURSOR_START`（および `_X` / `_Y`）として参照でき、スクリプト実行中は変化してはならない。`MOUSEMOVEWIN <dX> <dY>` はアクティブウィンドウ左上からの相対座標を解決して絶対移動を送出する。`MOUSEMOVEREL <dX> <dY>` は現在位置からの相対移動を送出する。
 - MUST: `WIN_*` 予約語は `WIN_TOPLEFT` / `WIN_TOPCENTER`(=`WIN_TOPMIDDLE`) / `WIN_TOPRIGHT` / `WIN_LEFTCENTER`(=`WIN_LEFTMIDDLE`) / `WIN_RIGHTCENTER`(=`WIN_RIGHTMIDDLE`) / `WIN_BOTTOMLEFT` / `WIN_BOTTOMCENTER`(=`WIN_BOTTOMMIDDLE`) / `WIN_BOTTOMRIGHT` / `WIN_CENTER`(=`WIN_MIDDLE`=`WIN_MID`) のいずれかとし、他の組み合わせはエラーとする。
@@ -128,6 +129,7 @@
 - SP-004 → DES-002/004 → TC-020/021/025/080/087
 - SP-006 → DES-002/003 → TC-065/090
 - SP-007 → DES-005 → TC-030/095
+- SP-009 → DES-002/004 → TC-025/027/031
 - SP-010 → DES-002/003/005 → TC-035/068/085/086
 - SP-011 → DES-004 → TC-102/103/104
 - SP-012 → DES-002/003 → TC-071

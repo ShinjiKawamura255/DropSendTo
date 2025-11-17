@@ -115,6 +115,78 @@ public class KeyboardMacroServiceVariableTests
     }
 
     [Fact]
+    public void TryApplyReplaceDirective_ShouldReplaceAllOccurrences()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "alpha beta beta"
+        };
+
+        var ok = KeyboardMacroService.TryApplyReplaceDirective(
+            "REPLACE Body \"beta\" \"gamma\"",
+            variables,
+            out var name,
+            out var newValue,
+            out var error,
+            specialResolver: null,
+            out var replacements);
+
+        ok.Should().BeTrue();
+        name.Should().Be("Body");
+        newValue.Should().Be("alpha gamma gamma");
+        replacements.Should().Be(2);
+        variables.Should().ContainKey("Body").WhoseValue.Should().Be("alpha gamma gamma");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryApplyReplaceDirective_ShouldAllowDeletion()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "Hello  World"
+        };
+
+        var ok = KeyboardMacroService.TryApplyReplaceDirective(
+            "REPLACE Body \" \" \"\"",
+            variables,
+            out var name,
+            out var newValue,
+            out var error,
+            specialResolver: null,
+            out var replacements);
+
+        ok.Should().BeTrue();
+        name.Should().Be("Body");
+        newValue.Should().Be("HelloWorld");
+        replacements.Should().Be(2);
+        variables.Should().ContainKey("Body").WhoseValue.Should().Be("HelloWorld");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryApplyReplaceDirective_ShouldFail_OnEmptySearch()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "data"
+        };
+
+        var ok = KeyboardMacroService.TryApplyReplaceDirective(
+            "REPLACE Body \"\" \"x\"",
+            variables,
+            out _,
+            out _,
+            out var error,
+            specialResolver: null,
+            out _);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("検索文字列");
+    }
+
+    [Fact]
     public void TryExpandVariables_ShouldFail_WhenVariableIsMissing()
     {
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

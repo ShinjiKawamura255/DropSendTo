@@ -84,6 +84,7 @@
 | `MOUSELEFTCLICK` など | マウスクリック/ホイール/移動一式 | `MOUSEMOVEABS WIN_CENTER` |
 | `SET/ADD/SUB/MUL/DIV <変数> <値>` | 64bit 整数の計算 | `SET Count 0` |
 | `APPEND/PREPEND` | 文字列を結合 | `APPEND Cmd " --flag"` |
+| `REPLACE <変数> "検索" "置換"` | 変数内文字列を空白含め置換（`""` で削除） | `REPLACE Body " " "_"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `PREFIX ARM/SEND/PASSTHROUGH` | Prefix 状態の制御と送出 | `PREFIX ARM` |

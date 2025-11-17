@@ -541,6 +541,19 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "REPLACE"))
+                {
+                    if (!TryApplyReplaceDirective(line, variables, out var replaceName, out var replaceValue, out var replaceError, specialResolver, out var replacements))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(replaceError ?? $"REPLACE コマンドの解釈に失敗しました: \"{line}\""));
+                    }
+                    if (!string.IsNullOrEmpty(replaceName))
+                    {
+                        _logger.Info($"Macro variable replace: {replaceName} (replaced {replacements} occurrence(s)) -> \"{TruncateForLog(replaceValue)}\"");
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "WAIT"))
                 {
                     var waitToken = line.Length > 4 ? line[4..].Trim() : string.Empty;
@@ -1240,6 +1253,128 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    internal static bool TryApplyReplaceDirective(
+        string line,
+        Dictionary<string, string> variables,
+        out string? name,
+        out string? newValue,
+        out string? error,
+        SpecialVariableResolver? specialResolver,
+        out int replacements)
+    {
+        name = null;
+        newValue = null;
+        error = null;
+        replacements = 0;
+
+        var command = ExtractCommandName(line);
+        if (!string.Equals(command, "REPLACE", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "未知の REPLACE コマンドです。";
+            return false;
+        }
+
+        var content = line.Length > command.Length ? line[command.Length..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = "REPLACE には変数名と検索/置換文字列を指定してください。";
+            return false;
+        }
+
+        var firstSpace = FindFirstWhitespace(content);
+        if (firstSpace < 0)
+        {
+            error = "REPLACE には変数名に続いて検索文字列と置換文字列を指定してください。";
+            return false;
+        }
+
+        var nameToken = content[..firstSpace];
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        if (!variables.TryGetValue(nameToken, out var currentValue))
+        {
+            error = $"変数 \"{nameToken}\" は定義されていません。";
+            return false;
+        }
+        currentValue ??= string.Empty;
+
+        var operandText = content[(firstSpace + 1)..];
+        int argIndex = 0;
+        if (!TryParseQuotedArgument(operandText, ref argIndex, out var searchLiteral, out var quotedError))
+        {
+            error = quotedError ?? "REPLACE の検索文字列を \"\" で囲んでください。";
+            return false;
+        }
+
+        if (!TryParseQuotedArgument(operandText, ref argIndex, out var replaceLiteral, out quotedError))
+        {
+            error = quotedError ?? "REPLACE の置換文字列を \"\" で囲んでください。";
+            return false;
+        }
+
+        // Ensure残余 token only whitespace.
+        while (argIndex < operandText.Length)
+        {
+            if (!char.IsWhiteSpace(operandText[argIndex]))
+            {
+                error = "REPLACE の引数の後ろに余分な文字があります。";
+                return false;
+            }
+            argIndex++;
+        }
+
+        if (!TryExpandVariables(searchLiteral, variables, out var expandedSearch, out var expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+        if (string.IsNullOrEmpty(expandedSearch))
+        {
+            error = "REPLACE の検索文字列を空にすることはできません。";
+            return false;
+        }
+
+        if (!TryExpandVariables(replaceLiteral, variables, out var expandedReplace, out expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+        expandedReplace ??= string.Empty;
+
+        var builder = new StringBuilder();
+        int cursor = 0;
+        while (true)
+        {
+            int hit = currentValue.IndexOf(expandedSearch, cursor, StringComparison.Ordinal);
+            if (hit < 0)
+            {
+                break;
+            }
+            replacements++;
+            builder.Append(currentValue, cursor, hit - cursor);
+            builder.Append(expandedReplace);
+            cursor = hit + expandedSearch.Length;
+        }
+
+        if (replacements == 0)
+        {
+            newValue = currentValue;
+        }
+        else
+        {
+            builder.Append(currentValue, cursor, currentValue.Length - cursor);
+            newValue = builder.ToString();
+            variables[nameToken] = newValue;
+        }
+
+        name = nameToken;
+        return true;
+    }
+
     private static int FindFirstWhitespace(string input)
     {
         for (int i = 0; i < input.Length; i++)
@@ -1250,6 +1385,67 @@ public sealed class KeyboardMacroService : IDisposable
             }
         }
         return -1;
+    }
+
+    private static bool TryParseQuotedArgument(string input, ref int index, out string value, out string? error)
+    {
+        value = string.Empty;
+        error = null;
+        if (input == null)
+        {
+            error = "引数が不足しています。";
+            return false;
+        }
+
+        while (index < input.Length && char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        if (index >= input.Length || input[index] != '"')
+        {
+            error = "REPLACE の引数は \"\" で囲んでください。";
+            return false;
+        }
+
+        index++; // skip opening quote
+        var sb = new StringBuilder();
+        bool closed = false;
+        while (index < input.Length)
+        {
+            char ch = input[index++];
+            if (ch == '\\' && index < input.Length)
+            {
+                char escape = input[index++];
+                sb.Append(escape switch
+                {
+                    '\\' => '\\',
+                    '"' => '"',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    _ => escape
+                });
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                closed = true;
+                break;
+            }
+
+            sb.Append(ch);
+        }
+
+        if (!closed)
+        {
+            error = "REPLACE の引数が閉じられていません。";
+            return false;
+        }
+
+        value = sb.ToString();
+        return true;
     }
 
     private static string ExtractCommandName(string line)

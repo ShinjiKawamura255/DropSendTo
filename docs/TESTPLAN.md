@@ -19,6 +19,7 @@
 - TC-028 MacroScriptExtended: Macro Script 拡張モードでマクロが実行され、`COMMAND` 命令から登録済みコマンドが呼び出される。引数省略時はスロットの引数テンプレートが展開され、引数を指定した場合は変数展開後の文字列がそのまま渡される。
 - TC-029 MacroCommandValidation: `COMMAND` 命令を Macro Script 拡張モード以外で使用するとエラーとなり、ログに失敗理由が出力される。
 - TC-030 Errors: 実行不可パスやマクロエラーでメッセージが表示され、ログに ERROR が残る。
+- TC-031 MacroReplace: `REPLACE` コマンドで `{clipboard}` を変数へ取り込み、半角空白や特定文字列を `""` や別文字列へ置換できる。検索文字列が空のときはエラーになる。
 - TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。
 - TC-040 UiTheme: 常時最前面が既定で ON、黒基調・半透明・角丸・ボタンスタイルが維持される。
 - TC-045 AlwaysOnTopToggle: メニューから常時最前面を切り替え、設定保存後も状態が復元される。

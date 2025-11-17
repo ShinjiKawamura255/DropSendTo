@@ -46,6 +46,7 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="UNSET &lt;名前&gt;              : 変数を削除 (例: UNSET UserName)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ADD/SUB/MUL/DIV &lt;名前&gt; &lt;整数&gt; : 変数を整数として四則演算 (例: ADD Counter 1)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="APPEND/PREPEND &lt;名前&gt; &lt;文字列&gt; : 前後に文字列を結合 (例: APPEND Message !)" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPLACE &lt;名前&gt; &quot;検索&quot; &quot;置換&quot; : 文字列をまとめて置換（空文字列を指定すると削除）" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="プレースホルダー {{名前}}   : 任意のコマンドで値を展開 (例: TEXT Hello {{UserName}})" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="変数名は英数字と「_」のみ。先頭は文字か「_」を指定してください。" TextWrapping="Wrap"/>
                     </StackPanel>
@@ -129,6 +130,11 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ADD BaseX 120" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ADD BaseY 60" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEABS {{BaseX}} {{BaseY}}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# クリップボードから空白を削除する例" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="SET Body {{clipboard}}" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPLACE Body &quot; &quot; &quot;&quot;" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="TEXT {{Body}}" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# REPEAT ブロックの例" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT 3" TextWrapping="Wrap"/>
