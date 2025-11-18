@@ -55,13 +55,16 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="条件分岐" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
+                <TextBlock Text="フロー制御 / Prefix" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
                 <Border Background="#1E1E1E" CornerRadius="4" Padding="8" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="IF &lt;左辺&gt; &lt;演算子&gt; &lt;右辺&gt; : 例) IF {{Mode}} == Admin" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ELSEIF &lt;条件&gt; / ELSE IF &lt;条件&gt; : 追加条件ブロック（前段が偽のときのみ評価）" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ELSE / ENDIF              : IF ブロックの分岐と終了" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="演算子: ==, !=, &gt;, &gt;=, &lt;, &lt;=, CONTAINS, NOTCONTAINS, STARTSWITH, ENDSWITH" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5) - 単独で 1 行に記述" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND [引数]         : Macro Script 拡張モード専用。引数省略でテンプレートを展開、指定時は変数展開後の文字列をそのまま渡す" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="IF / ELSEIF / ELSE / ENDIF : 条件分岐。演算子は ==, !=, &gt;, &gt;=, &lt;, &lt;=, CONTAINS, NOTCONTAINS, STARTSWITH, ENDSWITH をサポート" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="空白を含む値は &quot;&quot; で囲んでください（例: IF &quot;Hello World&quot; CONTAINS &quot;World&quot;）" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
@@ -74,12 +77,6 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="KEYUP &lt;キー&gt;          : 離す (例: KEYUP Ctrl)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="TEXT &lt;文字列&gt;         : Unicode 文字列を送信" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="CLIPTEXT &lt;文字列&gt;      : 文字列をクリップボードに設定→自動で Ctrl+V" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND [引数]         : Macro Script 拡張モード専用。引数省略でテンプレートを展開、指定時は変数展開後の文字列をそのまま渡す" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5) - 単独で 1 行に記述" TextWrapping="Wrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
