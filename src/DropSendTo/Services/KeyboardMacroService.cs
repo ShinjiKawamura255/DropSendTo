@@ -120,6 +120,54 @@ public sealed class KeyboardMacroService : IDisposable
         return waitTask.WaitAsync(cancellationToken);
     }
 
+    public static bool TryValidateScript(string? script, SlotExecutionMode mode, out string? error)
+    {
+        using var service = new KeyboardMacroService();
+        return service.TryValidateScriptInternal(script, mode, out error);
+    }
+
+    private bool TryValidateScriptInternal(string? script, SlotExecutionMode mode, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return true;
+        }
+
+        bool lockTaken = false;
+        var session = new MacroExecutionSession(_macroLock);
+        try
+        {
+            _macroLock.Wait();
+            lockTaken = true;
+            session.MarkLockHeld();
+            MacroExecutionContext? context = mode == SlotExecutionMode.MacroScriptExtended
+                ? new MacroExecutionContext(mode, _ => LaunchResult.Ok(), "(Validation)", string.Empty)
+                : null;
+
+            var result = RunMacroInternal(script, context, CancellationToken.None, session, validateOnly: true);
+            if (!result.Success)
+            {
+                error = string.IsNullOrWhiteSpace(result.Message)
+                    ? "マクロの構文に誤りがあります。"
+                    : result.Message;
+            }
+            if (session.LockHeld)
+            {
+                _macroLock.Release();
+                lockTaken = false;
+            }
+            return result.Success;
+        }
+        finally
+        {
+            if (lockTaken)
+            {
+                _macroLock.Release();
+            }
+        }
+    }
+
     public async Task<bool> CancelAllRunningMacrosAsync(CancellationToken cancellationToken)
     {
         bool issued = false;
@@ -331,7 +379,7 @@ public sealed class KeyboardMacroService : IDisposable
             try
             {
                 _logger.Info($"Macro execution started (length={scriptToRun.Length} chars).");
-                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token, session), linkedCts.Token).ConfigureAwait(false);
+                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token, session, validateOnly: false), linkedCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -384,7 +432,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session)
+    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session, bool validateOnly)
     {
         ThrowIfPausedOrCanceled(session, cancellationToken);
         IntPtr target = ResolveTargetWindow();
@@ -414,13 +462,17 @@ public sealed class KeyboardMacroService : IDisposable
             {
                 buffer.Clear();
             }
+            else if (validateOnly)
+            {
+                buffer.Clear();
+            }
 
             if (keyTracker.HasHeldKeys)
             {
                 keyTracker.ReleaseAll(buffer);
             }
 
-            if (!TryFlushInputs(buffer, out var finalError))
+            if (!TryFlushInputsSafe(buffer, validateOnly, out var finalError))
             {
                 if (result.Success)
                 {
@@ -428,7 +480,7 @@ public sealed class KeyboardMacroService : IDisposable
                 }
             }
 
-            if (prefixArmRequested && _prefixResetAction != null)
+            if (!validateOnly && prefixArmRequested && _prefixResetAction != null)
             {
                 bool wasArmed = false;
                 try
@@ -465,7 +517,7 @@ public sealed class KeyboardMacroService : IDisposable
             var ifStack = new Stack<IfBlockState>();
             int inactiveIfDepth = 0;
 
-            if (targetAvailable)
+            if (targetAvailable && !validateOnly)
             {
                 if (!TryFocusTarget(target, out string? focusError))
                 {
@@ -635,11 +687,14 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail($"WAIT に指定できる時間は 0〜60000 ミリ秒です: \"{line}\""));
                     }
-                    if (!TryFlushInputs(buffer, out var flushError))
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushError ?? "SendInput の実行に失敗しました。"));
                     }
-                    DelayFor(waitMs, session, cancellationToken);
+                    if (!validateOnly)
+                    {
+                        DelayFor(waitMs, session, cancellationToken);
+                    }
                     continue;
                 }
 
@@ -675,7 +730,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                 if (StartsWithCommand(line, "COMMAND"))
                 {
-                    if (context?.CommandInvoker == null || context.SlotMode != SlotExecutionMode.MacroScriptExtended)
+                    if (context?.SlotMode != SlotExecutionMode.MacroScriptExtended)
                     {
                         return CompleteResult(MacroExecutionResult.Fail("COMMAND コマンドは Macro Script 拡張モードでのみ使用できます。"));
                     }
@@ -691,7 +746,12 @@ public sealed class KeyboardMacroService : IDisposable
                         overrideArguments = expandedPayload;
                     }
 
-                    if (!TryFlushInputs(buffer, out var flushBeforeCommandError))
+                    if (validateOnly)
+                    {
+                        continue;
+                    }
+
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushBeforeCommandError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushBeforeCommandError ?? "SendInput の実行に失敗しました。"));
                     }
@@ -699,7 +759,7 @@ public sealed class KeyboardMacroService : IDisposable
                     LaunchResult launchResult;
                     try
                     {
-                        launchResult = context.CommandInvoker(overrideArguments);
+                        launchResult = context.CommandInvoker?.Invoke(overrideArguments) ?? LaunchResult.Fail("COMMAND invoker is not available.");
                     }
                     catch (Exception ex)
                     {
@@ -737,11 +797,11 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail(textExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
-                    if (!TryFlushInputs(buffer, out var flushBeforeTextError))
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushBeforeTextError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushBeforeTextError ?? "SendInput の実行に失敗しました。"));
                     }
-                    if (!TrySendUnicodeText(expandedText, session, cancellationToken, out var textError))
+                    if (!validateOnly && !TrySendUnicodeText(expandedText, session, cancellationToken, out var textError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(textError ?? "TEXT コマンドの送信に失敗しました。"));
                     }
@@ -755,23 +815,26 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         return CompleteResult(MacroExecutionResult.Fail(clipExpandError ?? $"変数の解決に失敗しました: \"{line}\""));
                     }
-                    if (!TryFlushInputs(buffer, out var flushBeforeClipError))
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushBeforeClipError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushBeforeClipError ?? "SendInput の実行に失敗しました。"));
                     }
-                    if (!TrySetClipboardText(clipText, out var clipboardError))
+                    if (!validateOnly && !TrySetClipboardText(clipText, out var clipboardError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(clipboardError ?? "クリップボード操作に失敗しました。"));
                     }
-                    if (!TryAppendCombination("CTRL+V", buffer, InputExtraInfo.MacroPassthroughPointer, out var pasteError))
+                    if (!validateOnly && !TryAppendCombination("CTRL+V", buffer, InputExtraInfo.MacroPassthroughPointer, out var pasteError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(pasteError ?? "Ctrl+V の送信に失敗しました。"));
                     }
-                    if (!TryFlushInputs(buffer, out var flushAfterClipError))
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushAfterClipError))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(flushAfterClipError ?? "SendInput の実行に失敗しました。"));
                     }
-                    DelayFor(ClipTextAutoWaitMilliseconds, session, cancellationToken);
+                    if (!validateOnly)
+                    {
+                        DelayFor(ClipTextAutoWaitMilliseconds, session, cancellationToken);
+                    }
                     continue;
                 }
 
@@ -2245,6 +2308,18 @@ public sealed class KeyboardMacroService : IDisposable
         {
             return false;
         }
+        return TryFlushInputs(buffer, out error);
+    }
+
+    private bool TryFlushInputsSafe(List<INPUT> buffer, bool validateOnly, out string? error)
+    {
+        if (validateOnly)
+        {
+            buffer.Clear();
+            error = null;
+            return true;
+        }
+
         return TryFlushInputs(buffer, out error);
     }
 

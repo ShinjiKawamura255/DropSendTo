@@ -138,6 +138,12 @@ public partial class RegisterDialog : Window
                 WpfMessageBox.Show(message, "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
+            if (!KeyboardMacroService.TryValidateScript(formattedMacro, mode, out var macroError))
+            {
+                WpfMessageBox.Show(macroError ?? "Macro Script の構文が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
         }
         else
         {
