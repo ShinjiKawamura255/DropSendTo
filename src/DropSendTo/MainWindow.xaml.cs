@@ -1561,12 +1561,25 @@ public partial class MainWindow : Window
     private List<SlotSelectionOption> GetEmptySlotOptions()
     {
         var options = new List<SlotSelectionOption>();
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return options;
+        }
+
+        int visibleSlots = Math.Max(0, _config.SlotRows * _config.SlotColumns);
+        if (visibleSlots == 0)
+        {
+            return options;
+        }
+
         for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
         {
             var layer = _config.Layers[layerIndex];
-            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            var slots = layer.Slots ??= new List<SlotModel>();
+            int maxIndex = Math.Min(visibleSlots, slots.Count);
+            for (int slotIndex = 0; slotIndex < maxIndex; slotIndex++)
             {
-                if (IsSlotEmpty(layer.Slots[slotIndex]))
+                if (IsSlotEmpty(slots[slotIndex]))
                 {
                     options.Add(new SlotSelectionOption(layerIndex, slotIndex, FormatSlotDisplayName(layerIndex, slotIndex)));
                 }

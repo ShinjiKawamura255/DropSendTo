@@ -16,6 +16,7 @@
 - MUST: ショートカット欄は `Ctrl+Shift+1` など KeyChordParser 書式を受け付け、保存時は正規化表記（例: `Ctrl+Shift+1`）へ整形する。不正書式は保存できない。
 - MUST: Browse ボタンで Windows ファイル選択ダイアログを開き、選択したファイル名をタイトルへ自動反映する。
 - MUST: Clear 選択時は現在設定が存在する場合に確認ダイアログを表示し、初期状態へ戻す。
+- MUST: Copy to/Move to ダイアログでは、現在の行列設定 (`SlotRows` x `SlotColumns`) 内に表示される空スロットのみを候補として列挙し、表示外スロットや現在使用中のスロットは選択できない。
 - SHOULD: 引数テンプレートは `{args}` プレースホルダを含み、未設定時は既定値 `{args}` を採用する。
 
 ## SP-003 Layer Control
