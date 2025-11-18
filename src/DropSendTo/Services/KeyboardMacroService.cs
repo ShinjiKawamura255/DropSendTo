@@ -494,6 +494,15 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (TryParseElseIfCondition(line, out var elseIfCondition))
+                {
+                    if (!TryHandleElseIfDirective(elseIfCondition, variables, specialResolver, ifStack, ref inactiveIfDepth, out var elseIfError))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(elseIfError ?? $"ELSEIF 条件の解釈に失敗しました: \"{line}\""));
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "ELSE"))
                 {
                     var trailing = line.Length > 4 ? line[4..].Trim() : string.Empty;
@@ -932,16 +941,88 @@ public sealed class KeyboardMacroService : IDisposable
             }
         }
 
+        var executing = parentActive && conditionResult;
         var frame = new IfBlockState
         {
             ParentActive = parentActive,
-            ConditionResult = conditionResult,
-            Executing = parentActive && conditionResult,
-            ElseEncountered = false
+            Executing = executing,
+            ElseEncountered = false,
+            HasMatchedBranch = executing
         };
-        if (!frame.Executing)
+        if (!executing)
         {
             inactiveDepth++;
+        }
+        stack.Push(frame);
+        return true;
+    }
+
+    private static bool TryParseElseIfCondition(string line, out string condition)
+    {
+        if (StartsWithCommand(line, "ELSEIF"))
+        {
+            condition = line.Length > 6 ? line[6..].Trim() : string.Empty;
+            return true;
+        }
+
+        if (StartsWithCommand(line, "ELSE"))
+        {
+            var remainder = line.Length > 4 ? line[4..] : string.Empty;
+            var trimmed = remainder.TrimStart();
+            if (StartsWithCommand(trimmed, "IF"))
+            {
+                condition = trimmed.Length > 2 ? trimmed[2..].Trim() : string.Empty;
+                return true;
+            }
+        }
+
+        condition = string.Empty;
+        return false;
+    }
+
+    private static bool TryHandleElseIfDirective(
+        string args,
+        Dictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        Stack<IfBlockState> stack,
+        ref int inactiveDepth,
+        out string? error)
+    {
+        error = null;
+        if (stack.Count == 0)
+        {
+            error = "ELSEIF に対応する IF が見つかりません。";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            error = "ELSEIF 条件を指定してください。";
+            return false;
+        }
+
+        var frame = stack.Pop();
+        if (frame.ElseEncountered)
+        {
+            error = "ELSE の後に ELSEIF は使用できません。";
+            return false;
+        }
+
+        bool evaluateCondition = frame.ParentActive && !frame.HasMatchedBranch;
+        bool conditionResult = false;
+        if (evaluateCondition)
+        {
+            if (!TryEvaluateCondition(args, variables, specialResolver, out conditionResult, out error))
+            {
+                return false;
+            }
+        }
+
+        bool newExecuting = evaluateCondition && conditionResult;
+        UpdateIfExecutionState(ref frame, newExecuting, ref inactiveDepth);
+        if (newExecuting)
+        {
+            frame.HasMatchedBranch = true;
         }
         stack.Push(frame);
         return true;
@@ -963,8 +1044,12 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
-        bool newExecuting = frame.ParentActive && !frame.ConditionResult;
+        bool newExecuting = frame.ParentActive && !frame.HasMatchedBranch;
         UpdateIfExecutionState(ref frame, newExecuting, ref inactiveDepth);
+        if (newExecuting)
+        {
+            frame.HasMatchedBranch = true;
+        }
         frame.ElseEncountered = true;
         stack.Push(frame);
         return true;
@@ -1363,9 +1448,9 @@ public sealed class KeyboardMacroService : IDisposable
     private struct IfBlockState
     {
         public bool ParentActive;
-        public bool ConditionResult;
         public bool Executing;
         public bool ElseEncountered;
+        public bool HasMatchedBranch;
     }
 
     internal static bool TryExpandVariables(string input, IReadOnlyDictionary<string, string> variables, out string result, out string? error, SpecialVariableResolver? specialResolver = null)

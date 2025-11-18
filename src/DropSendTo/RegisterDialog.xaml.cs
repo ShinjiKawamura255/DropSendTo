@@ -536,7 +536,8 @@ public partial class RegisterDialog : Window
 
         return StartsWithDirective(trimmedLine, "ENDREPEAT")
             || StartsWithDirective(trimmedLine, "ENDIF")
-            || StartsWithDirective(trimmedLine, "ELSE");
+            || StartsWithDirective(trimmedLine, "ELSE")
+            || StartsWithDirective(trimmedLine, "ELSEIF");
     }
 
     private static bool StartsWithDirective(string text, string command)

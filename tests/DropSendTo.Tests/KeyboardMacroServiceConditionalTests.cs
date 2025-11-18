@@ -71,4 +71,98 @@ ENDIF
         result.Success.Should().BeTrue();
         invoked.Should().ContainSingle().Which.Should().Be("fallback");
     }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldExecuteElseIfBranch_WhenConditionMatches()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET Mode 2
+IF {{Mode}} == 1
+    COMMAND first
+ELSEIF {{Mode}} == 2
+    COMMAND second
+ELSE
+    COMMAND fallback
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("second");
+    }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldExecuteElseIfWithSpaceSyntax()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET Mode 3
+IF {{Mode}} == 1
+    COMMAND first
+ELSE IF {{Mode}} == 3
+    COMMAND spaced
+ELSE
+    COMMAND fallback
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("spaced");
+    }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldSkipElseIfCondition_WhenPreviousBranchMatched()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET Mode 1
+IF {{Mode}} == 1
+    COMMAND first
+ELSE IF {{Undefined}} == 2
+    COMMAND unreachable
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("first");
+    }
 }

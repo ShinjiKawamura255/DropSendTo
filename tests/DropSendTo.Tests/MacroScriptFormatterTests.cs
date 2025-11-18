@@ -38,6 +38,30 @@ public sealed class MacroScriptFormatterTests
     }
 
     [Fact]
+    public void NormalizeIndentation_ShouldAlignElseIfBranches()
+    {
+        var script =
+            "IF {{Mode}} == 1\r\n" +
+            "TEXT First\r\n" +
+            "ELSEIF {{Mode}} == 2\r\n" +
+            "TEXT Second\r\n" +
+            "ELSE IF {{Mode}} == 3\r\n" +
+            "TEXT Third\r\n" +
+            "ENDIF";
+
+        var formatted = MacroScriptFormatter.NormalizeIndentation(script);
+
+        formatted.Should().Be(
+            "IF {{Mode}} == 1\r\n" +
+            "    TEXT First\r\n" +
+            "ELSEIF {{Mode}} == 2\r\n" +
+            "    TEXT Second\r\n" +
+            "ELSE IF {{Mode}} == 3\r\n" +
+            "    TEXT Third\r\n" +
+            "ENDIF");
+    }
+
+    [Fact]
     public void GetIndentationForNewLine_ShouldIncreaseAfterRepeat()
     {
         var script = "REPEAT 3\r\n";
@@ -51,6 +75,16 @@ public sealed class MacroScriptFormatterTests
     public void GetIndentationForNewLine_ShouldAlignElseWithIf()
     {
         var script = "IF 1 == 1\r\n    TEXT OK\r\nELSE";
+
+        var indent = MacroScriptFormatter.GetIndentationForNewLine(script, script.Length);
+
+        indent.Should().Be("    ");
+    }
+
+    [Fact]
+    public void GetIndentationForNewLine_ShouldIndentAfterElseIf()
+    {
+        var script = "IF 1 == 2\r\nELSEIF 2 == 2";
 
         var indent = MacroScriptFormatter.GetIndentationForNewLine(script, script.Length);
 

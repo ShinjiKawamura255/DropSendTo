@@ -28,6 +28,7 @@ internal static class MacroScriptFormatter
                 continue;
             }
 
+            bool isElseIf = IsElseIfDirective(trimmed);
             bool isElse = IsElseDirective(trimmed);
             bool isBlockClosing = IsBlockClosing(trimmed);
             int effectiveIndent = indentLevel;
@@ -37,7 +38,7 @@ internal static class MacroScriptFormatter
                 indentLevel = Math.Max(indentLevel - 1, 0);
                 effectiveIndent = indentLevel;
             }
-            else if (isElse)
+            else if (isElse || isElseIf)
             {
                 effectiveIndent = Math.Max(indentLevel - 1, 0);
                 indentLevel = effectiveIndent;
@@ -45,7 +46,7 @@ internal static class MacroScriptFormatter
 
             formattedLines.Add(new string(' ', effectiveIndent * SpacesPerIndent) + trimmed);
 
-            if (IsBlockOpening(trimmed))
+            if (IsBlockOpening(trimmed) || isElseIf)
             {
                 indentLevel++;
             }
@@ -85,6 +86,7 @@ internal static class MacroScriptFormatter
                 continue;
             }
 
+            bool isElseIf = IsElseIfDirective(trimmed);
             bool isElse = IsElseDirective(trimmed);
             bool isBlockClosing = IsBlockClosing(trimmed);
 
@@ -92,12 +94,12 @@ internal static class MacroScriptFormatter
             {
                 indentLevel = Math.Max(indentLevel - 1, 0);
             }
-            else if (isElse)
+            else if (isElse || isElseIf)
             {
                 indentLevel = Math.Max(indentLevel - 1, 0);
             }
 
-            if (IsBlockOpening(trimmed))
+            if (IsBlockOpening(trimmed) || isElseIf)
             {
                 indentLevel++;
             }
@@ -120,7 +122,21 @@ internal static class MacroScriptFormatter
         StartsWithCommand(line, "ENDREPEAT") || StartsWithCommand(line, "ENDIF");
 
     private static bool IsElseDirective(string line) =>
-        StartsWithCommand(line, "ELSE");
+        StartsWithCommand(line, "ELSE") && !IsElseIfDirective(line);
+
+    private static bool IsElseIfDirective(string line)
+    {
+        if (StartsWithCommand(line, "ELSEIF"))
+        {
+            return true;
+        }
+        if (!StartsWithCommand(line, "ELSE"))
+        {
+            return false;
+        }
+        var remainder = line.Length > 4 ? line[4..].TrimStart() : string.Empty;
+        return StartsWithCommand(remainder, "IF");
+    }
 
     private static bool StartsWithCommand(string line, string command)
     {

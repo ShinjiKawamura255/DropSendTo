@@ -75,7 +75,7 @@
 - `{clipboard_args}` / `{clipboard_args:n}`: クリップボード内のパスを引用付きで展開  
 - `{clipboard:n}`: 直近 n 行をそのまま展開
 - Macro Script 拡張モードのスロットへドロップした場合はマクロ内から `{{drop_args}}`（コマンド引数形式で連結）、`{{drop_count}}`（件数）、`{{drop_path}}` または `{{drop_path:n}}`（1=先頭）で個別パスを参照でき、`COMMAND "{{drop_path:1}}_processed"` のように加工して登録コマンドへ渡せます。
-- `IF <左辺> <演算子> <右辺>` / `ELSE` / `ENDIF` で条件分岐を記述できます。演算子は `==`/`!=`/`>`/`>=`/`<`/`<=`（整数比較）と `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH`（文字列比較）をサポートし、空白を含む値は `""` で囲んでください。親が偽のときは内側の `IF` 条件式を評価しないため、未定義変数を参照しても安全です。
+- `IF <左辺> <演算子> <右辺>` / `ELSEIF <条件>`（`ELSE IF` も可）/ `ELSE` / `ENDIF` で条件分岐を記述できます。演算子は `==`/`!=`/`>`/`>=`/`<`/`<=`（整数比較）と `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH`（文字列比較）をサポートし、空白を含む値は `""` で囲んでください。`ELSEIF` は複数回使用でき、`ELSE` は 1 回のみです。親が偽、または前段の `IF`/`ELSEIF` が成立した場合は後続ブロックの条件式を評価しないため、未定義変数を参照しても安全です。
 
 ### 2.4 Macro Script クイックリファレンス
 | コマンド | 説明 | 例 |
@@ -91,7 +91,8 @@
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |
-| `IF <左> <演算子> <右>` | 条件分岐（`ELSE`/`ENDIF` と組み合わせ） | `IF {{Count}} >= 10` |
+| `IF <左> <演算子> <右>` | 条件分岐（`ELSEIF`/`ELSE`/`ENDIF` と組み合わせ、ネスト可） | `IF {{Count}} >= 10` |
+| `ELSEIF <条件>` / `ELSE IF <条件>` | 追加条件ブロック（前段不成立時のみ評価） | `ELSEIF {{Mode}} == 2` |
 | `ELSE` / `ENDIF` | `IF` ブロックの分岐・終了 | `ELSE` → `COMMAND "fallback"` |
 | `PREFIX ARM/SEND/PASSTHROUGH` | Prefix 状態の制御と送出 | `PREFIX ARM` |
 
