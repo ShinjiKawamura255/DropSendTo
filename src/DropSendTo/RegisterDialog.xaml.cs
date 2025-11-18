@@ -57,6 +57,7 @@ public partial class RegisterDialog : Window
     private readonly MacroRecordingService _recordingService = new();
     private int _recordedLineCount;
     private int _recordingStartTextLength;
+    private const int MacroIndentSize = 4;
 
     public RegisterDialog()
     {
@@ -86,6 +87,10 @@ public partial class RegisterDialog : Window
         {
             ColorComboBox.ItemsSource = AccentColorOptions;
             ColorComboBox.SelectedValue = SlotAccentColor.Default;
+        }
+        if (MacroBox != null)
+        {
+            MacroBox.PreviewKeyDown += OnMacroBoxPreviewKeyDown;
         }
         UpdateModeState();
     }
@@ -123,7 +128,9 @@ public partial class RegisterDialog : Window
 
         if (macroRequired)
         {
-            if (string.IsNullOrWhiteSpace(MacroBox.Text))
+            var formattedMacro = MacroScriptFormatter.NormalizeIndentation(MacroBox.Text);
+            MacroBox.Text = formattedMacro;
+            if (string.IsNullOrWhiteSpace(formattedMacro))
             {
                 var message = mode == SlotExecutionMode.MacroScriptExtended
                     ? "Macro Script 拡張モードでは Macro Script を入力してください。"
@@ -271,6 +278,10 @@ public partial class RegisterDialog : Window
         if (ModeComboBox != null)
         {
             ModeComboBox.SelectionChanged -= OnModeSelectionChanged;
+        }
+        if (MacroBox != null)
+        {
+            MacroBox.PreviewKeyDown -= OnMacroBoxPreviewKeyDown;
         }
         _recordingService.LineRecorded -= OnRecordingLineGenerated;
         if (_recordingService.IsRecording)
@@ -432,6 +443,110 @@ public partial class RegisterDialog : Window
     {
         _recordingService.SuppressNextLeftButtonDown();
         _recordingService.SuppressNextLeftButtonUp();
+    }
+
+    private void OnMacroBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (MacroBox == null || MacroBox.IsReadOnly)
+        {
+            return;
+        }
+        if (e.Key != Key.Return && e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        if (MacroBox.SelectionLength > 0)
+        {
+            var selectionStart = MacroBox.SelectionStart;
+            MacroBox.SelectedText = string.Empty;
+            MacroBox.CaretIndex = selectionStart;
+        }
+
+        var caretIndex = MacroBox.CaretIndex;
+        AdjustClosingLineIndent(ref caretIndex);
+        var indent = MacroScriptFormatter.GetIndentationForNewLine(MacroBox.Text, caretIndex);
+        var insertion = Environment.NewLine + indent;
+        MacroBox.SelectionStart = caretIndex;
+        MacroBox.SelectionLength = 0;
+        MacroBox.SelectedText = insertion;
+        MacroBox.CaretIndex = caretIndex + insertion.Length;
+        e.Handled = true;
+    }
+
+    private void AdjustClosingLineIndent(ref int caretIndex)
+    {
+        if (MacroBox == null || caretIndex < 0)
+        {
+            return;
+        }
+
+        var text = MacroBox.Text ?? string.Empty;
+        if (text.Length == 0)
+        {
+            return;
+        }
+
+        int lineIndex = MacroBox.GetLineIndexFromCharacterIndex(caretIndex);
+        if (lineIndex < 0)
+        {
+            return;
+        }
+        int lineStart = MacroBox.GetCharacterIndexFromLineIndex(lineIndex);
+        if (lineStart < 0)
+        {
+            return;
+        }
+
+        var lineText = MacroBox.GetLineText(lineIndex);
+        var lineContent = lineText.TrimEnd('\r', '\n');
+        if (lineContent.Length == 0)
+        {
+            return;
+        }
+
+        var trimmed = lineContent.TrimStart();
+        if (!IsOutdentDirective(trimmed))
+        {
+            return;
+        }
+
+        int leadingSpaces = lineContent.Length - trimmed.Length;
+        if (leadingSpaces == 0)
+        {
+            return;
+        }
+
+        int reduction = Math.Min(leadingSpaces, MacroIndentSize);
+        int newIndentLength = leadingSpaces - reduction;
+        var newLineContent = new string(' ', newIndentLength) + trimmed;
+        MacroBox.Select(lineStart, lineContent.Length);
+        MacroBox.SelectedText = newLineContent;
+        var newCaret = Math.Max(lineStart + newIndentLength, caretIndex - reduction);
+        MacroBox.CaretIndex = newCaret;
+        caretIndex = newCaret;
+    }
+
+    private static bool IsOutdentDirective(string trimmedLine)
+    {
+        if (string.IsNullOrWhiteSpace(trimmedLine))
+        {
+            return false;
+        }
+
+        return StartsWithDirective(trimmedLine, "ENDREPEAT")
+            || StartsWithDirective(trimmedLine, "ENDIF")
+            || StartsWithDirective(trimmedLine, "ELSE");
+    }
+
+    private static bool StartsWithDirective(string text, string command)
+    {
+        if (!text.StartsWith(command, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return text.Length == command.Length || char.IsWhiteSpace(text[command.Length]);
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
