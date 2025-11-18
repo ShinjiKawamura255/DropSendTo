@@ -144,6 +144,16 @@ public partial class RegisterDialog : Window
                 WpfMessageBox.Show(macroError ?? "Macro Script の構文が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+
+            if (MacroScriptFormatter.TryGetPlaceholderWarning(formattedMacro, out var warning))
+            {
+                warning += "\n\nこのまま保存しますか？";
+                var result = WpfMessageBox.Show(warning, "Macro Script", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
         }
         else
         {

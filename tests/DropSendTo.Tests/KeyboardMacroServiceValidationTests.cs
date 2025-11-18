@@ -41,4 +41,24 @@ public class KeyboardMacroServiceValidationTests
         KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScriptExtended, out error).Should().BeTrue();
         error.Should().BeNull();
     }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForUnknownKey()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("KEY Entr", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("キーの指定");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForUnknownCommand()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("FOOBAR", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("未知のマクロ命令");
+    }
 }

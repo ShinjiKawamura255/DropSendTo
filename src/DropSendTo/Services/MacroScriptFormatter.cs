@@ -147,4 +147,69 @@ internal static class MacroScriptFormatter
 
         return line.Length == command.Length || char.IsWhiteSpace(line[command.Length]);
     }
+
+    public static bool TryGetPlaceholderWarning(string? script, out string? warning)
+    {
+        warning = null;
+        if (string.IsNullOrEmpty(script))
+        {
+            return false;
+        }
+
+        int strayOpens = 0;
+        int strayCloses = 0;
+        var text = script;
+        for (int i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (ch == '{')
+            {
+                if (i + 1 < text.Length && text[i + 1] == '{')
+                {
+                    var closing = text.IndexOf("}}", i + 2, StringComparison.Ordinal);
+                    if (closing >= 0)
+                    {
+                        i = closing + 1;
+                        continue;
+                    }
+                    strayOpens++;
+                    break;
+                }
+                strayOpens++;
+            }
+            else if (ch == '}')
+            {
+                if (i > 0 && text[i - 1] == '}')
+                {
+                    continue;
+                }
+                if (i + 1 < text.Length && text[i + 1] == '}')
+                {
+                    strayCloses++;
+                    i++;
+                }
+                else
+                {
+                    strayCloses++;
+                }
+            }
+        }
+
+        if (strayOpens == 0 && strayCloses == 0)
+        {
+            return false;
+        }
+
+        var parts = new List<string>();
+        if (strayOpens > 0)
+        {
+            parts.Add($"'{{' が {strayOpens} 個 単独で使用されています");
+        }
+        if (strayCloses > 0)
+        {
+            parts.Add($"'}}' が {strayCloses} 個 単独で使用されています");
+        }
+        warning = $"変数プレースホルダーの括弧の数が合っていない可能性があります。\n- {string.Join("\n- ", parts)}";
+        return true;
+    }
 }

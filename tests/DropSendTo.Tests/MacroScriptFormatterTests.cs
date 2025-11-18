@@ -100,4 +100,15 @@ public sealed class MacroScriptFormatterTests
 
         indent.Should().Be(string.Empty);
     }
+
+    [Fact]
+    public void TryGetPlaceholderWarning_ShouldDetectSingleBrace()
+    {
+        var script = "TEXT {value}";
+
+        var hasWarning = MacroScriptFormatter.TryGetPlaceholderWarning(script, out var warning);
+
+        hasWarning.Should().BeTrue();
+        warning.Should().Contain("'{'");
+    }
 }
