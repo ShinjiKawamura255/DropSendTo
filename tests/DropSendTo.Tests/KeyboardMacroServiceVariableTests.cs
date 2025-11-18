@@ -187,6 +187,77 @@ public class KeyboardMacroServiceVariableTests
     }
 
     [Fact]
+    public void TryApplyRegexReplaceDirective_ShouldSupportGroups()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "abc123def456"
+        };
+
+        var ok = KeyboardMacroService.TryApplyRegexReplaceDirective(
+            @"REPLACE_REGEX Body ""(\\d+)"" ""[#$1]""",
+            variables,
+            out var name,
+            out var newValue,
+            out var error,
+            specialResolver: null,
+            out var replacements);
+
+        ok.Should().BeTrue();
+        replacements.Should().Be(2);
+        name.Should().Be("Body");
+        newValue.Should().Be("abc[#123]def[#456]");
+        variables.Should().ContainKey("Body").WhoseValue.Should().Be("abc[#123]def[#456]");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryApplyRegexReplaceDirective_ShouldHonorOptions()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "Hello\nWORLD"
+        };
+
+        var ok = KeyboardMacroService.TryApplyRegexReplaceDirective(
+            @"REPLACE_REGEX Body ""^world$"" ""match"" IGNORECASE MULTILINE",
+            variables,
+            out var name,
+            out var newValue,
+            out var error,
+            specialResolver: null,
+            out var replacements);
+
+        ok.Should().BeTrue();
+        replacements.Should().Be(1);
+        name.Should().Be("Body");
+        newValue.Should().Be("Hello\nmatch");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryApplyRegexReplaceDirective_ShouldFail_OnInvalidPattern()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Body"] = "data"
+        };
+
+        var ok = KeyboardMacroService.TryApplyRegexReplaceDirective(
+            @"REPLACE_REGEX Body ""[A-"" ""x""",
+            variables,
+            out _,
+            out _,
+            out var error,
+            specialResolver: null,
+            out _);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("パターン");
+    }
+
+    [Fact]
     public void TryExpandVariables_ShouldFail_WhenVariableIsMissing()
     {
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

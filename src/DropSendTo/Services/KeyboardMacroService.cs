@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Interop;
 using System.Windows;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Linq;
 using DropSendTo.Models;
@@ -606,6 +607,19 @@ public sealed class KeyboardMacroService : IDisposable
                     if (!string.IsNullOrEmpty(replaceName))
                     {
                         _logger.Info($"Macro variable replace: {replaceName} (replaced {replacements} occurrence(s)) -> \"{TruncateForLog(replaceValue)}\"");
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "REPLACE_REGEX") || StartsWithCommand(line, "REPLACE-REGEX"))
+                {
+                    if (!TryApplyRegexReplaceDirective(line, variables, out var regexName, out var regexValue, out var regexError, specialResolver, out var regexReplacements))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(regexError ?? $"REPLACE_REGEX コマンドの解釈に失敗しました: \"{line}\""));
+                    }
+                    if (!string.IsNullOrEmpty(regexName))
+                    {
+                        _logger.Info($"Macro variable regex replace: {regexName} (replaced {regexReplacements} match(es)) -> \"{TruncateForLog(regexValue)}\"");
                     }
                     continue;
                 }
@@ -1888,6 +1902,179 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         name = nameToken;
+        return true;
+    }
+
+    internal static bool TryApplyRegexReplaceDirective(
+        string line,
+        Dictionary<string, string> variables,
+        out string? name,
+        out string? newValue,
+        out string? error,
+        SpecialVariableResolver? specialResolver,
+        out int replacements)
+    {
+        name = null;
+        newValue = null;
+        error = null;
+        replacements = 0;
+
+        var extractedCommand = ExtractCommandName(line);
+        var command = extractedCommand.Replace('-', '_');
+        if (!string.Equals(command, "REPLACE_REGEX", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "未知の REPLACE_REGEX コマンドです。";
+            return false;
+        }
+
+        var content = line.Length > extractedCommand.Length ? line[extractedCommand.Length..].Trim() : string.Empty;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            error = "REPLACE_REGEX には変数名と検索/置換文字列を指定してください。";
+            return false;
+        }
+
+        var firstSpace = FindFirstWhitespace(content);
+        if (firstSpace < 0)
+        {
+            error = "REPLACE_REGEX には変数名に続いて検索文字列と置換文字列を指定してください。";
+            return false;
+        }
+
+        var nameToken = content[..firstSpace];
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        if (!variables.TryGetValue(nameToken, out var currentValue))
+        {
+            error = $"変数 \"{nameToken}\" は定義されていません。";
+            return false;
+        }
+        currentValue ??= string.Empty;
+
+        var operandText = content[(firstSpace + 1)..];
+        int argIndex = 0;
+        if (!TryParseQuotedArgument(operandText, ref argIndex, out var patternLiteral, out var quotedError))
+        {
+            error = quotedError ?? "REPLACE_REGEX の検索パターンを \"\" で囲んでください。";
+            return false;
+        }
+
+        if (!TryParseQuotedArgument(operandText, ref argIndex, out var replaceLiteral, out quotedError))
+        {
+            error = quotedError ?? "REPLACE_REGEX の置換文字列を \"\" で囲んでください。";
+            return false;
+        }
+
+        if (!TryExpandVariables(patternLiteral, variables, out var expandedPattern, out var expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+        if (string.IsNullOrEmpty(expandedPattern))
+        {
+            error = "REPLACE_REGEX の検索パターンを空にすることはできません。";
+            return false;
+        }
+
+        if (!TryExpandVariables(replaceLiteral, variables, out var expandedReplace, out expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+        expandedReplace ??= string.Empty;
+
+        var remainder = argIndex < operandText.Length ? operandText[argIndex..] : string.Empty;
+        if (!TryParseRegexOptions(remainder, out var regexOptions, out var optionError))
+        {
+            error = optionError;
+            return false;
+        }
+
+        Regex regex;
+        try
+        {
+            regex = new Regex(expandedPattern, RegexOptions.CultureInvariant | regexOptions);
+        }
+        catch (ArgumentException ex)
+        {
+            error = $"REPLACE_REGEX の検索パターンが不正です: {ex.Message}";
+            return false;
+        }
+
+        string result;
+        int replacedCount = 0;
+        try
+        {
+            result = regex.Replace(currentValue, match =>
+            {
+                replacedCount++;
+                return match.Result(expandedReplace);
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            error = $"REPLACE_REGEX の置換文字列が不正です: {ex.Message}";
+            return false;
+        }
+
+        replacements = replacedCount;
+
+        if (replacements == 0)
+        {
+            newValue = currentValue;
+        }
+        else
+        {
+            newValue = result;
+            variables[nameToken] = newValue;
+        }
+
+        name = nameToken;
+        return true;
+    }
+
+    private static bool TryParseRegexOptions(string input, out RegexOptions options, out string? error)
+    {
+        options = RegexOptions.None;
+        error = null;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return true;
+        }
+
+        var tokens = input.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var token in tokens)
+        {
+            switch (token.ToUpperInvariant())
+            {
+                case "IGNORECASE":
+                case "ICASE":
+                case "I":
+                    options |= RegexOptions.IgnoreCase;
+                    break;
+                case "MULTILINE":
+                case "M":
+                    options |= RegexOptions.Multiline;
+                    break;
+                case "SINGLELINE":
+                case "DOTALL":
+                case "S":
+                    options |= RegexOptions.Singleline;
+                    break;
+                case "IGNOREWHITESPACE":
+                case "X":
+                    options |= RegexOptions.IgnorePatternWhitespace;
+                    break;
+                default:
+                    error = $"REPLACE_REGEX でサポートされていないオプションです: \"{token}\"";
+                    return false;
+            }
+        }
+
         return true;
     }
 

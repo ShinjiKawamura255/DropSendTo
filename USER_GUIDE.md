@@ -75,6 +75,7 @@
 - `{clipboard_args}` / `{clipboard_args:n}`: クリップボード内のパスを引用付きで展開  
 - `{clipboard:n}`: 直近 n 行をそのまま展開
 - Macro Script 拡張モードのスロットへドロップした場合はマクロ内から `{{drop_args}}`（コマンド引数形式で連結）、`{{drop_count}}`（件数）、`{{drop_path}}` または `{{drop_path:n}}`（1=先頭）で個別パスを参照でき、`COMMAND "{{drop_path:1}}_processed"` のように加工して登録コマンドへ渡せます。
+- 文字列置換は Ordinal 比較の `REPLACE`、拡張正規表現の `REPLACE_REGEX` の 2 種類を提供します。後者は `$1` 等のキャプチャや `IGNORECASE`/`MULTILINE`/`SINGLELINE`/`IGNOREWHITESPACE` オプションを空白区切りで指定できます。
 - `IF <左辺> <演算子> <右辺>` / `ELSEIF <条件>`（`ELSE IF` も可）/ `ELSE` / `ENDIF` で条件分岐を記述できます。演算子は `==`/`!=`/`>`/`>=`/`<`/`<=`（整数比較）と `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH`（文字列比較）をサポートし、空白を含む値は `""` で囲んでください。`ELSEIF` は複数回使用でき、`ELSE` は 1 回のみです。親が偽、または前段の `IF`/`ELSEIF` が成立した場合は後続ブロックの条件式を評価しないため、未定義変数を参照しても安全です。
 
 ### 2.4 Macro Script クイックリファレンス
@@ -88,6 +89,7 @@
 | `SET/ADD/SUB/MUL/DIV <変数> <値>` | 64bit 整数の計算 | `SET Count 0` |
 | `APPEND/PREPEND` | 文字列を結合 | `APPEND Cmd " --flag"` |
 | `REPLACE <変数> "検索" "置換"` | 変数内文字列を空白含め置換（`""` で削除） | `REPLACE Body " " "_"` |
+| `REPLACE_REGEX <変数> "正規表現" "置換" [オプション]` | 拡張正規表現で置換（`$1` 等のグループ可、`IGNORECASE`/`MULTILINE` などを指定可能） | `REPLACE_REGEX Body "\s+" "_" IGNORECASE` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |
