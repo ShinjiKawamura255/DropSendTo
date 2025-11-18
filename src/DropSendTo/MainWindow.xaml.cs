@@ -1247,6 +1247,38 @@ public partial class MainWindow : Window
         UpdateSlotVisual(context);
     }
 
+    private async Task ResumeSuspendedMacroScopeAsync(IAsyncDisposable suspension, SlotRunContext? pausedContext)
+    {
+        try
+        {
+            if (pausedContext != null)
+            {
+                SetSlotPaused(pausedContext, false);
+            }
+            await suspension.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to resume suspended macro: {ex}");
+            if (pausedContext != null)
+            {
+                ClearSlotMacroState(pausedContext.LayerIndex, pausedContext.SlotIndex);
+            }
+            else
+            {
+                await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
+            }
+        }
+    }
+
+    private void ForceClearAllSlotStates()
+    {
+        _slotRunStack.Clear();
+        _currentSlotRun = null;
+        UpdateAllSlotMacroStates();
+        UpdateNotifyIconState(false);
+    }
+
     private void UpdateSlotVisual(SlotRunContext context)
     {
         if (context.LayerIndex != _currentLayer)
@@ -2488,13 +2520,20 @@ public partial class MainWindow : Window
                         case MacroConcurrencyMode.SuspendAndResume:
                             pausedContext = _currentSlotRun;
                             SetSlotPaused(pausedContext, true);
-                            suspension = await _macroService
-                                .SuspendCurrentMacroAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
+                            try
+                            {
+                                suspension = await _macroService.SuspendCurrentMacroAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {ex}");
+                                suspension = null;
+                            }
+
                             if (suspension == null)
                             {
                                 SetSlotPaused(pausedContext, false);
                                 pausedContext = null;
-                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
                                 WpfMessageBox.Show("現在のマクロを一時停止できませんでした。実行中のマクロが落ち着くまで少し待ってから再度実行してください。", "Macro Busy", MessageBoxButton.OK, MessageBoxImage.Information);
                                 return;
                             }
@@ -2582,15 +2621,13 @@ public partial class MainWindow : Window
         {
             if (suspension != null)
             {
-                SetSlotPaused(pausedContext, false);
-                try
-                {
-                    await suspension.DisposeAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn($"Failed to resume suspended macro: {ex}");
-                }
+                await ResumeSuspendedMacroScopeAsync(suspension, pausedContext);
+            }
+
+            if (!_macroService.IsMacroRunning && HasAnyRunningSlot())
+            {
+                _logger.Warn("Macro state mismatch detected. Clearing slot run context.");
+                ForceClearAllSlotStates();
             }
         }
     }
