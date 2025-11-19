@@ -446,6 +446,8 @@ public sealed class KeyboardMacroService : IDisposable
         var keyTracker = new KeyHoldTracker();
         var cursorScope = default(MacroCursorScope);
         bool prefixArmRequested = false;
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var inactiveVariableScopes = validateOnly ? new Stack<Dictionary<string, string>>() : null;
 
         if (TryGetCursorPosition(out var cursorX, out var cursorY))
         {
@@ -511,9 +513,35 @@ public sealed class KeyboardMacroService : IDisposable
             return result;
         }
 
+        void SyncInactiveVariableScopes(int previousDepth, int currentDepth)
+        {
+            if (!validateOnly || inactiveVariableScopes == null || previousDepth == currentDepth)
+            {
+                return;
+            }
+
+            if (previousDepth < currentDepth)
+            {
+                for (int depth = previousDepth; depth < currentDepth; depth++)
+                {
+                    inactiveVariableScopes.Push(variables);
+                    variables = new Dictionary<string, string>(variables, StringComparer.OrdinalIgnoreCase);
+                }
+                return;
+            }
+
+            for (int depth = previousDepth; depth > currentDepth; depth--)
+            {
+                if (inactiveVariableScopes.Count == 0)
+                {
+                    break;
+                }
+                variables = inactiveVariableScopes.Pop();
+            }
+        }
+
         try
         {
-            var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var clipboardSnapshot = ClipboardHistoryService.Instance.GetSnapshot(null);
             var dropPaths = context?.DroppedPaths;
             var specialResolver = CreateSpecialVariableResolver(clipboardSnapshot, dropPaths);
@@ -545,55 +573,66 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "IF"))
                 {
                     var conditionText = line.Length > 2 ? line[2..].Trim() : string.Empty;
+                    conditionText = TrimInlineComment(conditionText);
+                    var previousDepth = inactiveIfDepth;
                     if (!TryHandleIfDirective(conditionText, variables, specialResolver, ifStack, ref inactiveIfDepth, out var ifError))
                     {
                         var message = ifError ?? $"IF 条件の解釈に失敗しました: \"{line}\"";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
+                    SyncInactiveVariableScopes(previousDepth, inactiveIfDepth);
                     continue;
                 }
 
                 if (TryParseElseIfCondition(line, out var elseIfCondition))
                 {
+                    var previousDepth = inactiveIfDepth;
                     if (!TryHandleElseIfDirective(elseIfCondition, variables, specialResolver, ifStack, ref inactiveIfDepth, out var elseIfError))
                     {
                         var message = elseIfError ?? $"ELSEIF 条件の解釈に失敗しました: \"{line}\"";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
+                    SyncInactiveVariableScopes(previousDepth, inactiveIfDepth);
                     continue;
                 }
 
                 if (StartsWithCommand(line, "ELSE"))
                 {
                     var trailing = line.Length > 4 ? line[4..].Trim() : string.Empty;
+                    trailing = TrimInlineComment(trailing);
                     if (!string.IsNullOrWhiteSpace(trailing))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "ELSE の後ろに余分な記述があります。")));
                     }
+                    var previousDepth = inactiveIfDepth;
                     if (!TryHandleElseDirective(ifStack, ref inactiveIfDepth, out var elseError))
                     {
                         var message = elseError ?? "ELSE の解釈に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
+                    SyncInactiveVariableScopes(previousDepth, inactiveIfDepth);
                     continue;
                 }
 
                 if (StartsWithCommand(line, "ENDIF"))
                 {
                     var trailing = line.Length > 5 ? line[5..].Trim() : string.Empty;
+                    trailing = TrimInlineComment(trailing);
                     if (!string.IsNullOrWhiteSpace(trailing))
                     {
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "ENDIF の後ろに余分な記述があります。")));
                     }
+                    var previousDepth = inactiveIfDepth;
                     if (!TryHandleEndIfDirective(ifStack, ref inactiveIfDepth, out var endifError))
                     {
                         var message = endifError ?? "ENDIF の解釈に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
+                    SyncInactiveVariableScopes(previousDepth, inactiveIfDepth);
                     continue;
                 }
 
-                if (inactiveIfDepth > 0)
+                if (inactiveIfDepth > 0 && !validateOnly)
                 {
                     continue;
                 }
@@ -663,20 +702,6 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
-                if (StartsWithCommand(line, "REPLACE"))
-                {
-                    if (!TryApplyReplaceDirective(line, variables, out var replaceName, out var replaceValue, out var replaceError, specialResolver, out var replacements))
-                    {
-                        var message = replaceError ?? $"REPLACE コマンドの解釈に失敗しました: \"{line}\"";
-                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
-                    }
-                    if (!string.IsNullOrEmpty(replaceName))
-                    {
-                        _logger.Info($"Macro variable replace: {replaceName} (replaced {replacements} occurrence(s)) -> \"{TruncateForLog(replaceValue)}\"");
-                    }
-                    continue;
-                }
-
                 if (StartsWithCommand(line, "REPLACE_REGEX") || StartsWithCommand(line, "REPLACE-REGEX"))
                 {
                     if (!TryApplyRegexReplaceDirective(line, variables, out var regexName, out var regexValue, out var regexError, specialResolver, out var regexReplacements))
@@ -687,6 +712,20 @@ public sealed class KeyboardMacroService : IDisposable
                     if (!string.IsNullOrEmpty(regexName))
                     {
                         _logger.Info($"Macro variable regex replace: {regexName} (replaced {regexReplacements} match(es)) -> \"{TruncateForLog(regexValue)}\"");
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "REPLACE"))
+                {
+                    if (!TryApplyReplaceDirective(line, variables, out var replaceName, out var replaceValue, out var replaceError, specialResolver, out var replacements))
+                    {
+                        var message = replaceError ?? $"REPLACE コマンドの解釈に失敗しました: \"{line}\"";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    if (!string.IsNullOrEmpty(replaceName))
+                    {
+                        _logger.Info($"Macro variable replace: {replaceName} (replaced {replacements} occurrence(s)) -> \"{TruncateForLog(replaceValue)}\"");
                     }
                     continue;
                 }
@@ -915,7 +954,7 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
-                if (StartsWithCommand(line, "MOUSE"))
+                if (StartsWithCommand(line, "MOUSE", requireDelimiter: false))
                 {
                     if (!TryExpandVariables(line, variables, out var expandedMouse, out var mouseExpandError, specialResolver))
                     {
@@ -950,8 +989,15 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private static bool StartsWithCommand(string line, string command) =>
-        line.Length >= command.Length && line.StartsWith(command, StringComparison.OrdinalIgnoreCase);
+    private static bool StartsWithCommand(string line, string command, bool requireDelimiter = true)
+    {
+        if (line.Length < command.Length) return false;
+        if (!line.StartsWith(command, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!requireDelimiter) return true;
+        if (line.Length == command.Length) return true;
+        var next = line[command.Length];
+        return char.IsWhiteSpace(next) || !IsAsciiLetter(next);
+    }
 
     private static bool TryExpandRepeatBlocks(string[] lines, out List<string> expanded, out string? error)
     {
@@ -966,6 +1012,7 @@ public sealed class KeyboardMacroService : IDisposable
             if (StartsWithCommand(trimmed, "REPEAT"))
             {
                 var countToken = trimmed.Length > 6 ? trimmed[6..].Trim() : string.Empty;
+                countToken = TrimInlineComment(countToken);
                 if (!int.TryParse(countToken, out var repeat))
                 {
                     error = $"REPEAT の回数指定が不正です: \"{trimmed}\"";
@@ -984,6 +1031,7 @@ public sealed class KeyboardMacroService : IDisposable
             if (StartsWithCommand(trimmed, "ENDREPEAT"))
             {
                 var remainder = trimmed.Length > 9 ? trimmed[9..].Trim() : string.Empty;
+                remainder = TrimInlineComment(remainder);
                 if (remainder.Length > 0)
                 {
                     error = $"ENDREPEAT 行に余分な記述があります: \"{trimmed}\"";
@@ -1026,6 +1074,37 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         return true;
+    }
+
+    private static bool IsAsciiLetter(char ch) =>
+        (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
+
+    private static string TrimInlineComment(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return text;
+        }
+
+        bool inQuotes = false;
+        bool escape = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (!escape && ch == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+
+            if (!inQuotes && ch == '#' && (i == 0 || char.IsWhiteSpace(text[i - 1])))
+            {
+                return text[..i].TrimEnd();
+            }
+
+            escape = !escape && ch == '\\';
+        }
+
+        return text;
     }
 
     private static bool TryHandleIfDirective(
@@ -1074,6 +1153,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (StartsWithCommand(line, "ELSEIF"))
         {
             condition = line.Length > 6 ? line[6..].Trim() : string.Empty;
+            condition = TrimInlineComment(condition);
             return true;
         }
 
@@ -1084,6 +1164,7 @@ public sealed class KeyboardMacroService : IDisposable
             if (StartsWithCommand(trimmed, "IF"))
             {
                 condition = trimmed.Length > 2 ? trimmed[2..].Trim() : string.Empty;
+                condition = TrimInlineComment(condition);
                 return true;
             }
         }

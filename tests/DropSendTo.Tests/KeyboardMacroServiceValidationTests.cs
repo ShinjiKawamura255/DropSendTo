@@ -14,7 +14,7 @@ public class KeyboardMacroServiceValidationTests
 
         var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
 
-        ok.Should().BeTrue();
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
         error.Should().BeNull();
     }
 
@@ -38,7 +38,8 @@ public class KeyboardMacroServiceValidationTests
         KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error).Should().BeFalse();
         error.Should().NotBeNull();
 
-        KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScriptExtended, out error).Should().BeTrue();
+        KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScriptExtended, out error)
+            .Should().BeTrue("validation failed: {0}", error ?? "(null)");
         error.Should().BeNull();
     }
 
@@ -56,6 +57,135 @@ public class KeyboardMacroServiceValidationTests
     public void TryValidateScript_ShouldFail_ForUnknownCommand()
     {
         var ok = KeyboardMacroService.TryValidateScript("FOOBAR", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("未知のマクロ命令");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldPass_ForReplaceRegexCommand()
+    {
+        const string script = "SET Body foo\nREPLACE_REGEX Body \"o\" \"x\"\n";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowCommandsWithoutWhitespaceBeforePlaceholders()
+    {
+        const string script = "SET Mode 1\nIF{{Mode}} == 1\n    TEXT{{clipboard}}\nENDIF\n";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowElseIfAndElseBlocks()
+    {
+        const string script = """
+SET Mode 2
+IF {{Mode}} == 1
+    TEXT first
+ELSEIF {{Mode}} == 2
+    TEXT second
+ELSE
+    TEXT fallback
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowElseIfWithoutWhitespaceBeforePlaceholder()
+    {
+        const string script = """
+SET Mode 2
+IF {{Mode}} == 1
+    TEXT first
+ELSEIF{{Mode}} == 2
+    TEXT second
+ELSE
+    TEXT fallback
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForInvalidKeyInsideInactiveElseIf()
+    {
+        const string script = """
+IF 1 == 1
+    KEY Enter
+ELSEIF 2 == 2
+    KEY Entr
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("キーの指定");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForInvalidKeyInsideInactiveElse()
+    {
+        const string script = """
+IF 1 == 1
+    KEY Enter
+ELSE
+    KEY Entr
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("キーの指定");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowInlineCommentsOnControlStatements()
+    {
+        const string script = """
+SET Mode 1
+IF {{Mode}} == 1 # first branch
+    TEXT ok
+ELSE # fallback branch
+    TEXT ng
+ENDIF # done
+REPEAT 2 # loops
+    TEXT loop
+ENDREPEAT # finish
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForCommandWithoutDelimiter()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("KEYEnter", SlotExecutionMode.MacroScript, out var error);
 
         ok.Should().BeFalse();
         error.Should().NotBeNull();
