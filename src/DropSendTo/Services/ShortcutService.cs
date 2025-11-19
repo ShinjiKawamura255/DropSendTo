@@ -44,6 +44,8 @@ internal sealed class PrefixStateChangedEventArgs : EventArgs
 internal sealed class ShortcutService : IDisposable
 {
     private const int PrefixTimeoutMilliseconds = 4_000;
+    private const uint GaRoot = 2;
+    private const uint GaRootOwner = 3;
     private static readonly string[] RemoteWindowClassNames =
     {
         "TscShellContainerClass",
@@ -53,7 +55,17 @@ internal sealed class ShortcutService : IDisposable
         "TransparentWndClass",
         "CitrixHDXClientWindowClass",
         "CitrixWorkspaceDesktop",
-        "CtxGPCClass"
+        "CtxGPCClass",
+        "WFICATopLevelWindow",
+        "WFICATopLevel"
+    };
+
+    private static readonly string[] RemoteWindowClassWildcards =
+    {
+        "citrix",
+        "ctx",
+        "wfica",
+        "hdx"
     };
 
     private static readonly string[] RemoteProcessNames =
@@ -63,7 +75,19 @@ internal sealed class ShortcutService : IDisposable
         "wfica32",
         "wfcrun32",
         "citrixworkspace",
-        "citrixviewer"
+        "citrixviewer",
+        "selfserviceplugin",
+        "receiver",
+        "cdviewer",
+        "hdxengine"
+    };
+
+    private static readonly string[] RemoteProcessWildcards =
+    {
+        "citrix",
+        "wfica",
+        "wfcrun",
+        "hdx"
     };
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
@@ -623,6 +647,33 @@ internal sealed class ShortcutService : IDisposable
             return false;
         }
 
+        if (IsRemoteWindow(hwnd))
+        {
+            return true;
+        }
+
+        var ancestor = GetAncestor(hwnd, GaRootOwner);
+        if (ancestor != IntPtr.Zero && ancestor != hwnd && IsRemoteWindow(ancestor))
+        {
+            return true;
+        }
+
+        var root = GetAncestor(hwnd, GaRoot);
+        if (root != IntPtr.Zero && root != hwnd && root != ancestor && IsRemoteWindow(root))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsRemoteWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
         if (TryGetWindowClassName(hwnd, out var className) && IsRemoteClassName(className))
         {
             return true;
@@ -690,6 +741,15 @@ internal sealed class ShortcutService : IDisposable
                 return true;
             }
         }
+
+        foreach (var fragment in RemoteWindowClassWildcards)
+        {
+            if (className.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -703,6 +763,15 @@ internal sealed class ShortcutService : IDisposable
                 return true;
             }
         }
+
+        foreach (var fragment in RemoteProcessWildcards)
+        {
+            if (processName.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -1237,6 +1306,9 @@ internal sealed class ShortcutService : IDisposable
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
