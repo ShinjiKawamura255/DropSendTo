@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using WpfClipboard = System.Windows.Clipboard;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,6 +22,7 @@ public sealed class KeyboardMacroService : IDisposable
     private const int TextSendInterCharacterDelayMilliseconds = 18;
     private const int TextSendWhitespaceDelayMilliseconds = 28;
     private const int ClipTextAutoWaitMilliseconds = 30;
+    private const string MacroPopupTitle = "DropSendTo Macro";
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly object _stateLock = new();
@@ -634,6 +636,102 @@ public sealed class KeyboardMacroService : IDisposable
 
                 if (inactiveIfDepth > 0 && !validateOnly)
                 {
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "TESTPATH"))
+                {
+                    var payload = line.Length > 8 ? line[8..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (string.IsNullOrWhiteSpace(payload))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "TESTPATH には変数名とパスを指定してください。")));
+                    }
+
+                    var firstSpace = FindFirstWhitespace(payload);
+                    if (firstSpace < 0)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "TESTPATH には変数名とパスを指定してください。")));
+                    }
+
+                    var variableName = payload[..firstSpace].Trim();
+                    if (!IsValidVariableName(variableName))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, $"変数名が不正です: \"{variableName}\"")));
+                    }
+
+                    var operandText = payload[(firstSpace + 1)..].Trim();
+                    if (operandText.Length == 0)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "TESTPATH にはパスを指定してください。")));
+                    }
+
+                    string rawPathLiteral;
+                    if (operandText.Length > 0 && operandText[0] == '"')
+                    {
+                        int argIndex = 0;
+                        if (!TryParseQuotedArgument(operandText, ref argIndex, "TESTPATH", "パス", out rawPathLiteral, out var quotedError))
+                        {
+                            var message = quotedError ?? "TESTPATH のパス指定が不正です。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+                        if (argIndex < operandText.Length && !string.IsNullOrWhiteSpace(operandText[argIndex..]))
+                        {
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "TESTPATH のパス指定の後ろに余分な記述があります。")));
+                        }
+                    }
+                    else
+                    {
+                        rawPathLiteral = operandText;
+                    }
+
+                    if (!TryExpandVariables(rawPathLiteral, variables, out var expandedPath, out var pathExpandError, specialResolver))
+                    {
+                        var message = pathExpandError ?? "TESTPATH のパス展開に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    var normalizedPath = expandedPath.Trim();
+                    variables[variableName] = PathExists(normalizedPath) ? "1" : "0";
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "POPUP"))
+                {
+                    var payload = line.Length > 5 ? line[5..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (string.IsNullOrWhiteSpace(payload))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "POPUP にはメッセージを指定してください。")));
+                    }
+
+                    int argIndex = 0;
+                    if (!TryParseQuotedArgument(payload, ref argIndex, "POPUP", "メッセージ", out var messageLiteral, out var popupParseError))
+                    {
+                        var message = popupParseError ?? "POPUP のメッセージ指定が不正です。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (argIndex < payload.Length && !string.IsNullOrWhiteSpace(payload[argIndex..]))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "POPUP のメッセージの後ろに余分な記述があります。")));
+                    }
+
+                    if (!TryExpandVariables(messageLiteral, variables, out var popupMessage, out var popupExpandError, specialResolver))
+                    {
+                        var message = popupExpandError ?? "POPUP のメッセージ展開に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (!validateOnly)
+                    {
+                        if (!TryShowPopup(popupMessage, MacroPopupTitle, MessageBoxImage.Information, out var popupError))
+                        {
+                            var message = popupError ?? "POPUP の表示に失敗しました。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+                    }
+
                     continue;
                 }
 
@@ -1636,6 +1734,23 @@ public sealed class KeyboardMacroService : IDisposable
         return path;
     }
 
+    private static bool PathExists(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            return File.Exists(path) || Directory.Exists(path);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     internal delegate bool SpecialVariableResolver(string token, out string value, out string? error);
 
     private struct IfBlockState
@@ -2269,7 +2384,10 @@ public sealed class KeyboardMacroService : IDisposable
         return -1;
     }
 
-    private static bool TryParseQuotedArgument(string input, ref int index, out string value, out string? error)
+    private static bool TryParseQuotedArgument(string input, ref int index, out string value, out string? error) =>
+        TryParseQuotedArgument(input, ref index, "REPLACE", "引数", out value, out error);
+
+    private static bool TryParseQuotedArgument(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
     {
         value = string.Empty;
         error = null;
@@ -2286,7 +2404,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         if (index >= input.Length || input[index] != '"')
         {
-            error = "REPLACE の引数は \"\" で囲んでください。";
+            error = $"{commandName} の {argumentName} は \"\" で囲んでください。";
             return false;
         }
 
@@ -2322,7 +2440,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         if (!closed)
         {
-            error = "REPLACE の引数が閉じられていません。";
+            error = $"{commandName} の {argumentName} が閉じられていません。";
             return false;
         }
 
@@ -2545,6 +2663,135 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         return true;
     }
+
+    private bool TryShowPopup(string message, string caption, MessageBoxImage image, out string? error)
+    {
+        error = null;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            error = "アプリケーションのディスパッチャが利用できません。";
+            return false;
+        }
+
+        string popupMessage = message ?? string.Empty;
+        string popupCaption = string.IsNullOrWhiteSpace(caption) ? "DropSendTo" : caption.Trim();
+        Exception? operationError = null;
+
+        void ShowPopup()
+        {
+            try
+            {
+                IntPtr ownerHandle = IntPtr.Zero;
+                Window? ownerWindow = null;
+                var owner = GetPopupOwnerWindow();
+                if (owner != null)
+                {
+                    try
+                    {
+                        ownerHandle = new WindowInteropHelper(owner).EnsureHandle();
+                        ownerWindow = owner;
+                    }
+                    catch
+                    {
+                        ownerHandle = IntPtr.Zero;
+                        ownerWindow = null;
+                    }
+                }
+
+                if (ownerHandle == IntPtr.Zero && _windowHandle != IntPtr.Zero)
+                {
+                    ownerHandle = _windowHandle;
+                }
+
+                bool taskbarToggled = false;
+                if (ownerWindow != null && !ownerWindow.ShowInTaskbar)
+                {
+                    ownerWindow.ShowInTaskbar = true;
+                    taskbarToggled = true;
+                }
+
+                try
+                {
+                    var flags = MessageBoxConstants.MB_OK |
+                                MessageBoxConstants.MB_SETFOREGROUND |
+                                MessageBoxConstants.MB_TOPMOST |
+                                GetMessageBoxIconFlag(image);
+                    MessageBoxW(ownerHandle, popupMessage, popupCaption, flags);
+                }
+                finally
+                {
+                    if (taskbarToggled && ownerWindow != null)
+                    {
+                        ownerWindow.ShowInTaskbar = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                operationError = ex;
+            }
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            ShowPopup();
+        }
+        else
+        {
+            dispatcher.Invoke(ShowPopup);
+        }
+
+        if (operationError != null)
+        {
+            error = operationError.Message;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static Window? GetPopupOwnerWindow()
+    {
+        var app = System.Windows.Application.Current;
+        if (app == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var active = app.Windows.OfType<Window>()
+                .FirstOrDefault(w => w.IsVisible && w.IsActive);
+            if (active != null)
+            {
+                return active;
+            }
+
+            var visible = app.Windows.OfType<Window>()
+                .FirstOrDefault(w => w.IsVisible);
+            if (visible != null)
+            {
+                return visible;
+            }
+        }
+        catch
+        {
+            // ignore window enumeration errors
+        }
+
+        return app.MainWindow?.IsVisible == true ? app.MainWindow : null;
+    }
+
+    private static uint GetMessageBoxIconFlag(MessageBoxImage image) =>
+        image switch
+        {
+            MessageBoxImage.Error => MessageBoxConstants.MB_ICONHAND,
+            MessageBoxImage.Question => MessageBoxConstants.MB_ICONQUESTION,
+            MessageBoxImage.Warning => MessageBoxConstants.MB_ICONEXCLAMATION,
+            MessageBoxImage.Information => MessageBoxConstants.MB_ICONINFORMATION,
+            _ => 0
+        };
 
     private bool TrySendRuneUsingUnicode(Rune rune, Span<char> buffer, INPUT[] inputs, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
@@ -3739,6 +3986,16 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     private const ushort VK_OEM_5 = 0xDC;
     private const ushort VK_OEM_6 = 0xDD;
     private const ushort VK_OEM_7 = 0xDE;
+    private static class MessageBoxConstants
+    {
+        public const uint MB_OK = 0x00000000;
+        public const uint MB_ICONHAND = 0x00000010;
+        public const uint MB_ICONQUESTION = 0x00000020;
+        public const uint MB_ICONEXCLAMATION = 0x00000030;
+        public const uint MB_ICONINFORMATION = 0x00000040;
+        public const uint MB_SETFOREGROUND = 0x00010000;
+        public const uint MB_TOPMOST = 0x00040000;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct POINT
@@ -4035,17 +4292,17 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsIconic(IntPtr hWnd);
+[DllImport("user32.dll")]
+private static extern bool IsIconic(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")]
+private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-    [DllImport("user32.dll")]
-    private static extern bool IsWindow(IntPtr hWnd);
+[DllImport("user32.dll")]
+private static extern bool IsWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetKeyboardLayout(uint idThread);
+[DllImport("user32.dll")]
+private static extern IntPtr GetKeyboardLayout(uint idThread);
 
     [DllImport("user32.dll")]
     private static extern short VkKeyScanEx(char ch, IntPtr dwhkl);
@@ -4073,6 +4330,10 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
 
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+
 
     public record MacroExecutionResult(bool Success, string Message, bool Executed, bool IsCanceled)
     {

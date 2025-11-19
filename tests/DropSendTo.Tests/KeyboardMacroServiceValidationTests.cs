@@ -162,6 +162,42 @@ ENDIF
     }
 
     [Fact]
+    public void TryValidateScript_ShouldAllowTestPathAndPopupCommands()
+    {
+        const string script = """
+TESTPATH PathOk {{drop_path}}
+IF {{PathOk}} == 0
+    POPUP "Path missing: {{drop_path}}"
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForTestPathMissingArguments()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("TESTPATH OnlyVar", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("TESTPATH");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForPopupWithoutMessage()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("POPUP", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("POPUP");
+    }
+
+    [Fact]
     public void TryValidateScript_ShouldAllowInlineCommentsOnControlStatements()
     {
         const string script = """
