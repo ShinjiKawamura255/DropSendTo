@@ -145,8 +145,17 @@ internal static class MacroScriptFormatter
             return false;
         }
 
-        return line.Length == command.Length || char.IsWhiteSpace(line[command.Length]);
+        if (line.Length == command.Length)
+        {
+            return true;
+        }
+
+        var next = line[command.Length];
+        return char.IsWhiteSpace(next) || !IsAsciiLetter(next);
     }
+
+    private static bool IsAsciiLetter(char ch) =>
+        (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
 
     public static bool TryGetPlaceholderWarning(string? script, out string? warning)
     {
