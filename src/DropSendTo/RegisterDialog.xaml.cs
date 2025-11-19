@@ -20,12 +20,30 @@ public partial class RegisterDialog : Window
 {
     private static readonly IReadOnlyList<SlotColorOption> AccentColorOptions = new[]
     {
-        new SlotColorOption(SlotAccentColor.Default, "Default", CreatePreviewBrush(0x11, 0x11, 0x11)),
-        new SlotColorOption(SlotAccentColor.Teal, "Teal", CreatePreviewBrush(0x10, 0x2A, 0x30)),
-        new SlotColorOption(SlotAccentColor.Indigo, "Indigo", CreatePreviewBrush(0x16, 0x15, 0x2E)),
-        new SlotColorOption(SlotAccentColor.Amber, "Amber", CreatePreviewBrush(0x2D, 0x1F, 0x0F)),
-        new SlotColorOption(SlotAccentColor.Olive, "Olive", CreatePreviewBrush(0x20, 0x27, 0x12)),
-        new SlotColorOption(SlotAccentColor.Crimson, "Crimson", CreatePreviewBrush(0x2B, 0x11, 0x16))
+        CreateColorOption(SlotAccentColor.Default, "Default",
+            System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11),
+            System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33),
+            System.Windows.Media.Colors.White),
+        CreateColorOption(SlotAccentColor.Teal, "Teal",
+            System.Windows.Media.Color.FromRgb(0x10, 0x2A, 0x30),
+            System.Windows.Media.Color.FromRgb(0x1F, 0x76, 0x7D),
+            System.Windows.Media.Color.FromRgb(0xE4, 0xFD, 0xFF)),
+        CreateColorOption(SlotAccentColor.Indigo, "Indigo",
+            System.Windows.Media.Color.FromRgb(0x16, 0x15, 0x2E),
+            System.Windows.Media.Color.FromRgb(0x4E, 0x52, 0xA6),
+            System.Windows.Media.Color.FromRgb(0xF4, 0xF2, 0xFF)),
+        CreateColorOption(SlotAccentColor.Amber, "Amber",
+            System.Windows.Media.Color.FromRgb(0x2D, 0x1F, 0x0F),
+            System.Windows.Media.Color.FromRgb(0xB5, 0x6B, 0x17),
+            System.Windows.Media.Color.FromRgb(0xFF, 0xE8, 0xC2)),
+        CreateColorOption(SlotAccentColor.Olive, "Olive",
+            System.Windows.Media.Color.FromRgb(0x20, 0x27, 0x12),
+            System.Windows.Media.Color.FromRgb(0x6E, 0x8C, 0x23),
+            System.Windows.Media.Color.FromRgb(0xF0, 0xFF, 0xD8)),
+        CreateColorOption(SlotAccentColor.Crimson, "Crimson",
+            System.Windows.Media.Color.FromRgb(0x2B, 0x11, 0x16),
+            System.Windows.Media.Color.FromRgb(0xB5, 0x45, 0x4F),
+            System.Windows.Media.Color.FromRgb(0xFF, 0xE3, 0xE7))
     };
 
     public string AppTitle => TitleBox.Text.Trim();
@@ -588,11 +606,25 @@ public partial class RegisterDialog : Window
         return SlotAccentColor.Default;
     }
 
-    private static System.Windows.Media.Brush CreatePreviewBrush(byte r, byte g, byte b)
+    private static SlotColorOption CreateColorOption(SlotAccentColor color, string name, System.Windows.Media.Color background, System.Windows.Media.Color accent, System.Windows.Media.Color foreground) =>
+        new(
+            color,
+            name,
+            CreatePreviewBackgroundBrush(background),
+            CreateFrozenBrush(accent),
+            CreateFrozenBrush(foreground));
+
+    private static System.Windows.Media.Brush CreatePreviewBackgroundBrush(System.Windows.Media.Color baseColor)
     {
-        var baseColor = System.Windows.Media.Color.FromRgb(r, g, b);
-        var highlight = BlendWithWhite(baseColor, 0.65);
-        var brush = new LinearGradientBrush(highlight, baseColor, 45);
+        var tinted = BlendWithWhite(baseColor, 0.55);
+        var brush = new SolidColorBrush(tinted);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static System.Windows.Media.Brush CreateFrozenBrush(System.Windows.Media.Color color)
+    {
+        var brush = new SolidColorBrush(color);
         brush.Freeze();
         return brush;
     }
@@ -610,16 +642,20 @@ public partial class RegisterDialog : Window
 
     private sealed class SlotColorOption
     {
-        public SlotColorOption(SlotAccentColor color, string name, System.Windows.Media.Brush brush)
+        public SlotColorOption(SlotAccentColor color, string name, System.Windows.Media.Brush background, System.Windows.Media.Brush accent, System.Windows.Media.Brush foreground)
         {
             Color = color;
             Name = name;
-            Brush = brush;
+            BackgroundBrush = background;
+            AccentBrush = accent;
+            ForegroundBrush = foreground;
         }
 
         public SlotAccentColor Color { get; }
         public string Name { get; }
-        public System.Windows.Media.Brush Brush { get; }
+        public System.Windows.Media.Brush BackgroundBrush { get; }
+        public System.Windows.Media.Brush AccentBrush { get; }
+        public System.Windows.Media.Brush ForegroundBrush { get; }
     }
 }
 

@@ -37,12 +37,25 @@
             <ComboBox.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal">
-                        <Border Width="24"
-                                Height="16"
+                        <Border Width="36"
+                                Height="18"
                                 CornerRadius="4"
                                 BorderThickness="1"
-                                BorderBrush="#666"
-                                Background="{Binding Brush}"/>
+                                BorderBrush="{Binding AccentBrush}"
+                                Background="{Binding BackgroundBrush}">
+                            <Grid>
+                                <Rectangle Height="6"
+                                           VerticalAlignment="Top"
+                                           Fill="{Binding AccentBrush}"
+                                           Opacity="0.9"/>
+                                <TextBlock Text="Aa"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding ForegroundBrush}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Border>
                         <TextBlock Text="{Binding Name}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </DataTemplate>
