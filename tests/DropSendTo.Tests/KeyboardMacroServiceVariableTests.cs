@@ -387,6 +387,33 @@ public class KeyboardMacroServiceVariableTests
     }
 
     [Fact]
+    public void TryExpandVariables_ShouldUseValidationPlaceholders()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var resolver = KeyboardMacroService.CreateSpecialVariableResolverForTesting(ClipboardSnapshot.Empty, null, validationMode: true);
+
+        KeyboardMacroService.TryExpandVariables("{{clipboard}}", variables, out var clipboard, out var clipboardError, resolver)
+            .Should().BeTrue();
+        clipboardError.Should().BeNull();
+        clipboard.Should().NotBeNullOrWhiteSpace();
+
+        KeyboardMacroService.TryExpandVariables("{{drop_args}}", variables, out var dropArgs, out var dropArgsError, resolver)
+            .Should().BeTrue();
+        dropArgsError.Should().BeNull();
+        dropArgs.Should().NotBeNullOrWhiteSpace();
+
+        KeyboardMacroService.TryExpandVariables("{{drop_path:5}}", variables, out var dropPath, out var dropPathError, resolver)
+            .Should().BeTrue();
+        dropPathError.Should().BeNull();
+        dropPath.Should().NotBeNullOrWhiteSpace();
+
+        KeyboardMacroService.TryExpandVariables("{{drop_count}}", variables, out var dropCount, out var dropCountError, resolver)
+            .Should().BeTrue();
+        dropCountError.Should().BeNull();
+        dropCount.Should().NotBe("0");
+    }
+
+    [Fact]
     public void TryExpandVariables_ShouldReportError_OnInvalidClipboardSpecifier()
     {
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -418,6 +445,19 @@ public class KeyboardMacroServiceVariableTests
         result.Should().Be(199);
         variables.Should().ContainKey("PosX").WhoseValue.Should().Be("199");
         error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryEvaluateCondition_ShouldHandleUncLiterals()
+    {
+        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        const string condition = "\"\\\\server\\share\" == \"\\\\server\\share\"";
+
+        var ok = KeyboardMacroService.TryEvaluateCondition(condition, variables, null, out var result, out var error);
+
+        ok.Should().BeTrue();
+        error.Should().BeNull();
+        result.Should().BeTrue();
     }
 
     [Fact]

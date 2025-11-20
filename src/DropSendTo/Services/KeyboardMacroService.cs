@@ -544,9 +544,16 @@ public sealed class KeyboardMacroService : IDisposable
 
         try
         {
-            var clipboardSnapshot = ClipboardHistoryService.Instance.GetSnapshot(null);
-            var dropPaths = context?.DroppedPaths;
-            var specialResolver = CreateSpecialVariableResolver(clipboardSnapshot, dropPaths);
+            var clipboardSnapshot = validateOnly
+                ? ClipboardSnapshot.Empty
+                : ClipboardHistoryService.Instance.GetSnapshot(null);
+            IReadOnlyList<string>? dropPaths = validateOnly
+                ? ValidationDropEntries
+                : context?.DroppedPaths;
+            var specialResolver = CreateSpecialVariableResolver(
+                clipboardSnapshot,
+                dropPaths,
+                validationMode: validateOnly);
             var ifStack = new Stack<IfBlockState>();
             int inactiveIfDepth = 0;
 
@@ -692,6 +699,12 @@ public sealed class KeyboardMacroService : IDisposable
                     }
 
                     var normalizedPath = expandedPath.Trim();
+                    if (normalizedPath.Length >= 2 &&
+                        normalizedPath.StartsWith("\"", StringComparison.Ordinal) &&
+                        normalizedPath.EndsWith("\"", StringComparison.Ordinal))
+                    {
+                        normalizedPath = normalizedPath.Substring(1, normalizedPath.Length - 2);
+                    }
                     variables[variableName] = PathExists(normalizedPath) ? "1" : "0";
                     continue;
                 }
@@ -1524,54 +1537,46 @@ public sealed class KeyboardMacroService : IDisposable
             return true;
         }
 
-        index++;
-        var sb = new StringBuilder();
-        bool closed = false;
-        while (index < input.Length)
+        if (!TryReadQuotedContent(input, ref index, "IF", "条件", out var literal, out error))
         {
-            char ch = input[index++];
-            if (ch == '\\' && index < input.Length)
-            {
-                char escape = input[index++];
-                sb.Append(escape switch
-                {
-                    '\\' => '\\',
-                    '"' => '"',
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    _ => escape
-                });
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                closed = true;
-                break;
-            }
-
-            sb.Append(ch);
-        }
-
-        if (!closed)
-        {
-            error = "IF 条件の引用符が閉じられていません。";
             return false;
         }
 
-        token = sb.ToString();
+        token = literal;
         return true;
     }
 
     private const int ClipboardVariableLimit = 20;
 
-    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null)
+    private static readonly string[] ValidationClipboardEntries =
     {
-        var rawText = snapshot.RawText?.Trim() ?? string.Empty;
-        var latestEntries = snapshot.LatestEntries ?? Array.Empty<string>();
-        var historyEntries = snapshot.Entries ?? Array.Empty<string>();
-        var dropEntries = droppedPaths ?? Array.Empty<string>();
+        "__CLIPBOARD_LINE1__",
+        "__CLIPBOARD_LINE2__"
+    };
+
+    private static readonly string[] ValidationDropEntries =
+    {
+        @"C:\Drop\Validation1.txt",
+        @"C:\Drop\Validation2.txt",
+        @"C:\Drop\Validation3.txt",
+        @"C:\Drop\Validation4.txt",
+        @"C:\Drop\Validation5.txt"
+    };
+
+    private const string ValidationClipboardValue = "__CLIPBOARD__";
+
+    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null, bool validationMode = false)
+    {
+        var rawText = validationMode ? ValidationClipboardValue : snapshot.RawText?.Trim() ?? string.Empty;
+        var latestEntries = validationMode
+            ? ValidationClipboardEntries
+            : snapshot.LatestEntries ?? Array.Empty<string>();
+        var historyEntries = validationMode
+            ? ValidationClipboardEntries
+            : snapshot.Entries ?? Array.Empty<string>();
+        var dropEntries = validationMode
+            ? ValidationDropEntries
+            : droppedPaths ?? Array.Empty<string>();
 
         return (string token, out string value, out string? error) =>
         {
@@ -1665,8 +1670,11 @@ public sealed class KeyboardMacroService : IDisposable
         };
     }
 
-    internal static SpecialVariableResolver CreateSpecialVariableResolverForTesting(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null) =>
-        CreateSpecialVariableResolver(snapshot, droppedPaths);
+    internal static SpecialVariableResolver CreateSpecialVariableResolverForTesting(
+        ClipboardSnapshot snapshot,
+        IReadOnlyList<string>? droppedPaths = null,
+        bool validationMode = false) =>
+        CreateSpecialVariableResolver(snapshot, droppedPaths, validationMode);
 
     private static bool TryResolveClipboardHistory(string suffix, IReadOnlyList<string> entries, out string value, out string? error)
     {
@@ -2408,43 +2416,13 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
-        index++; // skip opening quote
-        var sb = new StringBuilder();
-        bool closed = false;
-        while (index < input.Length)
+        if (!TryReadQuotedContent(input, ref index, commandName, argumentName, out var literal, out error))
         {
-            char ch = input[index++];
-            if (ch == '\\' && index < input.Length)
-            {
-                char escape = input[index++];
-                sb.Append(escape switch
-                {
-                    '\\' => '\\',
-                    '"' => '"',
-                    'n' => '\n',
-                    'r' => '\r',
-                    't' => '\t',
-                    _ => escape
-                });
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                closed = true;
-                break;
-            }
-
-            sb.Append(ch);
-        }
-
-        if (!closed)
-        {
-            error = $"{commandName} の {argumentName} が閉じられていません。";
+            value = string.Empty;
             return false;
         }
 
-        value = sb.ToString();
+        value = literal;
         return true;
     }
 
@@ -2460,6 +2438,120 @@ public sealed class KeyboardMacroService : IDisposable
         const int MaxLength = 48;
         if (value.Length <= MaxLength) return value;
         return value[..MaxLength] + "...";
+    }
+
+    private static bool TryReadQuotedContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
+    {
+        index++; // skip opening quote
+        var sb = new StringBuilder();
+        error = null;
+        bool closed = false;
+
+        while (index < input.Length)
+        {
+            char ch = input[index++];
+            if (ch == '\\')
+            {
+                int slashCount = 1;
+                while (index < input.Length && input[index] == '\\')
+                {
+                    slashCount++;
+                    index++;
+                }
+
+                if (index >= input.Length)
+                {
+                    sb.Append('\\', slashCount);
+                    break;
+                }
+
+                var nextChar = input[index];
+                if (nextChar == '"')
+                {
+                    sb.Append('\\', slashCount / 2);
+                    if (slashCount % 2 == 0)
+                    {
+                        index++;
+                        closed = true;
+                        break;
+                    }
+
+                    if (IsQuoteTerminator(input, index + 1))
+                    {
+                        sb.Append('\\');
+                        index++;
+                        closed = true;
+                        break;
+                    }
+
+                    index++;
+                    sb.Append('"');
+                    continue;
+                }
+
+                var literalPairs = slashCount / 2;
+                if (literalPairs > 0)
+                {
+                    sb.Append('\\', literalPairs);
+                }
+                if (slashCount % 2 == 1)
+                {
+                    if (nextChar == 'n' || nextChar == 'r' || nextChar == 't' || nextChar == '"' || nextChar == '\\')
+                    {
+                        index++;
+                        sb.Append(nextChar switch
+                        {
+                            'n' => '\n',
+                            'r' => '\r',
+                            't' => '\t',
+                            '"' => '"',
+                            '\\' => '\\',
+                            _ => nextChar
+                        });
+                        continue;
+                    }
+
+                    sb.Append('\\');
+                    continue;
+                }
+
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                closed = true;
+                break;
+            }
+
+            sb.Append(ch);
+        }
+
+        if (!closed)
+        {
+            error = $"{commandName} の {argumentName} が閉じられていません。";
+            value = string.Empty;
+            return false;
+        }
+
+        value = sb.ToString();
+        return true;
+    }
+
+    private static bool IsQuoteTerminator(string input, int startIndex)
+    {
+        for (int i = startIndex; i < input.Length; i++)
+        {
+            char c = input[i];
+            if (char.IsWhiteSpace(c))
+            {
+                continue;
+            }
+
+            return c == '#';
+        }
+
+        return true;
     }
 
     private bool TrySetClipboardText(string text, out string? error)
