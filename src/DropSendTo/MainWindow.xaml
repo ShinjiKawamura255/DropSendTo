@@ -64,6 +64,8 @@
                       Header="Prefix: リモートセッション優先 (RDP/Citrix)"
                       IsCheckable="True"
                       Click="OnToggleRemoteSessionPriority"/>
+            <MenuItem Header="ショートカット一覧..."
+                      Click="OnShowShortcutList"/>
             <Separator/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"

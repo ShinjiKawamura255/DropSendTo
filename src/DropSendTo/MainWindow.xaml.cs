@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private readonly ConfigTransferService _configTransferService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
+    private SlotShortcutListWindow? _shortcutListWindow;
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
     private bool _suppressLayerSelectionForPrefix;
@@ -2226,6 +2227,123 @@ public partial class MainWindow : Window
         PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
+    }
+
+    private void OnShowShortcutList(object sender, RoutedEventArgs e)
+    {
+        var entries = BuildShortcutListEntries();
+        if (entries.Count == 0)
+        {
+            WpfMessageBox.Show("ショートカットが登録されたスロットはありません。", "ショートカット一覧", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (_shortcutListWindow == null)
+        {
+            _shortcutListWindow = new SlotShortcutListWindow
+            {
+                Owner = this
+            };
+            _shortcutListWindow.Closed += (_, _) => _shortcutListWindow = null;
+            WindowCascadeService.Arrange(_shortcutListWindow, this);
+            _shortcutListWindow.SetEntries(entries);
+            _shortcutListWindow.Show();
+        }
+        else
+        {
+            _shortcutListWindow.SetEntries(entries);
+            if (_shortcutListWindow.WindowState == WindowState.Minimized)
+            {
+                _shortcutListWindow.WindowState = WindowState.Normal;
+            }
+            _shortcutListWindow.Activate();
+        }
+    }
+
+    private List<SlotShortcutInfo> BuildShortcutListEntries()
+    {
+        var items = new List<SlotShortcutInfo>();
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return items;
+        }
+
+        int visibleSlots = _slotVisuals.Count > 0
+            ? _slotVisuals.Count
+            : Math.Max(0, _config.SlotRows * _config.SlotColumns);
+        if (visibleSlots == 0)
+        {
+            return items;
+        }
+
+        for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
+        {
+            var layer = _config.Layers[layerIndex];
+            if (layer?.Slots == null || layer.Slots.Count == 0) continue;
+            int maxSlots = Math.Min(visibleSlots, layer.Slots.Count);
+            for (int slotIndex = 0; slotIndex < maxSlots; slotIndex++)
+            {
+                var slot = layer.Slots[slotIndex];
+                if (slot == null) continue;
+                if (string.IsNullOrWhiteSpace(slot.ShortcutKey)) continue;
+
+                string slotId = FormatSlotDisplayName(layerIndex, slotIndex);
+                string title = string.IsNullOrWhiteSpace(slot.Title)
+                    ? string.Format(CultureInfo.InvariantCulture, "Slot {0}", slotIndex + 1)
+                    : slot.Title!.Trim();
+                string shortcut = slot.ShortcutKey.Trim();
+
+                bool parseError = !ShortcutSequenceParser.TryParse(shortcut, out var sequence, out _);
+                string normalized = parseError ? string.Empty : sequence.NormalizedString;
+                var segments = parseError
+                    ? Array.Empty<string>()
+                    : sequence.Chords.Select(c => c.NormalizedString).ToArray();
+                items.Add(new SlotShortcutInfo(slotId, title, shortcut, normalized, segments, parseError));
+            }
+        }
+
+        var conflictGroups = items
+            .Where(item => !item.HasParseError && !string.IsNullOrEmpty(item.NormalizedKey))
+            .GroupBy(item => item.NormalizedKey, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1);
+        foreach (var conflictEntry in conflictGroups.SelectMany(g => g))
+        {
+            conflictEntry.HasConflict = true;
+        }
+
+        var validForShadow = items
+            .Where(item => !item.HasParseError && item.NormalizedSegments.Length > 0)
+            .ToList();
+        for (int i = 0; i < validForShadow.Count; i++)
+        {
+            var shorter = validForShadow[i];
+            for (int j = 0; j < validForShadow.Count; j++)
+            {
+                if (i == j) continue;
+                var longer = validForShadow[j];
+                if (shorter.NormalizedSegments.Length >= longer.NormalizedSegments.Length) continue;
+                if (IsPrefix(shorter.NormalizedSegments, longer.NormalizedSegments))
+                {
+                    longer.IsShadowed = true;
+                }
+            }
+        }
+
+        static bool IsPrefix(string[] shorter, string[] longer)
+        {
+            if (shorter.Length == 0 || longer.Length == 0) return false;
+            if (shorter.Length >= longer.Length) return false;
+            for (int idx = 0; idx < shorter.Length; idx++)
+            {
+                if (!string.Equals(shorter[idx], longer[idx], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        return items;
     }
 
     private void UpdateMacroModeMenu(MacroConcurrencyMode? overrideMode)
