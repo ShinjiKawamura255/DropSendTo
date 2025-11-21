@@ -78,6 +78,7 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="KEYDOWN &lt;キー&gt;        : 押しっぱなし (例: KEYDOWN Ctrl)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="KEYUP &lt;キー&gt;          : 離す (例: KEYUP Ctrl)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="TEXT &lt;文字列&gt;         : Unicode 文字列を送信" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="SETCLIP &lt;文字列&gt;       : 文字列をクリップボードに設定（貼り付けは自動で実行しない）" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="CLIPTEXT &lt;文字列&gt;      : 文字列をクリップボードに設定→自動で Ctrl+V" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

@@ -982,6 +982,27 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "SETCLIP"))
+                {
+                    var text = line.Length > 7 ? line[7..].TrimStart() : string.Empty;
+                    if (!TryExpandVariables(text, variables, out var clipText, out var clipExpandError, specialResolver))
+                    {
+                        var message = clipExpandError ?? $"変数の解決に失敗しました: \"{line}\"";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushBeforeClipError))
+                    {
+                        var message = flushBeforeClipError ?? "SendInput の実行に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    if (!validateOnly && !TrySetClipboardText(clipText, out var clipboardError))
+                    {
+                        var message = clipboardError ?? "クリップボード操作に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "CLIPTEXT"))
                 {
                     var text = line.Length > 8 ? line[8..].TrimStart() : string.Empty;
