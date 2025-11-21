@@ -227,4 +227,26 @@ ENDREPEAT # finish
         error.Should().NotBeNull();
         error.Should().Contain("未知のマクロ命令");
     }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowQuotedOperandsWithWhitespace()
+    {
+        const string script = "IF \"Hello World\" CONTAINS \"World\"\n    TEXT ok\nENDIF\n";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowQuotedOperandsWithNewlineEscapes()
+    {
+        const string script = "IF \"Line1\\nLine2\" CONTAINS \"\\nLine2\"\n    TEXT ok\nENDIF\n";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
 }

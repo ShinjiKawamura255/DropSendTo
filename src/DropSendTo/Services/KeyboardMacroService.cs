@@ -1511,22 +1511,47 @@ public sealed class KeyboardMacroService : IDisposable
         tokens = new List<string>(capacity: 3);
         error = null;
         int index = 0;
-        while (index < input.Length)
-        {
-            while (index < input.Length && char.IsWhiteSpace(input[index]))
-            {
-                index++;
-            }
-            if (index >= input.Length)
-            {
-                break;
-            }
 
-            if (!TryParseConditionToken(input, ref index, out var token, out error))
+        static void SkipWhitespace(string text, ref int idx)
+        {
+            while (idx < text.Length && char.IsWhiteSpace(text[idx]))
             {
-                return false;
+                idx++;
             }
-            tokens.Add(token);
+        }
+
+        SkipWhitespace(input, ref index);
+        if (!TryParseConditionToken(input, ref index, out var left, out error))
+        {
+            return false;
+        }
+        tokens.Add(left);
+
+        SkipWhitespace(input, ref index);
+        int opStart = index;
+        while (index < input.Length && !char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+        if (index == opStart)
+        {
+            error = "IF 条件が不完全です。演算子を指定してください。";
+            return false;
+        }
+        tokens.Add(input[opStart..index]);
+
+        SkipWhitespace(input, ref index);
+        if (!TryParseConditionToken(input, ref index, out var right, out error))
+        {
+            return false;
+        }
+        tokens.Add(right);
+
+        SkipWhitespace(input, ref index);
+        if (index < input.Length)
+        {
+            error = "IF 条件の末尾に余分な文字があります。空白を含む値は \"\" で囲んでください。";
+            return false;
         }
 
         return true;
