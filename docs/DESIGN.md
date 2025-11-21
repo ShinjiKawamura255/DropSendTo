@@ -8,7 +8,7 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
-- MainWindow: 2〜8 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。Slot Size メニューで Small/Medium/Large を切り替え（既定は Medium）、Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現するためにスロット高さと行レイアウトを再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。Slot Layout Edit Mode ではツールバーの ✎ ボタン/コンテキストメニューから `_isSlotLayoutEditMode` を切り替え、左上に「EDIT MODE」オーバーレイを表示してクリック/ドロップ起動を抑止する。モード中は `_slotLayoutDragSourceLayer/index` を保持し、`DragDrop.DoDragDrop` に `SlotLayoutDragData`（レイヤー+スロット番号）を渡して UI ベースのドラッグ＆ドロップを実現。`SlotVisual.DragPreviewHost` を重ね描画してターゲットスロットのプレビューを元位置に表示し、`LayerBtn` 上のホバータイマーを流用して別レイヤーへの切替・スワップも同一操作で行う。ドロップ完了時にのみ `_config.Layers` のスロットを入れ替え `ConfigService` で保存する。
+- MainWindow: 2〜8 行×2〜4 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。Slot Size メニューで Small/Medium/Large を切り替え（既定は Medium）、Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現するためにスロット高さと行レイアウトを再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。Slot Layout Edit Mode はツールバーの ✎ ボタンで `_isSlotLayoutEditMode` を切り替え、左上に「EDIT MODE」オーバーレイを表示してクリック/ドロップ起動を抑止する。モード中は `_slotLayoutDragSourceLayer/index` を保持し、`DragDrop.DoDragDrop` に `SlotLayoutDragData`（レイヤー+スロット番号）を渡して UI ベースのドラッグ＆ドロップを実現。`SlotVisual.DragPreviewHost` を重ね描画してターゲットスロットのプレビューを元位置に表示し、`LayerBtn` 上のホバータイマーを流用して別レイヤーへの切替・スワップも同一操作で行う。ドロップ完了時にのみ `_config.Layers` のスロットを入れ替え `ConfigService` で保存する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey を保持。
 - ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 7 までのマイグレーションを実装し、行列分のスロット容量を保証する。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
@@ -35,6 +35,7 @@
 10) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出し、以降の入力に MacroPassthrough タグを付けてショートカット検出を継続する。armed 中に修飾なしの `Enter` を受け取った場合は MainWindow へ復帰イベントを通知し、ウィンドウを前面にアクティブ化する（常時最前面設定は変更しない）。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
 11) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 12) タスクトレイ最小化: `Minimize to Tray` メニューまたは Prefix+Shift+Enter を受けると `_isMinimizedToTray` を true に設定し `Hide()` でウィンドウを非表示にする。Prefix+Enter やタスクトレイアイコン左クリックで復帰要求が届いた場合は `Show()` と `WindowState=Normal` で再表示し `_isMinimizedToTray` を false に戻す。
+13) キーボード操作トグル: コンテキストメニュー「キーボード操作」で `_config.EnableEmacsNavigation` / `_config.EnableViNavigation` を切り替え、ウィンドウアクティブ時のみ Emacs/vi ライクの移動キーを受け付ける。トグルは Enter/Ctrl+J/Ctrl+M でも確定し設定へ保存され、無効化時は矢印キーと Enter/Esc の基本操作のみ有効。
 
 ## DES-004 API Contracts (examples)
 - LauncherService
