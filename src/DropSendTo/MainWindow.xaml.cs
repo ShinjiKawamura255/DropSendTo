@@ -994,7 +994,17 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.None)
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        if (e.Key == System.Windows.Input.Key.Tab &&
+            (modifiers & System.Windows.Input.ModifierKeys.Control) != 0 &&
+            (modifiers & ~(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)) == 0)
+        {
+            int delta = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0 ? -1 : 1;
+            ChangeLayer(delta);
+            return true;
+        }
+
+        if (modifiers != System.Windows.Input.ModifierKeys.None)
         {
             return false;
         }
