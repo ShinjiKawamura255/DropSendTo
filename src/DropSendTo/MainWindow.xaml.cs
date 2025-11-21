@@ -1463,7 +1463,12 @@ public partial class MainWindow : Window
             return true;
         }
 
+        if (focused.IsCheckable && focused.IsEnabled)
+        {
+            focused.IsChecked = !focused.IsChecked;
+        }
         focused.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        menu.IsOpen = false;
         return true;
     }
 
