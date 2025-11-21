@@ -27,10 +27,6 @@
                 <MenuItem x:Name="SlotSizeMenuItem"
                           Header="Slot Size"
                           SubmenuOpened="OnSlotSizeMenuOpened"/>
-                <MenuItem x:Name="SlotLayoutEditModeMenuItem"
-                          Header="Slot Layout Edit Mode"
-                          IsCheckable="True"
-                          Click="OnSlotLayoutEditModeMenuItemClick"/>
             </MenuItem>
             <MenuItem Header="起動時のウィンドウ">
                 <MenuItem x:Name="StartupAlwaysShowMenuItem"
@@ -55,6 +51,16 @@
                           Header="一時停止して割り込み（完了後に元マクロ再開）"
                           IsCheckable="True"
                           Click="OnMacroModeSuspend"/>
+            </MenuItem>
+            <MenuItem Header="キーボード操作">
+                <MenuItem x:Name="EmacsNavigationMenuItem"
+                          Header="Emacs ライク操作"
+                          IsCheckable="True"
+                          Click="OnToggleEmacsNavigation"/>
+                <MenuItem x:Name="ViNavigationMenuItem"
+                          Header="vi ライク操作"
+                          IsCheckable="True"
+                          Click="OnToggleViNavigation"/>
             </MenuItem>
             <MenuItem x:Name="PrefixLayerShortcutMenuItem"
                       Header="Prefix: Ctrl+N/P でレイヤー切替"

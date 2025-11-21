@@ -448,6 +448,14 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 19)
+        {
+            cfg.EnableEmacsNavigation = true;
+            cfg.EnableViNavigation = true;
+            cfg.Version = 19;
+            changed = true;
+        }
+
         return changed;
     }
 }

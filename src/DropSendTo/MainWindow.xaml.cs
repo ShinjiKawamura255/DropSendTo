@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -46,6 +47,8 @@ public partial class MainWindow : Window
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
     private bool _suppressLayerSelectionForPrefix;
+    private bool _metaPrefixPending;
+    private DateTime _metaPrefixExpiryUtc;
     private int _prefixGuardToken;
     private Forms.NotifyIcon? _notifyIcon;
     private DrawingIcon? _notifyIconDefault;
@@ -824,6 +827,7 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        _metaPrefixPending = false;
         base.OnPreviewKeyDown(e);
     }
 
@@ -948,30 +952,76 @@ public partial class MainWindow : Window
 
     private bool HandleKeyboardNavigationKey(System.Windows.Input.KeyEventArgs e)
     {
+        if (!IsActive)
+        {
+            return false;
+        }
+
+        if (TryHandleMenuNavigationKey(e))
+        {
+            return true;
+        }
+
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        NavigationCommand command = NavigationCommand.MoveUp;
+        if (_metaPrefixPending && DateTime.UtcNow <= _metaPrefixExpiryUtc &&
+            System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None)
+        {
+            _metaPrefixPending = false;
+            if (key == System.Windows.Input.Key.X || key == System.Windows.Input.Key.Back)
+            {
+                command = NavigationCommand.OpenMenu;
+                OpenContextMenuFromKeyboard();
+                return true;
+            }
+            return true;
+        }
+        else
+        {
+            _metaPrefixPending = false;
+        }
+        if (!TryMapNavigationCommand(e, key, out command))
+        {
+            return false;
+        }
+
+        if (command == NavigationCommand.MetaPrefix)
+        {
+            return true;
+        }
+
+        if (command == NavigationCommand.OpenMenu)
+        {
+            OpenContextMenuFromKeyboard();
+            return true;
+        }
+
         if (!_keyboardNavigationActive)
         {
-            if (!IsActive || !IsArrowKey(e.Key))
-            {
-                return false;
-            }
             ActivateKeyboardNavigation();
         }
 
-        switch (e.Key)
+        switch (command)
         {
-            case System.Windows.Input.Key.Up:
+            case NavigationCommand.MoveUp:
                 MoveKeyboardSelection(-1, 0);
                 return true;
-            case System.Windows.Input.Key.Down:
+            case NavigationCommand.MoveDown:
                 MoveKeyboardSelection(1, 0);
                 return true;
-            case System.Windows.Input.Key.Left:
+            case NavigationCommand.MoveLeft:
                 MoveKeyboardSelection(0, -1);
                 return true;
-            case System.Windows.Input.Key.Right:
+            case NavigationCommand.MoveRight:
                 MoveKeyboardSelection(0, 1);
                 return true;
-            case System.Windows.Input.Key.Enter:
+            case NavigationCommand.RowStart:
+                MoveKeyboardSelectionToBoundary(start: true);
+                return true;
+            case NavigationCommand.RowEnd:
+                MoveKeyboardSelectionToBoundary(start: false);
+                return true;
+            case NavigationCommand.Confirm:
                 if (_keyboardSelectedSlotIndex >= 0)
                 {
                     int index = _keyboardSelectedSlotIndex;
@@ -979,12 +1029,168 @@ public partial class MainWindow : Window
                     _ = TriggerSlotAsync(_currentLayer, index, SlotTriggerSource.Shortcut);
                 }
                 return true;
-            case System.Windows.Input.Key.Escape:
+            case NavigationCommand.Cancel:
                 DeactivateKeyboardNavigation();
                 return true;
             default:
                 return false;
         }
+    }
+
+    private enum NavigationCommand
+    {
+        MoveUp,
+        MoveDown,
+        MoveLeft,
+        MoveRight,
+        RowStart,
+        RowEnd,
+        Confirm,
+        Cancel,
+        OpenMenu,
+        MetaPrefix
+    }
+
+    private bool TryMapNavigationCommand(System.Windows.Input.KeyEventArgs e, System.Windows.Input.Key key, out NavigationCommand command)
+    {
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
+        bool viEnabled = _config?.EnableViNavigation ?? true;
+        command = NavigationCommand.MoveUp;
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
+        bool shift = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool hasOther = (modifiers & ~(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift | System.Windows.Input.ModifierKeys.Alt)) != 0;
+        if (hasOther)
+        {
+            return false;
+        }
+
+        if (emacsEnabled && alt && !ctrl && key == System.Windows.Input.Key.X)
+        {
+            command = NavigationCommand.OpenMenu;
+            return true;
+        }
+
+        if (viEnabled && !ctrl && !alt && (key == System.Windows.Input.Key.OemSemicolon || key == System.Windows.Input.Key.Oem1) && shift)
+        {
+            command = NavigationCommand.OpenMenu;
+            return true;
+        }
+
+        if (emacsEnabled && ctrl && !alt)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.OemOpenBrackets:
+                case System.Windows.Input.Key.Escape:
+                    command = NavigationCommand.MetaPrefix;
+                    ArmMetaPrefix();
+                    return true;
+                case System.Windows.Input.Key.F:
+                    command = NavigationCommand.MoveRight;
+                    return true;
+                case System.Windows.Input.Key.B:
+                    command = NavigationCommand.MoveLeft;
+                    return true;
+                case System.Windows.Input.Key.N:
+                    command = NavigationCommand.MoveDown;
+                    return true;
+                case System.Windows.Input.Key.P:
+                    command = NavigationCommand.MoveUp;
+                    return true;
+                case System.Windows.Input.Key.A:
+                    command = NavigationCommand.RowStart;
+                    return true;
+                case System.Windows.Input.Key.E:
+                    command = NavigationCommand.RowEnd;
+                    return true;
+                case System.Windows.Input.Key.M:
+                case System.Windows.Input.Key.J:
+                    command = NavigationCommand.Confirm;
+                    return true;
+            }
+        }
+
+        if (!ctrl && !alt)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.Up:
+                    command = NavigationCommand.MoveUp;
+                    return true;
+                case System.Windows.Input.Key.Down:
+                    command = NavigationCommand.MoveDown;
+                    return true;
+                case System.Windows.Input.Key.Left:
+                    command = NavigationCommand.MoveLeft;
+                    return true;
+                case System.Windows.Input.Key.Right:
+                    command = NavigationCommand.MoveRight;
+                    return true;
+            }
+        }
+
+        if (!ctrl && !alt && viEnabled)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.H:
+                    command = NavigationCommand.MoveLeft;
+                    return true;
+                case System.Windows.Input.Key.J:
+                    command = NavigationCommand.MoveDown;
+                    return true;
+                case System.Windows.Input.Key.K:
+                    command = NavigationCommand.MoveUp;
+                    return true;
+                case System.Windows.Input.Key.L:
+                    command = NavigationCommand.MoveRight;
+                    return true;
+            }
+        }
+
+        if (!ctrl && !alt && (viEnabled || emacsEnabled))
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.Enter:
+                    command = NavigationCommand.Confirm;
+                    return true;
+                case System.Windows.Input.Key.Escape:
+                    command = NavigationCommand.Cancel;
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void MoveKeyboardSelectionToBoundary(bool start)
+    {
+        if (!_keyboardNavigationActive)
+        {
+            return;
+        }
+
+        int rows = _config.SlotRows;
+        int columns = _config.SlotColumns;
+        if (rows <= 0 || columns <= 0)
+        {
+            return;
+        }
+
+        if (_keyboardSelectedSlotIndex < 0)
+        {
+            _keyboardSelectedSlotIndex = 0;
+            UpdateKeyboardSelectionVisual();
+            return;
+        }
+
+        int row = _keyboardSelectedSlotIndex / columns;
+        int column = start ? 0 : columns - 1;
+        _keyboardSelectedSlotIndex = row * columns + column;
+        UpdateKeyboardSelectionVisual();
     }
 
     private bool HandleLayerSelectionKey(System.Windows.Input.KeyEventArgs e)
@@ -1054,6 +1260,328 @@ public partial class MainWindow : Window
                 layerIndex = -1;
                 return false;
         }
+    }
+
+    private bool TryHandleMenuNavigationKey(System.Windows.Input.KeyEventArgs e)
+    {
+        var menu = this.ContextMenu;
+        if (menu?.IsOpen != true)
+        {
+            return false;
+        }
+
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (!TryMapMenuCommand(key, System.Windows.Input.Keyboard.Modifiers, out var command))
+        {
+            return false;
+        }
+
+        switch (command)
+        {
+            case NavigationCommand.MoveDown:
+                return MoveMenuFocus(menu, FocusNavigationDirection.Next);
+            case NavigationCommand.MoveUp:
+                return MoveMenuFocus(menu, FocusNavigationDirection.Previous);
+            case NavigationCommand.MoveRight:
+                return TryEnterSubmenu(menu);
+            case NavigationCommand.MoveLeft:
+                return TryLeaveSubmenu(menu);
+            case NavigationCommand.Confirm:
+                return TryActivateMenuSelection(menu);
+            case NavigationCommand.Cancel:
+                menu.IsOpen = false;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void OnContextMenuPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (TryHandleMenuNavigationKey(e))
+        {
+            e.Handled = true;
+        }
+        else
+        {
+            _metaPrefixPending = false;
+        }
+    }
+
+    private void OnContextMenuClosed(object? sender, RoutedEventArgs e)
+    {
+        _metaPrefixPending = false;
+        if (sender is ContextMenu menu)
+        {
+            menu.PreviewKeyDown -= OnContextMenuPreviewKeyDown;
+            menu.Closed -= OnContextMenuClosed;
+        }
+    }
+
+    private static bool IsElementWithinContextMenu(DependencyObject element, ContextMenu menu)
+    {
+        while (element != null)
+        {
+            if (ReferenceEquals(element, menu))
+            {
+                return true;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return false;
+    }
+
+    private static MenuItem? FindFirstMenuItem(ContextMenu? menu)
+    {
+        return menu?.Items.OfType<MenuItem>().FirstOrDefault(mi => mi.IsEnabled);
+    }
+
+    private static IEnumerable<MenuItem> EnumerateMenuItems(ItemsControl root)
+    {
+        foreach (var item in root.Items.OfType<MenuItem>())
+        {
+            yield return item;
+            foreach (var child in EnumerateMenuItems(item))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private static MenuItem? FindAncestorMenuItem(DependencyObject? element, MenuItem excludeSelf)
+    {
+        while (element != null)
+        {
+            if (element is MenuItem mi && !ReferenceEquals(mi, excludeSelf))
+            {
+                return mi;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
+    }
+
+    private static MenuItem? GetFocusedMenuItem(ContextMenu menu)
+    {
+        var element = System.Windows.Input.Keyboard.FocusedElement as DependencyObject;
+        while (element != null && !ReferenceEquals(element, menu))
+        {
+            if (element is MenuItem mi)
+            {
+                return mi;
+            }
+            element = VisualTreeHelper.GetParent(element);
+        }
+        return null;
+    }
+
+    private static MenuItem? GetCurrentMenuItem(ContextMenu menu)
+    {
+        var focused = GetFocusedMenuItem(menu);
+        if (focused != null) return focused;
+
+        var highlighted = EnumerateMenuItems(menu).FirstOrDefault(mi => mi.IsHighlighted && mi.IsEnabled);
+        if (highlighted != null) return highlighted;
+
+        return FindFirstMenuItem(menu);
+    }
+
+    private static bool MoveMenuFocus(ContextMenu menu, FocusNavigationDirection direction)
+    {
+        var focused = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+        if (focused == null)
+        {
+            focused = FindFirstMenuItem(menu);
+            if (focused == null)
+            {
+                return false;
+            }
+            focused.Focus();
+        }
+        return focused.MoveFocus(new TraversalRequest(direction));
+    }
+
+    private static bool TryEnterSubmenu(ContextMenu menu)
+    {
+        var focused = GetCurrentMenuItem(menu);
+        if (focused == null)
+        {
+            return false;
+        }
+
+        if (focused.HasItems)
+        {
+            focused.IsSubmenuOpen = true;
+            var firstChild = focused.Items.OfType<MenuItem>().FirstOrDefault(mi => mi.IsEnabled);
+            if (firstChild != null)
+            {
+                firstChild.Focus();
+                return true;
+            }
+        }
+
+        return MoveMenuFocus(menu, FocusNavigationDirection.Right);
+    }
+
+    private static bool TryLeaveSubmenu(ContextMenu menu)
+    {
+        var focused = GetCurrentMenuItem(menu);
+        if (focused != null)
+        {
+            if (focused.HasItems && focused.IsSubmenuOpen)
+            {
+                focused.IsSubmenuOpen = false;
+                focused.Focus();
+                return true;
+            }
+
+            var parent = ItemsControl.ItemsControlFromItemContainer(focused) as MenuItem
+                         ?? FindAncestorMenuItem(VisualTreeHelper.GetParent(focused), focused);
+            if (parent != null)
+            {
+                parent.IsSubmenuOpen = false;
+                parent.Focus();
+                return true;
+            }
+        }
+        return MoveMenuFocus(menu, FocusNavigationDirection.Left);
+    }
+
+    private static bool TryActivateMenuSelection(ContextMenu menu)
+    {
+        var focused = GetCurrentMenuItem(menu);
+        if (focused == null)
+        {
+            return false;
+        }
+
+        if (focused.HasItems)
+        {
+            focused.IsSubmenuOpen = true;
+            var firstChild = focused.Items.OfType<MenuItem>().FirstOrDefault(mi => mi.IsEnabled);
+            firstChild?.Focus();
+            return true;
+        }
+
+        focused.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        return true;
+    }
+
+    private bool TryMapMenuCommand(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, out NavigationCommand command)
+    {
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
+        bool viEnabled = _config?.EnableViNavigation ?? true;
+        command = NavigationCommand.MoveUp;
+        bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
+        bool shift = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool hasOther = (modifiers & ~(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift | System.Windows.Input.ModifierKeys.Alt)) != 0;
+        if (hasOther)
+        {
+            return false;
+        }
+
+        if (!ctrl && !alt)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.Enter:
+                    command = NavigationCommand.Confirm;
+                    return true;
+                case System.Windows.Input.Key.Escape:
+                    command = NavigationCommand.Cancel;
+                    return true;
+            }
+        }
+
+        if (ctrl && !alt && !shift)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.M:
+                case System.Windows.Input.Key.J:
+                    command = NavigationCommand.Confirm;
+                    return true;
+            }
+        }
+
+        if (emacsEnabled && ctrl && !alt)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.N:
+                    command = NavigationCommand.MoveDown;
+                    return true;
+                case System.Windows.Input.Key.P:
+                    command = NavigationCommand.MoveUp;
+                    return true;
+                case System.Windows.Input.Key.F:
+                    command = NavigationCommand.MoveRight;
+                    return true;
+                case System.Windows.Input.Key.B:
+                    command = NavigationCommand.MoveLeft;
+                    return true;
+                case System.Windows.Input.Key.G:
+                    command = NavigationCommand.Cancel;
+                    return true;
+                case System.Windows.Input.Key.M:
+                case System.Windows.Input.Key.J:
+                    command = NavigationCommand.Confirm;
+                    return true;
+            }
+        }
+
+        if (viEnabled && !ctrl && !alt)
+        {
+            switch (key)
+            {
+                case System.Windows.Input.Key.J:
+                    command = NavigationCommand.MoveDown;
+                    return true;
+                case System.Windows.Input.Key.K:
+                    command = NavigationCommand.MoveUp;
+                    return true;
+                case System.Windows.Input.Key.L:
+                    command = NavigationCommand.MoveRight;
+                    return true;
+                case System.Windows.Input.Key.H:
+                    command = NavigationCommand.MoveLeft;
+                    return true;
+            }
+        }
+
+        if (emacsEnabled && alt && !ctrl && key == System.Windows.Input.Key.X)
+        {
+            command = NavigationCommand.Cancel;
+            return true;
+        }
+
+        if (viEnabled && (key == System.Windows.Input.Key.OemSemicolon || key == System.Windows.Input.Key.Oem1) && shift && !ctrl && !alt)
+        {
+            command = NavigationCommand.Cancel;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ArmMetaPrefix()
+    {
+        _metaPrefixPending = true;
+        _metaPrefixExpiryUtc = DateTime.UtcNow.AddSeconds(1.5);
+    }
+
+    private void OpenContextMenuFromKeyboard()
+    {
+        if (this.ContextMenu == null)
+        {
+            return;
+        }
+
+        var target = MenuBtn as UIElement ?? (UIElement)this;
+        OnOpenMenu(target, new RoutedEventArgs());
+        var first = FindFirstMenuItem(this.ContextMenu);
+        first?.Focus();
     }
 
     private static bool IsArrowKey(System.Windows.Input.Key key)
@@ -1770,13 +2298,21 @@ public partial class MainWindow : Window
             {
                 PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
             }
-            if (SlotLayoutEditModeMenuItem != null)
+            if (EmacsNavigationMenuItem != null)
             {
-                SlotLayoutEditModeMenuItem.IsChecked = _isSlotLayoutEditMode;
+                EmacsNavigationMenuItem.IsChecked = _config.EnableEmacsNavigation;
+            }
+            if (ViNavigationMenuItem != null)
+            {
+                ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
             }
             PopulateLayoutMenu(LayoutMenuItem);
             PopulateSlotSizeMenu(SlotSizeMenuItem);
             this.ContextMenu.PlacementTarget = (UIElement)sender;
+            this.ContextMenu.PreviewKeyDown -= OnContextMenuPreviewKeyDown;
+            this.ContextMenu.PreviewKeyDown += OnContextMenuPreviewKeyDown;
+            this.ContextMenu.Closed -= OnContextMenuClosed;
+            this.ContextMenu.Closed += OnContextMenuClosed;
             this.ContextMenu.IsOpen = true;
         }
     }
@@ -1854,15 +2390,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnSlotLayoutEditModeMenuItemClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem menuItem)
-        {
-            return;
-        }
-        SetSlotLayoutEditMode(menuItem.IsChecked);
-    }
-
     private void OnEditModeToggleButtonClick(object sender, RoutedEventArgs e)
     {
         SetSlotLayoutEditMode(!_isSlotLayoutEditMode);
@@ -1879,10 +2406,6 @@ public partial class MainWindow : Window
         if (isEnabled && HasAnyRunningSlot())
         {
             WpfMessageBox.Show("マクロ実行中はレイアウト編集モードに切り替えられません。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
-            if (SlotLayoutEditModeMenuItem != null)
-            {
-                SlotLayoutEditModeMenuItem.IsChecked = false;
-            }
             return;
         }
 
@@ -1901,11 +2424,6 @@ public partial class MainWindow : Window
         UpdateSlotPanelEditModePadding();
         UpdateWindowSize(_config.SlotRows, _config.SlotColumns);
         ClampWindowWithinBounds();
-
-        if (SlotLayoutEditModeMenuItem != null)
-        {
-            SlotLayoutEditModeMenuItem.IsChecked = isEnabled;
-        }
         if (EditModeToggleButton != null)
         {
             EditModeToggleButton.Content = isEnabled ? "✕" : "✎";
@@ -2145,6 +2663,24 @@ public partial class MainWindow : Window
         if (_config.EnablePrefixLayerShortcuts == enabled) return;
         _config.EnablePrefixLayerShortcuts = enabled;
         _shortcutService.SetPrefixLayerShortcutsEnabled(enabled);
+        _configService.Save(_config);
+    }
+
+    private void OnToggleEmacsNavigation(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item) return;
+        bool enabled = item.IsChecked;
+        if (_config.EnableEmacsNavigation == enabled) return;
+        _config.EnableEmacsNavigation = enabled;
+        _configService.Save(_config);
+    }
+
+    private void OnToggleViNavigation(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem item) return;
+        bool enabled = item.IsChecked;
+        if (_config.EnableViNavigation == enabled) return;
+        _config.EnableViNavigation = enabled;
         _configService.Save(_config);
     }
 

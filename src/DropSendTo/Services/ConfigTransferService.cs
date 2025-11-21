@@ -139,6 +139,8 @@ internal sealed class ConfigTransferService
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
         public bool EnablePrefixLayerShortcuts { get; set; }
+        public bool EnableEmacsNavigation { get; set; }
+        public bool EnableViNavigation { get; set; }
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
@@ -159,6 +161,8 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
+                EnableEmacsNavigation = config.EnableEmacsNavigation,
+                EnableViNavigation = config.EnableViNavigation,
                 PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
@@ -189,6 +193,8 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
+                EnableEmacsNavigation = EnableEmacsNavigation,
+                EnableViNavigation = EnableViNavigation,
                 PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,
