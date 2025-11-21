@@ -58,7 +58,7 @@
                                         Binding="{Binding SlotId}"
                                         MinWidth="120"
                                         Width="*"
-                                        SortMemberPath="SlotId"/>
+                                        SortMemberPath="SlotSortKey"/>
                     <DataGridTextColumn Header="Title"
                                         Binding="{Binding Title}"
                                         MinWidth="180"

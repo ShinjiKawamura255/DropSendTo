@@ -2298,7 +2298,7 @@ public partial class MainWindow : Window
                 var segments = parseError
                     ? Array.Empty<string>()
                     : sequence.Chords.Select(c => c.NormalizedString).ToArray();
-                items.Add(new SlotShortcutInfo(slotId, title, shortcut, normalized, segments, parseError));
+                items.Add(new SlotShortcutInfo(slotId, title, shortcut, normalized, segments, parseError, layerIndex, slotIndex));
             }
         }
 

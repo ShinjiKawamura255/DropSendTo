@@ -20,7 +20,7 @@ internal partial class SlotShortcutListWindow : Window
         var view = CollectionViewSource.GetDefaultView(items);
         if (view.SortDescriptions.Count == 0)
         {
-            view.SortDescriptions.Add(new SortDescription(nameof(SlotShortcutInfo.SlotId), ListSortDirection.Ascending));
+            view.SortDescriptions.Add(new SortDescription(nameof(SlotShortcutInfo.SlotSortKey), ListSortDirection.Ascending));
         }
         ShortcutGrid.ItemsSource = view;
         bool hasItems = items.Count > 0;
