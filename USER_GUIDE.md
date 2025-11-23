@@ -142,6 +142,18 @@
   ENDREPEAT
   ```
 
+- **ドラッグしたファイルを拡張子ごとにフォルダ分けして移動（Macro Script 拡張 + PowerShell）**  
+  スロットの Command を `powershell.exe`、Arguments を空にしておき、ドロップした各ファイルを拡張子別フォルダ（例: `C:\Sorted\pdf`）へ移動します。  
+  ```
+  FOREACH_DROP Item
+      SET Ext {{Item}}
+      REPLACE_REGEX Ext "^.*\\.([^.\\\\/]+)$" "$1" IGNORECASE
+      SET Target "C:\\Sorted\\{{Ext}}"
+      COMMAND "-NoProfile -ExecutionPolicy Bypass -Command \"New-Item -ItemType Directory -Force -Path '{{Target}}'; Move-Item -LiteralPath '{{Item}}' -Destination '{{Target}}' -Force\""
+  ENDFOREACH
+  ```
+  ※ `Target` のパスは用途に合わせて変更してください。UNC/ネットワークパスでも同様に動作します。
+
 #### サンプル 1: クリップボードを検索サイトへ投げる
 ```
 PREFIX ARM
