@@ -31,7 +31,7 @@
 - MUST: 既定の「排他」モードではマクロ実行中に別スロットのマクロをブロックし、警告を表示する。ただしコマンドのみのスロット起動は並列に許可する（追加モードは SP-011 を参照）。
 - MUST: `Macro Script 拡張` モードでの `COMMAND` 命令は、引数省略時にスロットの引数テンプレートを `{args}` 等のプレースホルダを含めて展開し、引数を指定した場合は変数展開後の文字列をそのままコマンドへ渡す。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへのフォーカス取得を試みた上でキーストロークを送る。ターゲットの特定やフォーカス取得に失敗した場合でもエラーにせず警告ログを残し、現在のフォーカス状態で実行を継続する。
-- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
+- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT`/`FOREACH_DROP`/`ENDFOREACH` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
@@ -70,6 +70,7 @@
 - MUST: `WAIT <ミリ秒>` は 0〜60000 の整数のみ受け付け、マクロ実行を一時停止する。
 - MUST: `COMMAND [引数]` は `Macro Script 拡張` モードでのみ使用でき、引数省略時はスロットの引数テンプレートを展開して登録済みコマンドを起動する。引数を指定した場合は変数展開後の文字列をそのままコマンドへ渡す。対応モード以外で使用した場合はマクロ失敗とする。
 - MUST: `Macro Script 拡張` モードのスロットへファイル/フォルダをドロップして実行した場合、マクロ内では `{{drop_args}}`（`{args}` と同じ引用ルールで連結）、`{{drop_count}}`（ドロップ個数）、`{{drop_path}}`（先頭パス）、`{{drop_path:n}}`（1 基点の n 番目のパス）を特殊変数として参照できる。範囲外インデックスは空文字を返し、数値以外や 0 以下を指定した場合はマクロを失敗させる。
+- MUST: `FOREACH_DROP <変数名> [INDEX <カウンター変数>]` 〜 `ENDFOREACH` でドロップした各パスに対するブロックを展開する。1 件もドロップされていない場合はブロック全体をスキップし、n 件のときは `{drop_path:1..n}` を順に `<変数名>` へ代入してからブロックを展開する。`INDEX` を指定した場合は 1 基点の番号を文字列で格納する。書式不正、未閉鎖の `ENDFOREACH`、余分なトークンがある場合はマクロを失敗させる。
 - MUST: `IF <左辺> <演算子> <右辺>` / `ELSEIF <条件>`（`ELSE IF` も可）/ `ELSE` / `ENDIF` で多段の条件分岐を記述でき、空白を含む値は `""` で囲む。演算子は `==` / `=` / `!=` のほか、`>` / `>=` / `<` / `<=`（両辺とも整数）、および `CONTAINS` / `NOTCONTAINS` / `STARTSWITH` / `ENDSWITH`（大文字小文字は区別しない）をサポートする。`ELSEIF` は必要なだけ記述できるが `ELSE` は 1 度のみ使用でき、未閉鎖の `IF` はマクロ失敗とする。親ブロックが実行対象外、またはすでに前段の `IF`/`ELSEIF` が成立している場合は後続ブロックの条件式を評価しない。
 - MUST: `SET <名前> <値>` は変数を定義し、値の中で `{{Name}}` 形式の他変数を参照できる。変数名は英数字と `_` のみで構成し、先頭は文字または `_` とする。大文字小文字は区別しない。
 - MUST: `UNSET <名前>` は変数を削除し、未定義の名前が指定されてもエラーとはせず実行ログに通知を残す。
@@ -85,6 +86,7 @@
 - MUST: `MOUSELEFTDOWN/UP`・`MOUSERIGHTDOWN/UP`・`MOUSEMIDDLEDOWN/UP` で各ボタンの押下/解放を制御し、`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK` は押下と解放をセットで送出する。`MOUSELEFTDOUBLECLICK` はダブルクリック相当の 2 回押下を送出する。
 - MUST: `MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` はホイール量を 1 ステップ=120 として扱い、引数省略時は 1 ステップ送出する。0 以下の値はエラーとする。
 - MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は 0〜1000。入れ子構造もサポートする。
+- SHOULD: `FOREACH_DROP` ブロックは `REPEAT`/`IF` と入れ子にでき、ブロック展開後も変数値はループをまたいで保持される（最後に代入した値が残る）。
 
 ## SP-010 Shortcut Prefix & Global Shortcuts
 - MUST: Prefix は修飾キーとメインキーの組み合わせで構成され、入力値を正規化して保存する。解析できない場合は Ctrl+Q にフォールバックし、ユーザーへ警告する。

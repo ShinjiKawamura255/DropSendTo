@@ -116,10 +116,14 @@ internal static class MacroScriptFormatter
         input.Replace("\r\n", "\n").Replace('\r', '\n');
 
     private static bool IsBlockOpening(string line) =>
-        StartsWithCommand(line, "REPEAT") || StartsWithCommand(line, "IF");
+        StartsWithCommand(line, "REPEAT") ||
+        StartsWithCommand(line, "IF") ||
+        StartsWithCommand(line, "FOREACH_DROP");
 
     private static bool IsBlockClosing(string line) =>
-        StartsWithCommand(line, "ENDREPEAT") || StartsWithCommand(line, "ENDIF");
+        StartsWithCommand(line, "ENDREPEAT") ||
+        StartsWithCommand(line, "ENDIF") ||
+        StartsWithCommand(line, "ENDFOREACH");
 
     private static bool IsElseDirective(string line) =>
         StartsWithCommand(line, "ELSE") && !IsElseIfDirective(line);

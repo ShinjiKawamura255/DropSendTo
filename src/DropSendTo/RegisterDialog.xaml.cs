@@ -570,6 +570,7 @@ public partial class RegisterDialog : Window
 
         return StartsWithDirective(trimmedLine, "ENDREPEAT")
             || StartsWithDirective(trimmedLine, "ENDIF")
+            || StartsWithDirective(trimmedLine, "ENDFOREACH")
             || StartsWithDirective(trimmedLine, "ELSE")
             || StartsWithDirective(trimmedLine, "ELSEIF");
     }

@@ -13,8 +13,8 @@
 - TC-010 Slots: 現在の行列構成（2〜8 × 2〜4）で全スロットの登録/解除/復元が可能で、タイトル/コマンド/引数/マクロ/ショートカット/クリック可否が保存される。
 - TC-020 LaunchDrop: ファイル/フォルダのドロップで `{args}` がクォートされ、登録コマンドに渡る。
 - TC-021 LaunchCli: CLI 引数で現在レイヤー優先→全レイヤー検索が行われる。失敗時は UI 表示とログ出力。
-- TC-025 MacroScriptHappy: `KEY`/`WAIT`/`TEXT`/`REPEAT` など代表的な命令が期待通り展開・送信される。
-- TC-026 MacroScriptValidation: 不正なキー名/REPEAT 上限超過/未閉鎖ブロックでエラーが返る。
+- TC-025 MacroScriptHappy: `KEY`/`WAIT`/`TEXT`/`REPEAT`/`FOREACH_DROP` など代表的な命令が期待通り展開・送信され、複数ドロップ時に各パスへ `SET`/`REPLACE` を適用できる。
+- TC-026 MacroScriptValidation: 不正なキー名/REPEAT 上限超過/未閉鎖ブロック/FOREACH_DROP の書式不正や未閉鎖でエラーが返る。
 - TC-027 MacroScriptVariables: `SET`/`UNSET`/`ADD`/`SUB`/`MUL`/`DIV`/`APPEND`/`PREPEND` で変数を操作し、`{{Var}}` 展開が成功する。未定義・不正名・整数でない値・0 除算は失敗およびログ記録となる。
 - TC-028 MacroScriptExtended: Macro Script 拡張モードでマクロが実行され、`COMMAND` 命令から登録済みコマンドが呼び出される。引数省略時はスロットの引数テンプレートが展開され、引数を指定した場合は変数展開後の文字列がそのまま渡される。さらにスロットへファイルをドロップした際はマクロ内で `{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` が参照でき、`drop_path:n` の不正指定でマクロが失敗すること、加工後の文字列を `COMMAND` 引数に渡すと登録済みコマンドへそのまま引き継がれることを確認する。
 - TC-029 MacroCommandValidation: `COMMAND` 命令を Macro Script 拡張モード以外で使用するとエラーとなり、ログに失敗理由が出力される。

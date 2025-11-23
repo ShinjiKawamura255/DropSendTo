@@ -62,6 +62,22 @@ public sealed class MacroScriptFormatterTests
     }
 
     [Fact]
+    public void NormalizeIndentation_ShouldIndentForeachDropBlocks()
+    {
+        var script =
+            "FOREACH_DROP Item INDEX i\r\n" +
+            "TEXT {{Item}}\r\n" +
+            "ENDFOREACH";
+
+        var formatted = MacroScriptFormatter.NormalizeIndentation(script);
+
+        formatted.Should().Be(
+            "FOREACH_DROP Item INDEX i\r\n" +
+            "    TEXT {{Item}}\r\n" +
+            "ENDFOREACH");
+    }
+
+    [Fact]
     public void GetIndentationForNewLine_ShouldIncreaseAfterRepeat()
     {
         var script = "REPEAT 3\r\n";

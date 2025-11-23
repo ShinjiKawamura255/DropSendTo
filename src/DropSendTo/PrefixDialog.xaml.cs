@@ -56,7 +56,7 @@ public partial class PrefixDialog : Window
             return;
         }
 
-        if (!KeyChordParser.TryParse(NormalizedPrefix, out var chord, out var error))
+        if (!KeyChordParser.TryParsePrefix(NormalizedPrefix, out var chord, out var error))
         {
             ShowError(error ?? "キーの書式が正しくありません。");
             return;

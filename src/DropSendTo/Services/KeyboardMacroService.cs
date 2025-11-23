@@ -550,6 +550,7 @@ public sealed class KeyboardMacroService : IDisposable
             IReadOnlyList<string>? dropPaths = validateOnly
                 ? ValidationDropEntries
                 : context?.DroppedPaths;
+            var dropEntries = dropPaths ?? Array.Empty<string>();
             var specialResolver = CreateSpecialVariableResolver(
                 clipboardSnapshot,
                 dropPaths,
@@ -571,6 +572,11 @@ public sealed class KeyboardMacroService : IDisposable
             {
                 return CompleteResult(MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。"));
             }
+            if (!TryExpandForeachDropBlocks(expandedLines, dropEntries, out var foreachExpandedLines, out var foreachError))
+            {
+                return CompleteResult(MacroExecutionResult.Fail(foreachError ?? "FOREACH_DROP ブロックの解釈に失敗しました。"));
+            }
+            expandedLines = foreachExpandedLines;
             for (int lineIndex = 0; lineIndex < expandedLines.Count; lineIndex++)
             {
                 var rawLine = expandedLines[lineIndex];
@@ -1207,6 +1213,133 @@ public sealed class KeyboardMacroService : IDisposable
 
         return true;
     }
+
+    private static bool TryExpandForeachDropBlocks(IReadOnlyList<string> lines, IReadOnlyList<string> dropEntries, out List<string> expanded, out string? error)
+    {
+        expanded = new List<string>(lines.Count);
+        error = null;
+        var stack = new Stack<ForeachDropFrame>();
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var rawLine = lines[i];
+            var trimmed = rawLine.Trim();
+
+            if (StartsWithCommand(trimmed, "FOREACH_DROP"))
+            {
+                var args = trimmed.Length > 12 ? trimmed[12..].Trim() : string.Empty;
+                args = TrimInlineComment(args);
+                if (!TryParseForeachDropHeader(args, out var variableName, out var indexVariable, out var headerError))
+                {
+                    error = headerError ?? $"FOREACH_DROP の書式が不正です: \"{trimmed}\"";
+                    return false;
+                }
+
+                stack.Push(new ForeachDropFrame(variableName, indexVariable));
+                continue;
+            }
+
+            if (StartsWithCommand(trimmed, "ENDFOREACH"))
+            {
+                var remainder = trimmed.Length > 10 ? trimmed[10..].Trim() : string.Empty;
+                remainder = TrimInlineComment(remainder);
+                if (!string.IsNullOrWhiteSpace(remainder))
+                {
+                    error = $"ENDFOREACH 行に余分な記述があります: \"{trimmed}\"";
+                    return false;
+                }
+                if (stack.Count == 0)
+                {
+                    error = "ENDFOREACH に対応する FOREACH_DROP が見つかりません。";
+                    return false;
+                }
+
+                var frame = stack.Pop();
+                var target = stack.Count > 0 ? stack.Peek().Lines : expanded;
+                if (dropEntries.Count == 0)
+                {
+                    continue;
+                }
+
+                for (int dropIndex = 0; dropIndex < dropEntries.Count; dropIndex++)
+                {
+                    var oneBasedIndex = dropIndex + 1;
+                    target.Add(BuildDropPathAssignment(frame.VariableName, oneBasedIndex));
+                    if (!string.IsNullOrEmpty(frame.IndexVariableName))
+                    {
+                        target.Add($"SET {frame.IndexVariableName} {oneBasedIndex}");
+                    }
+                    target.AddRange(frame.Lines);
+                }
+                continue;
+            }
+
+            if (stack.Count > 0)
+            {
+                stack.Peek().Lines.Add(rawLine);
+            }
+            else
+            {
+                expanded.Add(rawLine);
+            }
+        }
+
+        if (stack.Count > 0)
+        {
+            error = "FOREACH_DROP ブロックが ENDFOREACH で閉じられていません。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseForeachDropHeader(string args, out string variableName, out string? indexVariableName, out string? error)
+    {
+        variableName = string.Empty;
+        indexVariableName = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(args))
+        {
+            error = "FOREACH_DROP に変数名を指定してください。";
+            return false;
+        }
+
+        var tokens = args.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            error = "FOREACH_DROP に変数名を指定してください。";
+            return false;
+        }
+
+        variableName = tokens[0];
+        if (!IsValidVariableName(variableName))
+        {
+            error = $"FOREACH_DROP の変数名が不正です: \"{variableName}\"";
+            return false;
+        }
+
+        if (tokens.Length == 1)
+        {
+            return true;
+        }
+
+        if (tokens.Length != 3 || !tokens[1].Equals("INDEX", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "FOREACH_DROP の書式は \"FOREACH_DROP <変数> [INDEX <カウンター変数>]\" です。";
+            return false;
+        }
+
+        indexVariableName = tokens[2];
+        if (!IsValidVariableName(indexVariableName))
+        {
+            error = $"FOREACH_DROP の INDEX 変数名が不正です: \"{indexVariableName}\"";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string BuildDropPathAssignment(string variableName, int oneBasedIndex) =>
+        $"SET {variableName} {{{{drop_path:{oneBasedIndex}}}}}";
 
     private static bool IsAsciiLetter(char ch) =>
         (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
@@ -3902,6 +4035,19 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         }
 
         public int Count { get; }
+        public List<string> Lines { get; } = new();
+    }
+
+    private sealed class ForeachDropFrame
+    {
+        public ForeachDropFrame(string variableName, string? indexVariableName)
+        {
+            VariableName = variableName;
+            IndexVariableName = indexVariableName;
+        }
+
+        public string VariableName { get; }
+        public string? IndexVariableName { get; }
         public List<string> Lines { get; } = new();
     }
 

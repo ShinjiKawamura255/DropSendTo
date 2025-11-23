@@ -102,6 +102,46 @@
 | `ELSE` / `ENDIF` | `IF` ブロックの分岐・終了 | `ELSE` → `COMMAND "fallback"` |
 | `PREFIX ARM/SEND/PASSTHROUGH` | Prefix 状態の制御と送出 | `PREFIX ARM` |
 
+### 2.5 Macro Script サンプル集
+以下はそのまま貼り付けて使える小さなレシピです（必要に応じてショートカットやドロップと組み合わせてください）。
+
+- **複数ファイルのファイル名を加工して列挙（FOREACH_DROP）**  
+  ドロップした各パスのファイル名スペースを `_` に置換し、番号付きで出力します。ドロップが 0 件ならスキップされます。  
+  ```
+  FOREACH_DROP Item INDEX i
+      SET Name {{Item}}
+      REPLACE Name " " "_"
+      TEXT [{{i}}] {{Name}}
+  ENDFOREACH
+  ```
+
+- **ドラッグしたファイルを順にコマンドへ流す（Macro Script 拡張 + COMMAND）**  
+  ドロップした各パスを加工しつつ `COMMAND` に渡します（ArgumentsTemplate は `{args}` のままで OK）。  
+  ```
+  FOREACH_DROP FilePath INDEX idx
+      SET Clean {{FilePath}}
+      REPLACE_REGEX Clean "\\s+" "_" IGNORECASE
+      COMMAND "{{Clean}} --index={{idx}}"
+  ENDFOREACH
+  ```
+
+- **前面アプリの入力欄へクリップボードを貼り付け、改行で区切る**  
+  ```
+  PREFIX ARM
+  KEY Ctrl+L
+  WAIT 200
+  TEXT {{clipboard}}
+  KEY Enter
+  ```
+
+- **簡易テンプレ: 3 回クリックして待機**  
+  ```
+  REPEAT 3
+      MOUSELEFTCLICK
+      WAIT 150
+  ENDREPEAT
+  ```
+
 #### サンプル 1: クリップボードを検索サイトへ投げる
 ```
 PREFIX ARM
@@ -123,7 +163,7 @@ KEY Enter
 
 より詳細なコマンド一覧はアプリ内の `?` ボタン（Macro Script ダイアログ右上）から参照できます。
 
-### 2.4 CLI・自動化のヒント
+### 2.6 CLI・自動化のヒント
 - `DropSendTo.exe "<path>"` で現在レイヤーの最初の登録スロットを自動実行。PowerShell などからまとめて呼び出せます。  
 - 設定を別環境へ移行したい場合はコンテキストメニューから `Export/Import Config...` を利用。暗号化付きで安全に持ち運び可能。  
 - フォルダを開きたいときは Command を `explorer.exe`、Arguments に `"{args}"` または固定パスを指定してください（フォルダパス単体では動作しません）。

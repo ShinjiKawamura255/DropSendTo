@@ -63,6 +63,8 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5) - 単独で 1 行に記述" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_DROP &lt;変数&gt; [INDEX &lt;番号変数&gt;] : ドロップした各パスでブロックを繰り返し、{{変数}} で現在のパス、INDEX で 1 基点の番号を参照" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDFOREACH             : FOREACH_DROP の終了。ドロップ 0 件ならブロックはスキップ" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND [引数]         : Macro Script 拡張モード専用。引数省略でテンプレートを展開、指定時は変数展開後の文字列をそのまま渡す" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="Wrap"/>
@@ -156,6 +158,13 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    KEY A" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    KEYUP Shift" TextWrapping="Wrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="" Margin="0,0,0,8"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# FOREACH_DROP でドロップした各パスを処理する例" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_DROP Item INDEX i" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    SET Body {{Item}}" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    REPLACE Body &quot; &quot; &quot;_&quot;" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    TEXT [{{i}}] {{Body}}" TextWrapping="Wrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDFOREACH" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 

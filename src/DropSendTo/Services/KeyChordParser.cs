@@ -49,6 +49,23 @@ internal static class KeyChordParser
 {
     private static readonly Dictionary<string, ushort> KeyMap = CreateKeyMap();
     private static readonly Dictionary<ushort, string> CanonicalKeyNames = CreateCanonicalNames();
+    private static readonly HashSet<ushort> DisallowedPrefixMainKeys = new()
+    {
+        VK_RETURN,
+        VK_ESCAPE,
+        VK_TAB,
+        VK_SPACE,
+        VK_BACK,
+        VK_CAPITAL,
+        VK_NUMLOCK,
+        VK_SCROLL,
+        VK_PAUSE,
+        VK_LWIN,
+        VK_RWIN,
+        VK_MENU,
+        VK_CONTROL,
+        VK_SHIFT
+    };
     private static readonly Dictionary<ModifierKind, string> ModifierDisplayNames = new()
     {
         { ModifierKind.Control, "Ctrl" },
@@ -67,6 +84,23 @@ internal static class KeyChordParser
         ModifierKind.LeftWin,
         ModifierKind.RightWin
     };
+
+    public static bool TryParsePrefix(string? expression, out KeyChord chord, out string? error)
+    {
+        if (!TryParse(expression, out chord!, out error))
+        {
+            return false;
+        }
+
+        if (!IsPrefixMainKeyAllowed(chord.MainKey))
+        {
+            error = $"Prefix に使用できないキーが含まれています: \"{chord.MainToken}\"";
+            chord = null!;
+            return false;
+        }
+
+        return true;
+    }
 
     public static bool TryParse(string? expression, out KeyChord chord, out string? error)
     {
@@ -231,6 +265,9 @@ internal static class KeyChordParser
         }
         return false;
     }
+
+    private static bool IsPrefixMainKeyAllowed(ushort vk) =>
+        !DisallowedPrefixMainKeys.Contains(vk);
 
     private static bool CanAddModifier(ModifierKind kind, HashSet<ModifierKind> seenKinds, out string? error)
     {

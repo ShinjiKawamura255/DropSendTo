@@ -800,7 +800,9 @@ public partial class MainWindow : Window
             else
             {
                 _logger.Warn("Configured shortcut prefix could not be parsed. Falling back to Ctrl+Q.");
-                WpfMessageBox.Show("設定ファイルの Prefix を解釈できなかったため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _config.ShortcutPrefixDisabled = false;
+                _config.ShortcutPrefix = _shortcutService.CurrentPrefixText;
+                WpfMessageBox.Show("設定ファイルの Prefix が無効または設定不可のため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             UpdateShortcutRegistrations();
         }

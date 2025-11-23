@@ -44,6 +44,7 @@ internal sealed class PrefixStateChangedEventArgs : EventArgs
 internal sealed class ShortcutService : IDisposable
 {
     private const int PrefixTimeoutMilliseconds = 4_000;
+    private const string DefaultPrefixExpression = "CTRL+Q";
     private const uint GaRoot = 2;
     private const uint GaRootOwner = 3;
     private static readonly string[] RemoteWindowClassNames =
@@ -206,10 +207,10 @@ internal sealed class ShortcutService : IDisposable
         }
 
         KeyChord? chord = null;
-        if (!KeyChordParser.TryParse(target, out chord!, out var error))
+        if (!KeyChordParser.TryParsePrefix(target, out chord!, out var error))
         {
-            _logger.Warn($"Prefix parse failed ({error ?? "unknown error"}). Fallback to default Ctrl+Q.");
-            KeyChordParser.TryParse("CTRL+Q", out chord!, out _);
+            _logger.Warn($"Prefix validation failed ({error ?? "unknown error"}). Fallback to default Ctrl+Q.");
+            KeyChordParser.TryParsePrefix(DefaultPrefixExpression, out chord!, out _);
             _usingFallbackPrefix = true;
         }
         else
