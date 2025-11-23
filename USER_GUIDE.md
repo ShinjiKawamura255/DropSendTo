@@ -92,6 +92,7 @@
 | `APPEND/PREPEND` | 文字列を結合 | `APPEND Cmd " --flag"` |
 | `REPLACE <変数> "検索" "置換"` | 変数内文字列を空白含め置換（`""` で削除） | `REPLACE Body " " "_"` |
 | `REPLACE_REGEX <変数> "正規表現" "置換" [オプション]` | 拡張正規表現で置換（`$1` 等のグループ可、`IGNORECASE`/`MULTILINE` などを指定可能） | `REPLACE_REGEX Body "\s+" "_" IGNORECASE` |
+| `RENAME <元パス> <新しいパス>` | ファイル/フォルダの名前を変更（変数展開・クォート可） | `RENAME "{{drop_path}}" "{{drop_path}}.bak"` |
 | `TESTPATH <変数> <パス>` | ファイル/フォルダの存在を `1` (存在) / `0` (未存在) として変数に格納 | `TESTPATH PathOk {{drop_path}}` |
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
@@ -153,6 +154,16 @@
   ENDFOREACH
   ```
   ※ `Target` のパスは用途に合わせて変更してください。UNC/ネットワークパスでも同様に動作します。
+
+- **ファイル名を書き換えてリネーム（REPLACE + RENAME）**  
+  元名から空白を `_` に置換し、末尾に `_done` を付けてリネームします。  
+  ```
+  SET Original {{drop_path}}
+  SET NewName {{Original}}
+  REPLACE_REGEX NewName "\\s+" "_" IGNORECASE
+  APPEND NewName _done
+  RENAME "{{Original}}" "{{NewName}}"
+  ```
 
 #### サンプル 1: クリップボードを検索サイトへ投げる
 ```

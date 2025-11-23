@@ -715,6 +715,18 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "RENAME"))
+                {
+                    var payload = line.Length > 6 ? line[6..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (!TryApplyRenameDirective(payload, variables, specialResolver, validateOnly, out var renameError))
+                    {
+                        var message = renameError ?? "RENAME の解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "POPUP"))
                 {
                     var payload = line.Length > 5 ? line[5..].Trim() : string.Empty;
@@ -2027,6 +2039,124 @@ public sealed class KeyboardMacroService : IDisposable
 
         result = sb.ToString();
         return true;
+    }
+
+    private static bool TryApplyRenameDirective(string payload, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "RENAME には元パスと新しいパスを指定してください。";
+            return false;
+        }
+
+        int index = 0;
+        if (!TryParsePathOperand(payload, ref index, "RENAME", "元パス", out var sourceRaw, out error))
+        {
+            return false;
+        }
+        if (!TryParsePathOperand(payload, ref index, "RENAME", "新しいパス", out var targetRaw, out error))
+        {
+            return false;
+        }
+
+        if (index < payload.Length && !string.IsNullOrWhiteSpace(payload[index..]))
+        {
+            error = "RENAME の引数の後ろに余分な記述があります。";
+            return false;
+        }
+
+        if (!TryExpandVariables(sourceRaw, variables, out var expandedSource, out var sourceExpandError, specialResolver))
+        {
+            error = sourceExpandError ?? "RENAME の元パス展開に失敗しました。";
+            return false;
+        }
+        if (!TryExpandVariables(targetRaw, variables, out var expandedTarget, out var targetExpandError, specialResolver))
+        {
+            error = targetExpandError ?? "RENAME の新しいパス展開に失敗しました。";
+            return false;
+        }
+
+        var sourcePath = TrimPathQuotes(expandedSource);
+        var targetPath = TrimPathQuotes(expandedTarget);
+        if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(targetPath))
+        {
+            error = "RENAME のパスは空にできません。";
+            return false;
+        }
+
+        if (validateOnly)
+        {
+            return true;
+        }
+
+        try
+        {
+            if (File.Exists(sourcePath))
+            {
+                File.Move(sourcePath, targetPath);
+                return true;
+            }
+
+            if (Directory.Exists(sourcePath))
+            {
+                Directory.Move(sourcePath, targetPath);
+                return true;
+            }
+
+            error = $"RENAME 元パスが存在しません: \"{sourcePath}\"";
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            error = $"RENAME の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryParsePathOperand(string input, ref int index, string command, string operandName, out string operand, out string? error)
+    {
+        operand = string.Empty;
+        error = null;
+        while (index < input.Length && char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        if (index >= input.Length)
+        {
+            error = $"{command} には {operandName} を指定してください。";
+            return false;
+        }
+
+        if (input[index] == '"')
+        {
+            if (!TryParseQuotedArgument(input, ref index, command, operandName, out operand, out error))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        int start = index;
+        while (index < input.Length && !char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+        operand = input[start..index];
+        return true;
+    }
+
+    private static string TrimPathQuotes(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length >= 2 &&
+            trimmed.StartsWith("\"", StringComparison.Ordinal) &&
+            trimmed.EndsWith("\"", StringComparison.Ordinal))
+        {
+            trimmed = trimmed.Substring(1, trimmed.Length - 2);
+        }
+        return trimmed;
     }
 
     internal static bool TryApplySetDirective(string line, Dictionary<string, string> variables, out string? name, out string? value, out string? error, SpecialVariableResolver? specialResolver = null)
