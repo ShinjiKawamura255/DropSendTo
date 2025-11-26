@@ -1,0 +1,33 @@
+<Window x:Class="DropSendTo.LayerNameOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="LayerNameOverlayWindow"
+        Width="260"
+        Height="64"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="Transparent"
+        AllowsTransparency="True"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Focusable="False"
+        IsHitTestVisible="False"
+        ShowActivated="False"
+        UseLayoutRounding="True"
+        SizeToContent="WidthAndHeight">
+    <Border Background="#CC111111"
+            BorderBrush="#333333"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="12,8"
+            SnapsToDevicePixels="True">
+        <TextBlock x:Name="LayerNameText"
+                   Text="Layer 1"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="#FFFFFF"
+                   TextTrimming="CharacterEllipsis"
+                   TextWrapping="Wrap"
+                   MaxWidth="240"/>
+    </Border>
+</Window>

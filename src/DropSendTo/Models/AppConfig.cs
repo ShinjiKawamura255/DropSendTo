@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 19;
+    public int Version { get; set; } = 20;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -31,6 +31,7 @@ public class AppConfig
 
 public class Layer
 {
+    public string Name { get; set; } = string.Empty;
     public List<SlotModel> Slots { get; set; } = new()
     {
         new SlotModel(), new SlotModel(), new SlotModel(), new SlotModel()

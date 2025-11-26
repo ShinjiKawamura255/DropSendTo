@@ -152,6 +152,8 @@ public class ConfigService
         int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
         foreach (var layer in cfg.Layers)
         {
+            layer.Name ??= string.Empty;
+            layer.Name = layer.Name.Trim();
             layer.Slots ??= new List<SlotModel>();
             EnsureSlotCapacity(layer, requiredSlots);
             foreach (var slot in layer.Slots)
@@ -453,6 +455,16 @@ public class ConfigService
             cfg.EnableEmacsNavigation = true;
             cfg.EnableViNavigation = true;
             cfg.Version = 19;
+            changed = true;
+        }
+
+        if (cfg.Version < 20)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Name ??= string.Empty;
+            }
+            cfg.Version = 20;
             changed = true;
         }
 

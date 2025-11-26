@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +13,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using DropSendTo.Models;
 using DropSendTo.Services;
@@ -55,6 +57,8 @@ public partial class MainWindow : Window
     private DrawingIcon? _notifyIconActive;
     private bool _isMinimizedToTray;
     private bool _minimizeOnLoaded;
+    private LayerNameOverlayWindow? _layerNameOverlayWindow;
+    private CancellationTokenSource? _layerNameOverlayCts;
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
@@ -243,6 +247,8 @@ public partial class MainWindow : Window
             _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
             _configService.Save(_config);
             ClipboardHistoryService.Instance.Dispose();
+            _layerNameOverlayCts?.Cancel();
+            _layerNameOverlayWindow?.Close();
         };
 
         _layerHoverTimer = new System.Windows.Threading.DispatcherTimer
@@ -866,6 +872,12 @@ public partial class MainWindow : Window
         }
 
         var target = Math.Clamp(index, 0, totalLayers - 1);
+        if (target == _currentLayer)
+        {
+            ShowLayerNameOverlay();
+            return;
+        }
+
         _currentLayer = target;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
@@ -874,6 +886,8 @@ public partial class MainWindow : Window
             NormalizeKeyboardSelectionIndex();
             UpdateKeyboardSelectionVisual();
         }
+
+        ShowLayerNameOverlay();
     }
 
     private void ChangeLayer(int delta)
@@ -892,6 +906,168 @@ public partial class MainWindow : Window
 
         SetLayer(next);
     }
+
+    private string? GetLayerDisplayName(int layerIndex)
+    {
+        var fallback = $"Layer {layerIndex + 1}";
+        if (_config?.Layers == null || layerIndex < 0 || layerIndex >= _config.Layers.Count)
+        {
+            return fallback;
+        }
+
+        var name = _config.Layers[layerIndex].Name;
+        return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+    }
+
+    private Rect GetWindowRect()
+    {
+        double width = Width;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = ActualWidth;
+        }
+        if (width <= 0)
+        {
+            width = Math.Max(MinWidth, 1);
+        }
+
+        double height = Height;
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = ActualHeight;
+        }
+        if (height <= 0)
+        {
+            height = Math.Max(MinHeight, 1);
+        }
+
+        return new Rect(Left, Top, width, height);
+    }
+
+    private LayerNameOverlayWindow EnsureLayerNameOverlay()
+    {
+        if (_layerNameOverlayWindow == null)
+        {
+            _layerNameOverlayWindow = new LayerNameOverlayWindow
+            {
+                Owner = this,
+                Topmost = this.Topmost
+            };
+        }
+        return _layerNameOverlayWindow;
+    }
+
+    private void HideLayerNameOverlayImmediate()
+    {
+        _layerNameOverlayCts?.Cancel();
+        _layerNameOverlayWindow?.Hide();
+        _layerNameOverlayWindow?.BeginAnimation(UIElement.OpacityProperty, null);
+        if (_layerNameOverlayWindow != null)
+        {
+            _layerNameOverlayWindow.Opacity = 1;
+        }
+    }
+
+    private void PositionLayerNameOverlay(LayerNameOverlayWindow overlay)
+    {
+        overlay.InvalidateMeasure();
+        overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
+        overlay.Width = overlay.DesiredSize.Width;
+        overlay.Height = overlay.DesiredSize.Height;
+        overlay.UpdateLayout();
+
+        var anchorRect = GetWindowRect();
+        var bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
+        const double offset = 10;
+
+        double targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
+        double targetTop = anchorRect.Top - overlay.Height - offset;
+        bool canPlaceTop = targetTop >= bounds.Top;
+        if (!canPlaceTop)
+        {
+            targetTop = anchorRect.Bottom + offset;
+        }
+
+        var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
+        overlay.Left = clampedLeft;
+        overlay.Top = clampedTop;
+    }
+
+    private async Task FadeLayerNameOverlayAsync(LayerNameOverlayWindow overlay, double targetOpacity, TimeSpan duration, CancellationToken token)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var animation = new DoubleAnimation(targetOpacity, duration) { FillBehavior = FillBehavior.Stop };
+        void OnCompleted(object? _, EventArgs __)
+        {
+            overlay.BeginAnimation(UIElement.OpacityProperty, null);
+            overlay.Opacity = targetOpacity;
+            tcs.TrySetResult(true);
+        }
+
+        animation.Completed += OnCompleted;
+        overlay.BeginAnimation(UIElement.OpacityProperty, animation);
+
+        using (token.Register(() =>
+               {
+                   overlay.Dispatcher.Invoke(() =>
+                   {
+                       overlay.BeginAnimation(UIElement.OpacityProperty, null);
+                       tcs.TrySetCanceled(token);
+                   });
+               }))
+        {
+            await tcs.Task.ConfigureAwait(true);
+        }
+    }
+
+    private async void ShowLayerNameOverlay()
+    {
+        if (!IsLoaded || !IsVisible || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        var layerName = GetLayerDisplayName(_currentLayer);
+        if (string.IsNullOrWhiteSpace(layerName))
+        {
+            HideLayerNameOverlayImmediate();
+            return;
+        }
+
+        var previousCts = _layerNameOverlayCts;
+        var cts = new CancellationTokenSource();
+        _layerNameOverlayCts = cts;
+        previousCts?.Cancel();
+
+        var overlay = EnsureLayerNameOverlay();
+        overlay.Topmost = this.Topmost;
+        overlay.SetLayerName(layerName);
+        PositionLayerNameOverlay(overlay);
+
+        overlay.Opacity = 1;
+        overlay.Show();
+        overlay.UpdateLayout();
+        _ = Dispatcher.BeginInvoke(new Action(() => PositionLayerNameOverlay(overlay)), DispatcherPriority.Background);
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1.5), cts.Token).ConfigureAwait(true);
+            await FadeLayerNameOverlayAsync(overlay, 0, TimeSpan.FromSeconds(0.5), cts.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            overlay.BeginAnimation(UIElement.OpacityProperty, null);
+        }
+        finally
+        {
+            if (ReferenceEquals(_layerNameOverlayCts, cts))
+            {
+                overlay.Hide();
+                overlay.Opacity = 1;
+            }
+        }
+    }
+
 
     private void ActivateKeyboardNavigation()
     {
@@ -2694,6 +2870,39 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnEditLayerNames(object sender, RoutedEventArgs e)
+    {
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        var names = _config.Layers.Select(l => l.Name ?? string.Empty).ToList();
+        var dialog = new LayerNamesDialog(names) { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        bool changed = false;
+        for (int i = 0; i < _config.Layers.Count && i < dialog.LayerNames.Count; i++)
+        {
+            var newName = dialog.LayerNames[i] ?? string.Empty;
+            if (!string.Equals(_config.Layers[i].Name, newName, StringComparison.Ordinal))
+            {
+                _config.Layers[i].Name = newName;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            _configService.Save(_config);
+            ShowLayerNameOverlay();
+        }
+    }
+
     private void OnMinimizeToTray(object sender, RoutedEventArgs e)
     {
         MinimizeWindowToTray();
@@ -3385,10 +3594,12 @@ public partial class MainWindow : Window
         }
         BringWindowToForeground();
         ActivateKeyboardNavigation();
+        ShowLayerNameOverlay();
     }
 
     private void OnPrefixMinimizeRequested(object? sender, EventArgs e)
     {
+        HideLayerNameOverlayImmediate();
         MinimizeWindowToTray();
     }
 
