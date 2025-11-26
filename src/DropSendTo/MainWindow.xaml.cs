@@ -199,6 +199,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AttachSubmenuPlacementHandler(this.ContextMenu);
         SourceInitialized += OnSourceInitialized;
         InitializeNotifyIcon();
         _configService = new ConfigService();
@@ -1628,6 +1629,7 @@ public partial class MainWindow : Window
         toggle.Click += (_, _) => { slot.ClickEnabled = !slot.ClickEnabled; _configService.Save(_config); };
         cm.Items.Add(toggle);
         fe.ContextMenu = cm;
+        AttachSubmenuPlacementHandler(cm);
         cm.IsOpen = true;
     }
 
@@ -2322,6 +2324,40 @@ public partial class MainWindow : Window
             this.ContextMenu.Closed += OnContextMenuClosed;
             this.ContextMenu.IsOpen = true;
         }
+    }
+
+    private void AttachSubmenuPlacementHandler(ContextMenu? menu)
+    {
+        if (menu == null)
+        {
+            return;
+        }
+
+        menu.AddHandler(MenuItem.SubmenuOpenedEvent, new RoutedEventHandler(OnAnySubmenuOpened), true);
+    }
+
+    private void OnAnySubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not MenuItem menuItem)
+        {
+            return;
+        }
+
+        menuItem.ApplyTemplate();
+        if (menuItem.Template?.FindName("PART_Popup", menuItem) is Popup popup)
+        {
+            popup.Placement = PlacementMode.Custom;
+            popup.CustomPopupPlacementCallback = RightFirstSubmenuPlacement;
+        }
+    }
+
+    private static CustomPopupPlacement[] RightFirstSubmenuPlacement(System.Windows.Size popupSize, System.Windows.Size targetSize, System.Windows.Point offset)
+    {
+        return new[]
+        {
+            new CustomPopupPlacement(new System.Windows.Point(targetSize.Width, 0), PopupPrimaryAxis.Horizontal),
+            new CustomPopupPlacement(new System.Windows.Point(-popupSize.Width, 0), PopupPrimaryAxis.Horizontal)
+        };
     }
 
     private void OnLayoutMenuOpened(object sender, RoutedEventArgs e)
