@@ -55,6 +55,7 @@
 
 ## Commit & Pull Request Guidelines
 - Commits: Conventional Commits (e.g., `feat(ui): add slot grid`).
+- 原則「1 対応＝1 コミット」。直前の修正が期待と異なり連続で手直しする場合は、直前コミットを amend して履歴をまとめる（不要な連番コミットを避ける）。
 - PRs: Include purpose, linked issues, Before/After, and screenshots/GIFs for UI.
 - All checks must pass (`build`, `test`, `format`). Update docs with behavior changes.
 - ユーザー向けドキュメント（`USER_GUIDE.md`）は機能追加・仕様変更時に必ず更新し、必要ならリリースノートにも反映する。
