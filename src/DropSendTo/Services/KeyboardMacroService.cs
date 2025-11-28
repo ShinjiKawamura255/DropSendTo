@@ -544,15 +544,15 @@ public sealed class KeyboardMacroService : IDisposable
 
         try
         {
-            var clipboardSnapshot = validateOnly
-                ? ClipboardSnapshot.Empty
-                : ClipboardHistoryService.Instance.GetSnapshot(null);
+            Func<ClipboardSnapshot> clipboardSnapshotProvider = validateOnly
+                ? CreateValidationClipboardSnapshotProvider()
+                : () => ClipboardHistoryService.Instance.GetSnapshot(null);
             IReadOnlyList<string>? dropPaths = validateOnly
                 ? ValidationDropEntries
                 : context?.DroppedPaths;
             var dropEntries = dropPaths ?? Array.Empty<string>();
             var specialResolver = CreateSpecialVariableResolver(
-                clipboardSnapshot,
+                clipboardSnapshotProvider,
                 dropPaths,
                 validationMode: validateOnly);
             var ifStack = new Stack<IfBlockState>();
@@ -1756,21 +1756,25 @@ public sealed class KeyboardMacroService : IDisposable
 
     private const string ValidationClipboardValue = "__CLIPBOARD__";
 
-    private static SpecialVariableResolver CreateSpecialVariableResolver(ClipboardSnapshot snapshot, IReadOnlyList<string>? droppedPaths = null, bool validationMode = false)
+    private static Func<ClipboardSnapshot> CreateValidationClipboardSnapshotProvider() =>
+        () => new ClipboardSnapshot(ValidationClipboardValue, ValidationClipboardEntries, ValidationClipboardEntries);
+
+    private static SpecialVariableResolver CreateSpecialVariableResolver(Func<ClipboardSnapshot> snapshotProvider, IReadOnlyList<string>? droppedPaths = null, bool validationMode = false)
     {
-        var rawText = validationMode ? ValidationClipboardValue : snapshot.RawText?.Trim() ?? string.Empty;
-        var latestEntries = validationMode
-            ? ValidationClipboardEntries
-            : snapshot.LatestEntries ?? Array.Empty<string>();
-        var historyEntries = validationMode
-            ? ValidationClipboardEntries
-            : snapshot.Entries ?? Array.Empty<string>();
         var dropEntries = validationMode
             ? ValidationDropEntries
             : droppedPaths ?? Array.Empty<string>();
 
         return (string token, out string value, out string? error) =>
         {
+            var snapshot = snapshotProvider();
+            var rawText = validationMode ? ValidationClipboardValue : snapshot.RawText?.Trim() ?? string.Empty;
+            var latestEntries = validationMode
+                ? ValidationClipboardEntries
+                : snapshot.LatestEntries ?? Array.Empty<string>();
+            var historyEntries = validationMode
+                ? ValidationClipboardEntries
+                : snapshot.Entries ?? Array.Empty<string>();
             value = string.Empty;
             error = null;
 
@@ -1865,7 +1869,7 @@ public sealed class KeyboardMacroService : IDisposable
         ClipboardSnapshot snapshot,
         IReadOnlyList<string>? droppedPaths = null,
         bool validationMode = false) =>
-        CreateSpecialVariableResolver(snapshot, droppedPaths, validationMode);
+        CreateSpecialVariableResolver(() => snapshot, droppedPaths, validationMode);
 
     private static bool TryResolveClipboardHistory(string suffix, IReadOnlyList<string> entries, out string value, out string? error)
     {
