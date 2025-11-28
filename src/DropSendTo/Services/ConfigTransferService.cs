@@ -141,6 +141,12 @@ internal sealed class ConfigTransferService
         public bool EnablePrefixLayerShortcuts { get; set; }
         public bool EnableEmacsNavigation { get; set; }
         public bool EnableViNavigation { get; set; }
+        public bool EnableMouseGestures { get; set; }
+        public int MouseGestureClockwiseTurnsToShow { get; set; }
+        public int MouseGestureCounterClockwiseTurnsToHide { get; set; }
+        public bool MouseGestureInvertDirections { get; set; }
+        public bool MouseGestureRequireCtrl { get; set; }
+        public bool MouseGestureSuppressDuringPresentation { get; set; }
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
@@ -163,6 +169,12 @@ internal sealed class ConfigTransferService
                 EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
                 EnableEmacsNavigation = config.EnableEmacsNavigation,
                 EnableViNavigation = config.EnableViNavigation,
+                EnableMouseGestures = config.EnableMouseGestures,
+                MouseGestureClockwiseTurnsToShow = config.MouseGestureClockwiseTurnsToShow,
+                MouseGestureCounterClockwiseTurnsToHide = config.MouseGestureCounterClockwiseTurnsToHide,
+                MouseGestureInvertDirections = config.MouseGestureInvertDirections,
+                MouseGestureRequireCtrl = config.MouseGestureRequireCtrl,
+                MouseGestureSuppressDuringPresentation = config.MouseGestureSuppressDuringPresentation,
                 PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
@@ -195,6 +207,12 @@ internal sealed class ConfigTransferService
                 EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
                 EnableEmacsNavigation = EnableEmacsNavigation,
                 EnableViNavigation = EnableViNavigation,
+                EnableMouseGestures = EnableMouseGestures,
+                MouseGestureClockwiseTurnsToShow = MouseGestureClockwiseTurnsToShow,
+                MouseGestureCounterClockwiseTurnsToHide = MouseGestureCounterClockwiseTurnsToHide,
+                MouseGestureInvertDirections = MouseGestureInvertDirections,
+                MouseGestureRequireCtrl = MouseGestureRequireCtrl,
+                MouseGestureSuppressDuringPresentation = MouseGestureSuppressDuringPresentation,
                 PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,

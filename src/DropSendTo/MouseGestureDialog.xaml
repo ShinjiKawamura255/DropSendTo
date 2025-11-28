@@ -1,0 +1,85 @@
+<Window x:Class="DropSendTo.MouseGestureDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        Title="マウスジェスチャ設定" Height="340" Width="420"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="ToolWindow">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <CheckBox x:Name="EnableCheckBox"
+                  Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                  Content="マウスを回して表示 / 最小化を切り替える"
+                  Margin="0,0,0,10"
+                  Checked="OnEnableChanged"
+                  Unchecked="OnEnableChanged"/>
+
+        <TextBlock Text="表示 (時計回り)"
+                   Grid.Row="1" Grid.Column="0"
+                   VerticalAlignment="Center" Margin="0,0,8,6"/>
+        <TextBox x:Name="ClockwiseTurnsBox"
+                 Grid.Row="1" Grid.Column="1"
+                 Margin="0,0,0,6"
+                 PreviewTextInput="OnTurnsPreviewTextInput"/>
+
+        <TextBlock Text="非表示 (反時計回り)"
+                   Grid.Row="2" Grid.Column="0"
+                   VerticalAlignment="Center" Margin="0,0,8,6"/>
+        <TextBox x:Name="CounterClockwiseTurnsBox"
+                 Grid.Row="2" Grid.Column="1"
+                 Margin="0,0,0,6"
+                 PreviewTextInput="OnTurnsPreviewTextInput"/>
+
+        <CheckBox x:Name="InvertDirectionsCheckBox"
+                  Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                  Content="方向を入れ替える（反時計回りで表示、時計回りで非表示）"
+                  Margin="0,4,0,6"/>
+
+        <CheckBox x:Name="RequireCtrlCheckBox"
+                  Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                  Content="Ctrl を押しながらのときだけ有効にする"
+                  Margin="0,0,0,6"/>
+
+        <CheckBox x:Name="SuppressPresentationCheckBox"
+                  Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                  Content="画面共有 / 発表モードでは発動させない"
+                  Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+                   TextWrapping="Wrap"
+                   Foreground="#CCCCCC"
+                   FontSize="12"
+                   Margin="0,0,0,10"
+                   Text="マウスを連続して円を描くように動かすと、指定した回数で DropSendTo を表示 / 最小化します。"
+                   />
+
+        <TextBlock x:Name="ErrorBlock"
+                   Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+                   Foreground="#FF6666"
+                   FontSize="12"
+                   Visibility="Collapsed"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,6"/>
+
+        <StackPanel Orientation="Horizontal"
+                    Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
+                    HorizontalAlignment="Right">
+            <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
+            <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

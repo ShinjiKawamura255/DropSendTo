@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -97,6 +98,8 @@ internal sealed class ShortcutService : IDisposable
     private IntPtr _hookHandle = IntPtr.Zero;
     private LowLevelMouseProc? _mouseHookCallback;
     private IntPtr _mouseHookHandle = IntPtr.Zero;
+    private readonly MouseGestureDetector _mouseGestureDetector = new();
+    private MouseGestureOptions _mouseGestureOptions = MouseGestureOptions.Default;
     private bool _disposed;
 
     private KeyChord? _prefixChord;
@@ -124,6 +127,7 @@ internal sealed class ShortcutService : IDisposable
         _dispatcher = ApplicationDispatcherProvider.GetDispatcher();
         _remoteSessionDetector = DetectRemoteSessionForeground;
         _prefixTimeoutTimer = new Timer(OnPrefixTimeout, null, Timeout.Infinite, Timeout.Infinite);
+        _mouseGestureDetector.UpdateOptions(_mouseGestureOptions);
         SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
         SystemEvents.SessionSwitch += OnSystemSessionSwitch;
     }
@@ -137,6 +141,8 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixPositionToggleRequested;
     public event EventHandler? PrefixNextLayerRequested;
     public event EventHandler? PrefixPreviousLayerRequested;
+    public event EventHandler? MouseGestureShowRequested;
+    public event EventHandler? MouseGestureHideRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -225,6 +231,13 @@ internal sealed class ShortcutService : IDisposable
             _prefixModifiers = chord.Modifiers;
             ResetPrefixStateLocked();
         }
+    }
+
+    public void UpdateMouseGestureOptions(MouseGestureOptions options)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        _mouseGestureOptions = options.Normalize();
+        _mouseGestureDetector.UpdateOptions(_mouseGestureOptions);
     }
 
     public void UpdateAvailableShortcuts(IEnumerable<string> shortcuts)
@@ -860,6 +873,38 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
+    private MouseGestureAction HandleMouseGesture(MSLLHOOKSTRUCT data)
+    {
+        var options = _mouseGestureOptions;
+        if (!options.Enabled)
+        {
+            return MouseGestureAction.None;
+        }
+
+        bool ctrlPressed = IsCtrlPressed();
+        bool presentationBlocked = options.SuppressDuringPresentation && IsPresentationModeLikelyActive();
+        var point = new Point(data.pt.x, data.pt.y);
+        return _mouseGestureDetector.HandleMove(point, ctrlPressed, presentationBlocked);
+    }
+
+    private void DispatchMouseGestureAction(MouseGestureAction action)
+    {
+        if (action == MouseGestureAction.None)
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case MouseGestureAction.ShowWindow:
+                _dispatcher.BeginInvoke(() => MouseGestureShowRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case MouseGestureAction.HideWindow:
+                _dispatcher.BeginInvoke(() => MouseGestureHideRequested?.Invoke(this, EventArgs.Empty));
+                break;
+        }
+    }
+
     private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode < 0)
@@ -870,6 +915,12 @@ internal sealed class ShortcutService : IDisposable
         var msg = (int)wParam;
         if (msg is WM_MOUSEMOVE or WM_NCMOUSEMOVE)
         {
+            var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+            if ((data.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED)) == 0)
+            {
+                var action = HandleMouseGesture(data);
+                DispatchMouseGestureAction(action);
+            }
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
         }
 
@@ -889,6 +940,7 @@ internal sealed class ShortcutService : IDisposable
                     ResetPrefixStateLocked();
                 }
             }
+            _mouseGestureDetector.Reset();
         }
 
         return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
@@ -984,6 +1036,27 @@ internal sealed class ShortcutService : IDisposable
         }
 
         return removed;
+    }
+
+    private static bool IsCtrlPressed()
+    {
+        return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0
+               || (GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0
+               || (GetAsyncKeyState(VK_RCONTROL) & 0x8000) != 0;
+    }
+
+    private bool IsPresentationModeLikelyActive()
+    {
+        try
+        {
+            return SHQueryUserNotificationState(out var state) == 0
+                   && (state == UserNotificationState.QunsPresentationMode
+                       || state == UserNotificationState.QunsRunningD3DFullScreen);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool ContainsVirtualKey(IReadOnlyCollection<ushort> source, ushort value)
@@ -1247,6 +1320,17 @@ internal sealed class ShortcutService : IDisposable
         PrefixPreviousLayer
     }
 
+    private enum UserNotificationState
+    {
+        QunsNotPresent = 1,
+        QunsBusy = 2,
+        QunsRunningD3DFullScreen = 3,
+        QunsPresentationMode = 4,
+        QunsAcceptsNotifications = 5,
+        QunsQuietTime = 6,
+        QunsApp = 7
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct KBDLLHOOKSTRUCT
     {
@@ -1255,6 +1339,23 @@ internal sealed class ShortcutService : IDisposable
         public uint flags;
         public uint time;
         public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int x;
+        public int y;
     }
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
@@ -1267,6 +1368,8 @@ internal sealed class ShortcutService : IDisposable
     private const int WH_KEYBOARD_LL = 13;
     private const uint LLKHF_INJECTED = 0x00000010;
     private const uint LLKHF_LOWER_IL_INJECTED = 0x00000002;
+    private const uint LLMHF_INJECTED = 0x00000001;
+    private const uint LLMHF_LOWER_IL_INJECTED = 0x00000002;
     private const int WM_MOUSEMOVE = 0x0200;
     private const int WM_LBUTTONDOWN = 0x0201;
     private const int WM_LBUTTONUP = 0x0202;
@@ -1311,6 +1414,9 @@ internal sealed class ShortcutService : IDisposable
     [DllImport("user32.dll")]
     private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
@@ -1322,6 +1428,9 @@ internal sealed class ShortcutService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("shell32.dll")]
+    private static extern int SHQueryUserNotificationState(out UserNotificationState pstate);
 
 }
 

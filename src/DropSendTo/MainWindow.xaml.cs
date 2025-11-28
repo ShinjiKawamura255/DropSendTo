@@ -785,6 +785,8 @@ public partial class MainWindow : Window
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
+            _shortcutService.MouseGestureShowRequested += OnMouseGestureShowRequested;
+            _shortcutService.MouseGestureHideRequested += OnMouseGestureHideRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
             _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
@@ -812,6 +814,7 @@ public partial class MainWindow : Window
                 WpfMessageBox.Show("設定ファイルの Prefix が無効または設定不可のため、Ctrl+Q に戻しました。設定値を確認してください。", "Shortcut Prefix", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             UpdateShortcutRegistrations();
+            ApplyMouseGestureOptions();
         }
         catch (Exception ex)
         {
@@ -2870,6 +2873,41 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
+    {
+        var options = BuildMouseGestureOptions();
+        var dlg = new MouseGestureDialog(options) { Owner = this };
+        WindowCascadeService.Arrange(dlg, this);
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var result = dlg.ResultOptions;
+        bool changed =
+            _config.EnableMouseGestures != result.Enabled
+            || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
+            || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
+            || _config.MouseGestureInvertDirections != result.InvertDirections
+            || _config.MouseGestureRequireCtrl != result.RequireCtrl
+            || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation;
+
+        if (!changed)
+        {
+            return;
+        }
+
+        _config.EnableMouseGestures = result.Enabled;
+        _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
+        _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
+        _config.MouseGestureInvertDirections = result.InvertDirections;
+        _config.MouseGestureRequireCtrl = result.RequireCtrl;
+        _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+
+        ApplyMouseGestureOptions();
+        _configService.Save(_config);
+    }
+
     private void OnEditLayerNames(object sender, RoutedEventArgs e)
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
@@ -2969,6 +3007,20 @@ public partial class MainWindow : Window
         _config.PreferRemoteSessions = enabled;
         _shortcutService.SetRemoteSessionPreference(enabled);
         _configService.Save(_config);
+    }
+
+    private MouseGestureOptions BuildMouseGestureOptions() =>
+        new(
+            _config.EnableMouseGestures,
+            _config.MouseGestureClockwiseTurnsToShow,
+            _config.MouseGestureCounterClockwiseTurnsToHide,
+            _config.MouseGestureInvertDirections,
+            _config.MouseGestureRequireCtrl,
+            _config.MouseGestureSuppressDuringPresentation);
+
+    private void ApplyMouseGestureOptions()
+    {
+        _shortcutService?.UpdateMouseGestureOptions(BuildMouseGestureOptions());
     }
 
     private void OnStartupRestoreState(object sender, RoutedEventArgs e)
@@ -3603,6 +3655,24 @@ public partial class MainWindow : Window
         MinimizeWindowToTray();
     }
 
+    private void OnMouseGestureShowRequested(object? sender, EventArgs e)
+    {
+        HideLayerNameOverlayImmediate();
+        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        {
+            PositionWindowAtMouse();
+        }
+        BringWindowToForeground();
+        ActivateKeyboardNavigation();
+        ShowLayerNameOverlay();
+    }
+
+    private void OnMouseGestureHideRequested(object? sender, EventArgs e)
+    {
+        HideLayerNameOverlayImmediate();
+        MinimizeWindowToTray();
+    }
+
     private void OnPrefixMacroCancelRequested(object? sender, EventArgs e)
     {
         if (!_macroService.IsMacroRunning)
@@ -3833,6 +3903,8 @@ public partial class MainWindow : Window
         _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
         _shortcutService.PrefixNextLayerRequested -= OnPrefixNextLayerRequested;
         _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
+        _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
+        _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();

@@ -94,9 +94,12 @@ public class ConfigService
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
     private const int MaxSlotColumns = 4;
+    private const int MinGestureTurns = 1;
+    private const int MaxGestureTurns = 50;
 
     private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
     private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
+    private static int NormalizeGestureTurns(int value) => Math.Clamp(value, MinGestureTurns, MaxGestureTurns);
 
     private static void EnsureSlotCapacity(Layer layer, int requiredSlots)
     {
@@ -133,6 +136,8 @@ public class ConfigService
         {
             cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
         }
+        cfg.MouseGestureClockwiseTurnsToShow = NormalizeGestureTurns(cfg.MouseGestureClockwiseTurnsToShow);
+        cfg.MouseGestureCounterClockwiseTurnsToHide = NormalizeGestureTurns(cfg.MouseGestureCounterClockwiseTurnsToHide);
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -465,6 +470,18 @@ public class ConfigService
                 layer.Name ??= string.Empty;
             }
             cfg.Version = 20;
+            changed = true;
+        }
+
+        if (cfg.Version < 21)
+        {
+            cfg.EnableMouseGestures = true;
+            cfg.MouseGestureClockwiseTurnsToShow = NormalizeGestureTurns(cfg.MouseGestureClockwiseTurnsToShow <= 0 ? 3 : cfg.MouseGestureClockwiseTurnsToShow);
+            cfg.MouseGestureCounterClockwiseTurnsToHide = NormalizeGestureTurns(cfg.MouseGestureCounterClockwiseTurnsToHide <= 0 ? 2 : cfg.MouseGestureCounterClockwiseTurnsToHide);
+            cfg.MouseGestureInvertDirections = false;
+            cfg.MouseGestureRequireCtrl = false;
+            cfg.MouseGestureSuppressDuringPresentation = false;
+            cfg.Version = 21;
             changed = true;
         }
 

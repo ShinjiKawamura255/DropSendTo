@@ -25,7 +25,13 @@ public class ConfigTransferServiceTests
             EnablePrefixLayerShortcuts = true,
             SlotRows = 3,
             SlotColumns = 3,
-            SlotSize = SlotSize.Medium
+            SlotSize = SlotSize.Medium,
+            EnableMouseGestures = false,
+            MouseGestureClockwiseTurnsToShow = 5,
+            MouseGestureCounterClockwiseTurnsToHide = 4,
+            MouseGestureInvertDirections = true,
+            MouseGestureRequireCtrl = true,
+            MouseGestureSuppressDuringPresentation = true
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";
@@ -47,6 +53,12 @@ public class ConfigTransferServiceTests
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
         imported.EnablePrefixLayerShortcuts.Should().BeTrue();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
+        imported.EnableMouseGestures.Should().BeFalse();
+        imported.MouseGestureClockwiseTurnsToShow.Should().Be(5);
+        imported.MouseGestureCounterClockwiseTurnsToHide.Should().Be(4);
+        imported.MouseGestureInvertDirections.Should().BeTrue();
+        imported.MouseGestureRequireCtrl.Should().BeTrue();
+        imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
         imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);
