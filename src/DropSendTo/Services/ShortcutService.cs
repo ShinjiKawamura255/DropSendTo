@@ -1091,10 +1091,9 @@ internal sealed class ShortcutService : IDisposable
         }
 
         var className = GetWindowClassName(hwnd);
-        if (!string.IsNullOrEmpty(className) &&
-            (className.Contains("pptframeclass", StringComparison.OrdinalIgnoreCase)
-             || className.Contains("screenclass", StringComparison.OrdinalIgnoreCase)
-             || className.Contains("fullscreen", StringComparison.OrdinalIgnoreCase)))
+        if (!string.IsNullOrEmpty(className)
+            && (className.Contains("screenclass", StringComparison.OrdinalIgnoreCase)
+                || className.Contains("fullscreen", StringComparison.OrdinalIgnoreCase)))
         {
             return true;
         }
