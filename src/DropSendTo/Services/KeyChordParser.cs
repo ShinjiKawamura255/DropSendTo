@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace DropSendTo.Services;
@@ -183,7 +184,7 @@ internal static class KeyChordParser
         }
 
         token = string.Empty;
-        return false;
+        return TryFormatUnknownVirtualKey(vk, out token);
     }
 
     public static bool TryFormat(ushort mainKey, IReadOnlyCollection<ModifierKind> modifiers, out string normalized)
@@ -263,6 +264,10 @@ internal static class KeyChordParser
                 return true;
             }
         }
+        if (TryResolveVirtualKeyToken(token, out key))
+        {
+            return true;
+        }
         return false;
     }
 
@@ -312,6 +317,21 @@ internal static class KeyChordParser
     {
         var dict = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase)
         {
+            ["KANA"] = VK_KANA,
+            ["HANGUL"] = VK_HANGUL,
+            ["HANGUEL"] = VK_HANGUL,
+            ["JUNJA"] = VK_JUNJA,
+            ["IMEON"] = VK_IME_ON,
+            ["FINAL"] = VK_FINAL,
+            ["IMEOFF"] = VK_IME_OFF,
+            ["KANJI"] = VK_KANJI,
+            ["HANJA"] = VK_HANJA,
+            ["CONVERT"] = VK_CONVERT,
+            ["HENKAN"] = VK_CONVERT,
+            ["NONCONVERT"] = VK_NONCONVERT,
+            ["MUHENKAN"] = VK_NONCONVERT,
+            ["ACCEPT"] = VK_ACCEPT,
+            ["MODECHANGE"] = VK_MODECHANGE,
             ["ENTER"] = VK_RETURN,
             ["ESC"] = VK_ESCAPE,
             ["TAB"] = VK_TAB,
@@ -372,6 +392,7 @@ internal static class KeyChordParser
             ["SUBTRACT"] = VK_SUBTRACT,
             ["DIVIDE"] = VK_DIVIDE,
             ["DECIMAL"] = VK_DECIMAL,
+            ["PROCESS"] = VK_PROCESSKEY,
             ["OEM1"] = VK_OEM_1,
             ["OEMPLUS"] = VK_OEM_PLUS,
             ["OEMCOMMA"] = VK_OEM_COMMA,
@@ -382,7 +403,12 @@ internal static class KeyChordParser
             ["OEM4"] = VK_OEM_4,
             ["OEM5"] = VK_OEM_5,
             ["OEM6"] = VK_OEM_6,
-            ["OEM7"] = VK_OEM_7
+            ["OEM7"] = VK_OEM_7,
+            ["OEM8"] = VK_OEM_8,
+            ["OEM102"] = VK_OEM_102,
+            ["ABNT_C1"] = VK_ABNT_C1,
+            ["ABNT_C2"] = VK_ABNT_C2,
+            ["OEMAX"] = VK_OEM_AX
         };
 
         dict["RETURN"] = VK_RETURN;
@@ -450,6 +476,18 @@ internal static class KeyChordParser
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_SHIFT = 0x10;
     private const ushort VK_MENU = 0x12;
+    private const ushort VK_KANA = 0x15;
+    private const ushort VK_HANGUL = 0x15;
+    private const ushort VK_IME_ON = 0x16;
+    private const ushort VK_JUNJA = 0x17;
+    private const ushort VK_FINAL = 0x18;
+    private const ushort VK_IME_OFF = 0x1A;
+    private const ushort VK_HANJA = 0x19;
+    private const ushort VK_KANJI = 0x19;
+    private const ushort VK_CONVERT = 0x1C;
+    private const ushort VK_NONCONVERT = 0x1D;
+    private const ushort VK_ACCEPT = 0x1E;
+    private const ushort VK_MODECHANGE = 0x1F;
     private const ushort VK_LWIN = 0x5B;
     private const ushort VK_RWIN = 0x5C;
     private const ushort VK_LCONTROL = 0xA2;
@@ -530,6 +568,41 @@ internal static class KeyChordParser
     private const ushort VK_OEM_5 = 0xDC;
     private const ushort VK_OEM_6 = 0xDD;
     private const ushort VK_OEM_7 = 0xDE;
+    private const ushort VK_OEM_8 = 0xDF;
+    private const ushort VK_OEM_AX = 0xE1;
+    private const ushort VK_PROCESSKEY = 0xE5;
+    private const ushort VK_OEM_102 = 0xE2;
+    private const ushort VK_ABNT_C1 = 0xC1;
+    private const ushort VK_ABNT_C2 = 0xC2;
+
+    private static bool TryResolveVirtualKeyToken(string token, out ushort key)
+    {
+        key = 0;
+        if (!token.StartsWith("VK_", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var hex = token[3..];
+        if (hex.Length is 0 or > 4)
+        {
+            return false;
+        }
+
+        return ushort.TryParse(hex, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out key);
+    }
+
+    private static bool TryFormatUnknownVirtualKey(ushort vk, out string token)
+    {
+        token = string.Empty;
+        if (vk == 0)
+        {
+            return false;
+        }
+
+        token = $"VK_{vk:X2}";
+        return true;
+    }
 }
 
 internal static class ShortcutSequenceParser

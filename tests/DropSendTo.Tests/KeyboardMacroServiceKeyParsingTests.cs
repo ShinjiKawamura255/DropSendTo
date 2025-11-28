@@ -63,4 +63,51 @@ public class KeyboardMacroServiceKeyParsingTests
         args[1].Should().NotBeNull();
         ((ushort)args[1]!).Should().Be(expectedVirtualKey);
     }
+
+    [Theory]
+    [InlineData("`", 0xC0)]
+    [InlineData("KANJI", 0x19)]
+    [InlineData("OEM102", 0xE2)]
+    [InlineData("OEM8", 0xDF)]
+    [InlineData("NONCONVERT", 0x1D)]
+    [InlineData("PROCESS", 0xE5)]
+    public void TryResolveKeyToken_ShouldSupportAdditionalKeyboardInputs(string token, ushort expectedVirtualKey)
+    {
+        var method = GetResolveKeyTokenMethod();
+        var args = new object?[] { token, null };
+
+        var result = (bool)method.Invoke(null, args)!;
+
+        result.Should().BeTrue($"{token} が KEYDOWN/KEYUP に利用できること");
+        args[1].Should().NotBeNull();
+        ((ushort)args[1]!).Should().Be(expectedVirtualKey);
+    }
+
+    [Fact]
+    public void TryGetCanonicalToken_ShouldExposeBackquoteAndImeKeys()
+    {
+        KeyChordParser.TryGetCanonicalToken(0xC0, out var backquoteToken).Should().BeTrue();
+        backquoteToken.Should().NotBeNullOrEmpty();
+
+        KeyChordParser.TryGetCanonicalToken(0x19, out var kanjiToken).Should().BeTrue();
+        kanjiToken.Should().Be("KANJI");
+    }
+
+    [Fact]
+    public void TryGetCanonicalToken_ShouldFallbackToVkNotationForUnknownKeys()
+    {
+        const ushort unknownVirtualKey = 0xE8;
+
+        KeyChordParser.TryGetCanonicalToken(unknownVirtualKey, out var token).Should().BeTrue();
+        token.Should().Be("VK_E8");
+
+        var method = GetResolveKeyTokenMethod();
+        var args = new object?[] { token, null };
+
+        var resolved = (bool)method.Invoke(null, args)!;
+
+        resolved.Should().BeTrue("VK_XX 形式のキーは録音結果から再解決できること");
+        args[1].Should().NotBeNull();
+        ((ushort)args[1]!).Should().Be(unknownVirtualKey);
+    }
 }
