@@ -727,6 +727,18 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "RESOLVE_LINK"))
+                {
+                    var payload = line.Length > 12 ? line[12..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (!TryApplyResolveLinkDirective(payload, variables, specialResolver, validateOnly, out var resolveError))
+                    {
+                        var message = resolveError ?? "RESOLVE_LINK の解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "POPUP"))
                 {
                     var payload = line.Length > 5 ? line[5..].Trim() : string.Empty;
@@ -2118,6 +2130,84 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
+    private static bool TryApplyResolveLinkDirective(string payload, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "RESOLVE_LINK には変数名とパスを指定してください。";
+            return false;
+        }
+
+        int index = 0;
+        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+        {
+            index++;
+        }
+        var firstSpace = FindFirstWhitespace(payload[index..]);
+        if (firstSpace < 0)
+        {
+            error = "RESOLVE_LINK には変数名とパスを指定してください。";
+            return false;
+        }
+
+        var nameToken = payload.Substring(index, firstSpace).Trim();
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"RESOLVE_LINK の変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        index += firstSpace;
+        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+        {
+            index++;
+        }
+        if (index >= payload.Length)
+        {
+            error = "RESOLVE_LINK にパスを指定してください。";
+            return false;
+        }
+
+        if (!TryParsePathOperand(payload, ref index, "RESOLVE_LINK", "パス", out var pathRaw, out error))
+        {
+            return false;
+        }
+
+        if (index < payload.Length && !string.IsNullOrWhiteSpace(payload[index..]))
+        {
+            error = "RESOLVE_LINK の引数の後ろに余分な記述があります。";
+            return false;
+        }
+
+        if (!TryExpandVariables(pathRaw, variables, out var expandedPath, out var pathExpandError, specialResolver))
+        {
+            error = pathExpandError ?? "RESOLVE_LINK のパス展開に失敗しました。";
+            return false;
+        }
+
+        var normalizedPath = TrimPathQuotes(expandedPath);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            error = "RESOLVE_LINK のパスは空にできません。";
+            return false;
+        }
+
+        if (validateOnly)
+        {
+            return true;
+        }
+
+        if (!TryResolveLinkTarget(normalizedPath, out var resolved, out var resolveError))
+        {
+            error = resolveError ?? $"RESOLVE_LINK の解決に失敗しました: \"{normalizedPath}\"";
+            return false;
+        }
+
+        variables[nameToken] = resolved;
+        return true;
+    }
+
     private static bool TryParsePathOperand(string input, ref int index, string command, string operandName, out string operand, out string? error)
     {
         operand = string.Empty;
@@ -2161,6 +2251,88 @@ public sealed class KeyboardMacroService : IDisposable
             trimmed = trimmed.Substring(1, trimmed.Length - 2);
         }
         return trimmed;
+    }
+
+    private static bool TryResolveLinkTarget(string path, out string resolvedPath, out string? error)
+    {
+        resolvedPath = path;
+        error = null;
+
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            error = $"RESOLVE_LINK のパスが存在しません: \"{path}\"";
+            return false;
+        }
+
+        try
+        {
+            if (string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!TryResolveShellShortcut(path, out var shortcutTarget, out var shortcutError))
+                {
+                    error = shortcutError ?? "ショートカットの解決に失敗しました。";
+                    return false;
+                }
+
+                resolvedPath = shortcutTarget;
+                return true;
+            }
+
+            var info = File.Exists(path)
+                ? (FileSystemInfo)new FileInfo(path)
+                : new DirectoryInfo(path);
+            var target = info.ResolveLinkTarget(returnFinalTarget: true);
+            if (target != null)
+            {
+                resolvedPath = target.FullName;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            error = $"RESOLVE_LINK の解決に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryResolveShellShortcut(string path, out string targetPath, out string? error)
+    {
+        targetPath = path;
+        error = null;
+
+        try
+        {
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null)
+            {
+                error = "WScript.Shell の取得に失敗しました。";
+                return false;
+            }
+
+            dynamic? shell = Activator.CreateInstance(shellType);
+            if (shell == null)
+            {
+                error = "ショートカットの解決に必要なオブジェクトの作成に失敗しました。";
+                return false;
+            }
+
+            dynamic? shortcut = shell.CreateShortcut(path);
+            string? resolved = shortcut?.TargetPath as string;
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                error = "ショートカットのリンク先が空です。";
+                return false;
+            }
+
+            targetPath = Path.GetFullPath(resolved);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"ショートカットの解決に失敗しました: {ex.Message}";
+            return false;
+        }
     }
 
     internal static bool TryApplySetDirective(string line, Dictionary<string, string> variables, out string? name, out string? value, out string? error, SpecialVariableResolver? specialResolver = null)
