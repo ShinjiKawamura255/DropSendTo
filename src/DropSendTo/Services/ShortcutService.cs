@@ -1049,14 +1049,118 @@ internal sealed class ShortcutService : IDisposable
     {
         try
         {
-            return SHQueryUserNotificationState(out var state) == 0
-                   && (state == UserNotificationState.QunsPresentationMode
-                       || state == UserNotificationState.QunsRunningD3DFullScreen);
+            if (SHQueryUserNotificationState(out var state) == 0
+                && (state == UserNotificationState.QunsPresentationMode
+                    || state == UserNotificationState.QunsRunningD3DFullScreen))
+            {
+                return true;
+            }
         }
         catch
         {
+            // Shell API unavailable; fall back to window heuristics.
+        }
+
+        try
+        {
+            var foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            if (IsPowerPointSlideShow(foreground))
+            {
+                return true;
+            }
+        }
+        catch
+        {
+            // Heuristic failed; treat as non-presentation to avoid false positives.
+        }
+
+        return false;
+    }
+
+    private bool IsPowerPointSlideShow(IntPtr hwnd)
+    {
+        var processName = GetProcessNameFromWindow(hwnd);
+        if (!string.Equals(processName, "powerpnt", StringComparison.OrdinalIgnoreCase))
+        {
             return false;
         }
+
+        var className = GetWindowClassName(hwnd);
+        if (!string.IsNullOrEmpty(className) &&
+            (className.Contains("pptframeclass", StringComparison.OrdinalIgnoreCase)
+             || className.Contains("screenclass", StringComparison.OrdinalIgnoreCase)
+             || className.Contains("fullscreen", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var title = GetWindowTitle(hwnd);
+        if (string.IsNullOrEmpty(title))
+        {
+            return false;
+        }
+
+        return title.Contains("slide show", StringComparison.OrdinalIgnoreCase)
+               || title.Contains("スライド ショー", StringComparison.OrdinalIgnoreCase)
+               || title.Contains("スライドショー", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetProcessNameFromWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            _ = GetWindowThreadProcessId(hwnd, out var pid);
+            var proc = Process.GetProcessById((int)pid);
+            return proc?.ProcessName ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string GetWindowClassName(IntPtr hwnd)
+    {
+        var sb = new StringBuilder(256);
+        try
+        {
+            if (GetClassName(hwnd, sb, sb.Capacity) > 0)
+            {
+                return sb.ToString();
+            }
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
+    }
+
+    private static string GetWindowTitle(IntPtr hwnd)
+    {
+        var sb = new StringBuilder(512);
+        try
+        {
+            if (GetWindowText(hwnd, sb, sb.Capacity) > 0)
+            {
+                return sb.ToString();
+            }
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
     }
 
     private static bool ContainsVirtualKey(IReadOnlyCollection<ushort> source, ushort value)
@@ -1407,6 +1511,9 @@ internal sealed class ShortcutService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
