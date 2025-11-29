@@ -63,7 +63,6 @@ public class ConfigTransferServiceTests
         imported.MouseGestureRequireCtrl.Should().BeTrue();
         imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
         imported.MouseGestureEnforceRadiusLimit.Should().BeFalse();
-        imported.MouseGestureMinRadiusPixels.Should().Be(80);
         imported.MouseGestureMaxRadiusPixels.Should().Be(180);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");

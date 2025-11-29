@@ -99,7 +99,7 @@ public class MouseGestureDetectorTests
     public void HandleMove_ShouldIgnoreGesturesOutsideRadius()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { MinRadiusPixels = 0, MaxRadiusPixels = 120, EnforceRadiusLimit = true };
+        var options = MouseGestureOptions.Default with { MaxRadiusPixels = 120, EnforceRadiusLimit = true };
 
         var result = Run(detector, options, CreateCirclePoints(2, clockwise: true, radius: 180), ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.None);
@@ -113,19 +113,20 @@ public class MouseGestureDetectorTests
     public void HandleMove_ShouldAllowLargeRadius_WhenLimitDisabled()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { MinRadiusPixels = 60, MaxRadiusPixels = 120, EnforceRadiusLimit = false };
+        var options = MouseGestureOptions.Default with { MaxRadiusPixels = 120, EnforceRadiusLimit = false };
 
         var result = Run(detector, options, CreateCirclePoints(3, clockwise: true, radius: 200), ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.ShowWindow);
     }
 
     [Fact]
-    public void HandleMove_ShouldIgnoreWithinMinRadius()
+    public void HandleMove_ShouldIgnoreFlattenedGestures()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { MinRadiusPixels = 100, MaxRadiusPixels = 200, EnforceRadiusLimit = true };
+        var options = MouseGestureOptions.Default with { MaxRadiusPixels = 200, EnforceRadiusLimit = true };
 
-        var result = Run(detector, options, CreateCirclePoints(3, clockwise: true, radius: 50), ctrlPressed: false, blocked: false);
+        var flatPoints = CreateFlattenedHorizontal(3, width: 200, height: 10);
+        var result = Run(detector, options, flatPoints, ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.None);
 
         var counts = detector.GetTurnCountsForDebug();
@@ -191,6 +192,19 @@ public class MouseGestureDetectorTests
         public void Advance(TimeSpan delta)
         {
             _now += delta;
+        }
+    }
+
+    private static IEnumerable<Point> CreateFlattenedHorizontal(int turns, double width, double height)
+    {
+        int segmentsPerTurn = 18;
+        for (int i = 0; i <= turns * segmentsPerTurn; i++)
+        {
+            double progress = (double)i / segmentsPerTurn;
+            double angle = progress * 2 * System.Math.PI;
+            int x = (int)(width * System.Math.Cos(angle));
+            int y = (int)(height * System.Math.Sin(angle));
+            yield return new Point(x, y);
         }
     }
 }

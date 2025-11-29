@@ -2892,16 +2892,15 @@ public partial class MainWindow : Window
             }
 
             var result = dlg.ResultOptions;
-            bool changed =
-                _config.EnableMouseGestures != result.Enabled
-                || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
-                || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
-                || _config.MouseGestureInvertDirections != result.InvertDirections
-                || _config.MouseGestureRequireCtrl != result.RequireCtrl
-                || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
-                || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
-                || _config.MouseGestureMinRadiusPixels != result.MinRadiusPixels
-                || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
+        bool changed =
+            _config.EnableMouseGestures != result.Enabled
+            || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
+            || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
+            || _config.MouseGestureInvertDirections != result.InvertDirections
+            || _config.MouseGestureRequireCtrl != result.RequireCtrl
+            || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
+            || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
+            || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
 
             if (!changed)
             {
@@ -2912,11 +2911,10 @@ public partial class MainWindow : Window
             _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
             _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
             _config.MouseGestureInvertDirections = result.InvertDirections;
-            _config.MouseGestureRequireCtrl = result.RequireCtrl;
-            _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
-            _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
-            _config.MouseGestureMinRadiusPixels = result.MinRadiusPixels;
-            _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
+        _config.MouseGestureRequireCtrl = result.RequireCtrl;
+        _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+        _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
+        _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
 
             ApplyMouseGestureOptions();
             _configService.Save(_config);
@@ -3038,7 +3036,7 @@ public partial class MainWindow : Window
             _config?.MouseGestureRequireCtrl ?? MouseGestureOptions.Default.RequireCtrl,
             _config?.MouseGestureSuppressDuringPresentation ?? MouseGestureOptions.Default.SuppressDuringPresentation,
             _config?.MouseGestureEnforceRadiusLimit ?? MouseGestureOptions.Default.EnforceRadiusLimit,
-            _config?.MouseGestureMinRadiusPixels ?? MouseGestureOptions.Default.MinRadiusPixels,
+            _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels,
             _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels);
 
     private void ApplyMouseGestureOptions()

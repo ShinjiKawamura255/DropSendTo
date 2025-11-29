@@ -26,11 +26,8 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         InvertDirectionsCheckBox.IsChecked = ResultOptions.InvertDirections;
         RequireCtrlCheckBox.IsChecked = ResultOptions.RequireCtrl;
         SuppressPresentationCheckBox.IsChecked = ResultOptions.SuppressDuringPresentation;
-        MinRadiusSlider.Value = ResultOptions.MinRadiusPixels;
         MaxRadiusSlider.Value = ResultOptions.MaxRadiusPixels;
         EnforceRadiusCheckBox.IsChecked = ResultOptions.EnforceRadiusLimit;
-        MinRadiusSlider.AddHandler(Thumb.DragStartedEvent, new DragStartedEventHandler(OnRadiusDragStarted));
-        MinRadiusSlider.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler(OnRadiusDragCompleted));
         MaxRadiusSlider.AddHandler(Thumb.DragStartedEvent, new DragStartedEventHandler(OnRadiusDragStarted));
         MaxRadiusSlider.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler(OnRadiusDragCompleted));
         UpdateRadiusText();
@@ -63,7 +60,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
             RequireCtrlCheckBox.IsChecked == true,
             SuppressPresentationCheckBox.IsChecked == true,
             EnforceRadiusCheckBox.IsChecked == true,
-            (int)MinRadiusSlider.Value,
+            (int)MaxRadiusSlider.Value,
             (int)MaxRadiusSlider.Value).Normalize();
 
         IsConfirmed = true;
@@ -87,7 +84,6 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         InvertDirectionsCheckBox.IsEnabled = enabled;
         RequireCtrlCheckBox.IsEnabled = enabled;
         SuppressPresentationCheckBox.IsEnabled = enabled;
-        MinRadiusSlider.IsEnabled = enabled && EnforceRadiusCheckBox.IsChecked == true;
         MaxRadiusSlider.IsEnabled = enabled && EnforceRadiusCheckBox.IsChecked == true;
         EnforceRadiusCheckBox.IsEnabled = enabled;
         if (!enabled || EnforceRadiusCheckBox.IsChecked != true)
@@ -115,17 +111,9 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         Close();
     }
 
-    private void OnMinRadiusChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (!_isInitialized || MinRadiusSlider == null || MaxRadiusSlider == null) return;
-        ClampRadiusSliders();
-        OnRadiusChanged();
-    }
-
     private void OnMaxRadiusChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (!_isInitialized || MinRadiusSlider == null || MaxRadiusSlider == null) return;
-        ClampRadiusSliders();
+        if (!_isInitialized || MaxRadiusSlider == null) return;
         OnRadiusChanged();
     }
 
@@ -142,7 +130,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
     {
         if (RadiusValueText != null)
         {
-            RadiusValueText.Text = $"最小 {(int)MinRadiusSlider.Value}px / 最大 {(int)MaxRadiusSlider.Value}px";
+            RadiusValueText.Text = $"最大 {(int)MaxRadiusSlider.Value}px";
         }
     }
 
@@ -186,7 +174,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         if (_guideWindow == null) return;
         if (TryGetCursorPosition(out var pt))
         {
-            _guideWindow.Update((int)MinRadiusSlider.Value, (int)MaxRadiusSlider.Value, pt);
+            _guideWindow.Update(0, (int)MaxRadiusSlider.Value, pt);
         }
     }
 
@@ -197,18 +185,6 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void ClampRadiusSliders()
     {
-        if (!_isInitialized) return;
-        if (MinRadiusSlider.Value > MaxRadiusSlider.Value)
-        {
-            if (ReferenceEquals(MinRadiusSlider, Keyboard.FocusedElement))
-            {
-                MaxRadiusSlider.Value = MinRadiusSlider.Value;
-            }
-            else
-            {
-                MinRadiusSlider.Value = MaxRadiusSlider.Value;
-            }
-        }
     }
 
     private static bool TryGetCursorPosition(out System.Drawing.Point point)

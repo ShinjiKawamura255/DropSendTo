@@ -148,7 +148,6 @@ internal sealed class ConfigTransferService
         public bool MouseGestureRequireCtrl { get; set; }
         public bool MouseGestureSuppressDuringPresentation { get; set; }
         public bool MouseGestureEnforceRadiusLimit { get; set; }
-        public int MouseGestureMinRadiusPixels { get; set; }
         public int MouseGestureMaxRadiusPixels { get; set; }
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
@@ -179,7 +178,6 @@ internal sealed class ConfigTransferService
                 MouseGestureRequireCtrl = config.MouseGestureRequireCtrl,
                 MouseGestureSuppressDuringPresentation = config.MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = config.MouseGestureEnforceRadiusLimit,
-                MouseGestureMinRadiusPixels = config.MouseGestureMinRadiusPixels,
                 MouseGestureMaxRadiusPixels = config.MouseGestureMaxRadiusPixels,
                 PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
@@ -220,7 +218,6 @@ internal sealed class ConfigTransferService
                 MouseGestureRequireCtrl = MouseGestureRequireCtrl,
                 MouseGestureSuppressDuringPresentation = MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = MouseGestureEnforceRadiusLimit,
-                MouseGestureMinRadiusPixels = MouseGestureMinRadiusPixels,
                 MouseGestureMaxRadiusPixels = MouseGestureMaxRadiusPixels,
                 PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,

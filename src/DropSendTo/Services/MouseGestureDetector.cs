@@ -70,6 +70,8 @@ internal sealed class MouseGestureDetector
     private const int IdleResetMilliseconds = 330;
     private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
     private const double CenterWindowSeconds = 2.0;
+    private const double MinAxisSpreadPixels = 24;
+    private const double MinAspectRatio = 0.25;
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
@@ -141,13 +143,9 @@ internal sealed class MouseGestureDetector
             AddRecentPoint(point, nowUtc);
             var center = GetRecentCenter();
 
-            if (_enforceRadiusLimit && center.HasValue)
+            if (center.HasValue)
             {
-                var anchorDx = point.X - center.Value.X;
-                var anchorDy = point.Y - center.Value.Y;
-                var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
-                var softMaxSquared = _maxRadiusSquared * (MaxRadiusSlackFactor * MaxRadiusSlackFactor);
-                if (anchorDistanceSquared > softMaxSquared)
+                if (IsDegenerate(center.Value))
                 {
                     ResetState();
                     _lastPoint = point;
@@ -155,13 +153,21 @@ internal sealed class MouseGestureDetector
                     AddRecentPoint(point, nowUtc);
                     return MouseGestureAction.None;
                 }
-                if (anchorDistanceSquared < _minRadiusSquared)
+
+                if (_enforceRadiusLimit)
                 {
-                    ResetState();
-                    _lastPoint = point;
-                    _hasLastPoint = true;
-                    AddRecentPoint(point, nowUtc);
-                    return MouseGestureAction.None;
+                    var anchorDx = point.X - center.Value.X;
+                    var anchorDy = point.Y - center.Value.Y;
+                    var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
+                    var softMaxSquared = _maxRadiusSquared * (MaxRadiusSlackFactor * MaxRadiusSlackFactor);
+                    if (anchorDistanceSquared > softMaxSquared)
+                    {
+                        ResetState();
+                        _lastPoint = point;
+                        _hasLastPoint = true;
+                        AddRecentPoint(point, nowUtc);
+                        return MouseGestureAction.None;
+                    }
                 }
             }
 
@@ -324,5 +330,36 @@ internal sealed class MouseGestureDetector
         }
         double count = _recentPoints.Count;
         return (sumX / count, sumY / count);
+    }
+
+    private bool IsDegenerate((double X, double Y) center)
+    {
+        if (_recentPoints.Count < 6)
+        {
+            return false;
+        }
+
+        double maxDx = 0;
+        double maxDy = 0;
+        foreach (var sample in _recentPoints)
+        {
+            maxDx = Math.Max(maxDx, Math.Abs(sample.X - center.X));
+            maxDy = Math.Max(maxDy, Math.Abs(sample.Y - center.Y));
+        }
+
+        double maxAxis = Math.Max(maxDx, maxDy);
+        double minAxis = Math.Min(maxDx, maxDy);
+
+        if (maxAxis < MinAxisSpreadPixels)
+        {
+            return true;
+        }
+
+        if (minAxis < MinAxisSpreadPixels && minAxis < maxAxis * MinAspectRatio)
+        {
+            return true;
+        }
+
+        return false;
     }
 }
