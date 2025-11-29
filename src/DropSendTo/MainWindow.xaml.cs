@@ -2881,43 +2881,51 @@ public partial class MainWindow : Window
             return;
         }
 
-        var options = BuildMouseGestureOptions();
-        var dlg = new MouseGestureDialog(options) { Owner = this };
-        WindowCascadeService.Arrange(dlg, this);
-        if (!await dlg.ShowForResultAsync())
+        try
         {
-            return;
+            var options = BuildMouseGestureOptions();
+            var dlg = new MouseGestureDialog(options) { Owner = this };
+            WindowCascadeService.Arrange(dlg, this);
+            if (!await dlg.ShowForResultAsync())
+            {
+                return;
+            }
+
+            var result = dlg.ResultOptions;
+            bool changed =
+                _config.EnableMouseGestures != result.Enabled
+                || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
+                || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
+                || _config.MouseGestureInvertDirections != result.InvertDirections
+                || _config.MouseGestureRequireCtrl != result.RequireCtrl
+                || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
+                || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
+                || _config.MouseGestureMinRadiusPixels != result.MinRadiusPixels
+                || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
+
+            if (!changed)
+            {
+                return;
+            }
+
+            _config.EnableMouseGestures = result.Enabled;
+            _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
+            _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
+            _config.MouseGestureInvertDirections = result.InvertDirections;
+            _config.MouseGestureRequireCtrl = result.RequireCtrl;
+            _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+            _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
+            _config.MouseGestureMinRadiusPixels = result.MinRadiusPixels;
+            _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
+
+            ApplyMouseGestureOptions();
+            _configService.Save(_config);
         }
-
-        var result = dlg.ResultOptions;
-        bool changed =
-            _config.EnableMouseGestures != result.Enabled
-            || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
-            || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
-            || _config.MouseGestureInvertDirections != result.InvertDirections
-            || _config.MouseGestureRequireCtrl != result.RequireCtrl
-            || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
-            || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
-            || _config.MouseGestureMinRadiusPixels != result.MinRadiusPixels
-            || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
-
-        if (!changed)
+        catch (Exception ex)
         {
-            return;
+            _logger.Error($"Failed to open mouse gesture dialog: {ex}");
+            WpfMessageBox.Show("マウスジェスチャ設定の表示に失敗しました。ログをご確認ください。", "Mouse Gesture", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-
-        _config.EnableMouseGestures = result.Enabled;
-        _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
-        _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
-        _config.MouseGestureInvertDirections = result.InvertDirections;
-        _config.MouseGestureRequireCtrl = result.RequireCtrl;
-        _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
-        _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
-        _config.MouseGestureMinRadiusPixels = result.MinRadiusPixels;
-        _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
-
-        ApplyMouseGestureOptions();
-        _configService.Save(_config);
     }
 
     private async void OnEditLayerNames(object sender, RoutedEventArgs e)
