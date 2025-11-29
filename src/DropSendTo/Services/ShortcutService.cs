@@ -91,7 +91,7 @@ internal sealed class ShortcutService : IDisposable
         "wfcrun",
         "hdx"
     };
-    private const int MouseGestureIdleResetMilliseconds = 600;
+    private const int MouseGestureIdleResetMilliseconds = 330;
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
     private readonly Dispatcher _dispatcher;
