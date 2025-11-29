@@ -72,7 +72,7 @@
                 <CheckBox x:Name="EnforceRadiusCheckBox"
                           Margin="12,0,0,0"
                           VerticalAlignment="Center"
-                          Width="140"
+                          Width="180"
                           Checked="OnEnforceRadiusChanged"
                           Unchecked="OnEnforceRadiusChanged">
                     <TextBlock Text="半径制限を有効にする" TextWrapping="Wrap"/>
