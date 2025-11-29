@@ -2892,7 +2892,8 @@ public partial class MainWindow : Window
             || _config.MouseGestureRequireCtrl != result.RequireCtrl
             || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
             || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
-            || _config.MouseGestureRadiusPixels != result.RadiusPixels;
+            || _config.MouseGestureMinRadiusPixels != result.MinRadiusPixels
+            || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
 
         if (!changed)
         {
@@ -2906,7 +2907,8 @@ public partial class MainWindow : Window
         _config.MouseGestureRequireCtrl = result.RequireCtrl;
         _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
         _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
-        _config.MouseGestureRadiusPixels = result.RadiusPixels;
+        _config.MouseGestureMinRadiusPixels = result.MinRadiusPixels;
+        _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
 
         ApplyMouseGestureOptions();
         _configService.Save(_config);
@@ -3022,7 +3024,8 @@ public partial class MainWindow : Window
             _config.MouseGestureRequireCtrl,
             _config.MouseGestureSuppressDuringPresentation,
             _config.MouseGestureEnforceRadiusLimit,
-            _config.MouseGestureRadiusPixels);
+            _config.MouseGestureMinRadiusPixels,
+            _config.MouseGestureMaxRadiusPixels);
 
     private void ApplyMouseGestureOptions()
     {

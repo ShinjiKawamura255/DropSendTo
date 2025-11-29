@@ -26,7 +26,8 @@ public class AppConfig
     public bool MouseGestureRequireCtrl { get; set; }
     public bool MouseGestureSuppressDuringPresentation { get; set; }
     public bool MouseGestureEnforceRadiusLimit { get; set; } = true;
-    public int MouseGestureRadiusPixels { get; set; } = 120;
+    public int MouseGestureMinRadiusPixels { get; set; } = 40;
+    public int MouseGestureMaxRadiusPixels { get; set; } = 140;
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;
     public SlotSize SlotSize { get; set; } = SlotSize.Medium;

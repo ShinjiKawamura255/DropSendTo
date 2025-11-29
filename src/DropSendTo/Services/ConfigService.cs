@@ -141,8 +141,12 @@ public class ConfigService
         }
         cfg.MouseGestureClockwiseTurnsToShow = NormalizeGestureTurns(cfg.MouseGestureClockwiseTurnsToShow);
         cfg.MouseGestureCounterClockwiseTurnsToHide = NormalizeGestureTurns(cfg.MouseGestureCounterClockwiseTurnsToHide);
-        cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
-        cfg.MouseGestureEnforceRadiusLimit = cfg.MouseGestureEnforceRadiusLimit;
+        cfg.MouseGestureMinRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMinRadiusPixels <= 0 ? 40 : cfg.MouseGestureMinRadiusPixels);
+        cfg.MouseGestureMaxRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMaxRadiusPixels <= 0 ? 140 : cfg.MouseGestureMaxRadiusPixels);
+        if (cfg.MouseGestureMinRadiusPixels > cfg.MouseGestureMaxRadiusPixels)
+        {
+            cfg.MouseGestureMinRadiusPixels = cfg.MouseGestureMaxRadiusPixels;
+        }
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -492,14 +496,19 @@ public class ConfigService
 
         if (cfg.Version < 22)
         {
-            cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
+            cfg.MouseGestureMinRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMinRadiusPixels <= 0 ? 40 : cfg.MouseGestureMinRadiusPixels);
+            cfg.MouseGestureMaxRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMaxRadiusPixels <= 0 ? 140 : cfg.MouseGestureMaxRadiusPixels);
+            if (cfg.MouseGestureMinRadiusPixels > cfg.MouseGestureMaxRadiusPixels)
+            {
+                cfg.MouseGestureMinRadiusPixels = cfg.MouseGestureMaxRadiusPixels;
+            }
+            cfg.MouseGestureEnforceRadiusLimit = true;
             cfg.Version = 22;
             changed = true;
         }
 
         if (cfg.Version < 23)
         {
-            cfg.MouseGestureEnforceRadiusLimit = true;
             cfg.Version = 23;
             changed = true;
         }

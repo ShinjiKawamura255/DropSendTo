@@ -7,7 +7,8 @@ namespace DropSendTo;
 
 internal sealed class MouseGestureRadiusGuideWindow : Window
 {
-    private readonly Border _ring;
+    private readonly Border _outer;
+    private readonly Border _inner;
     private Matrix _fromDevice = Matrix.Identity;
 
     public MouseGestureRadiusGuideWindow()
@@ -20,15 +21,26 @@ internal sealed class MouseGestureRadiusGuideWindow : Window
         IsHitTestVisible = false;
         ShowActivated = false;
 
-        _ring = new Border
+        _outer = new Border
         {
-            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 0x4E, 0x9A, 0xFF)),
+            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(160, 0x4E, 0x9A, 0xFF)),
             BorderThickness = new Thickness(2),
-            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(40, 0x4E, 0x9A, 0xFF)),
+            Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(25, 0x4E, 0x9A, 0xFF)),
             CornerRadius = new CornerRadius(9999)
         };
 
-        Content = _ring;
+        _inner = new Border
+        {
+            BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(180, 0xE8, 0x6A, 0x17)),
+            BorderThickness = new Thickness(2),
+            Background = System.Windows.Media.Brushes.Transparent,
+            CornerRadius = new CornerRadius(9999)
+        };
+
+        var grid = new Grid();
+        grid.Children.Add(_outer);
+        grid.Children.Add(_inner);
+        Content = grid;
         SizeToContent = SizeToContent.WidthAndHeight;
     }
 
@@ -43,14 +55,21 @@ internal sealed class MouseGestureRadiusGuideWindow : Window
         }
     }
 
-    public void Update(int radiusPixels, System.Drawing.Point screenPoint)
+    public void Update(int minRadiusPixels, int maxRadiusPixels, System.Drawing.Point screenPoint)
     {
-        if (radiusPixels < 1) radiusPixels = 1;
-        _ring.Width = radiusPixels * 2;
-        _ring.Height = radiusPixels * 2;
+        minRadiusPixels = Math.Max(1, minRadiusPixels);
+        maxRadiusPixels = Math.Max(minRadiusPixels, maxRadiusPixels);
+
+        _outer.Width = maxRadiusPixels * 2;
+        _outer.Height = maxRadiusPixels * 2;
+
+        _inner.Width = minRadiusPixels * 2;
+        _inner.Height = minRadiusPixels * 2;
+        double offset = maxRadiusPixels - minRadiusPixels;
+        _inner.Margin = new Thickness(offset);
 
         var pt = _fromDevice.Transform(new System.Windows.Point(screenPoint.X, screenPoint.Y));
-        Left = pt.X - radiusPixels;
-        Top = pt.Y - radiusPixels;
+        Left = pt.X - maxRadiusPixels;
+        Top = pt.Y - maxRadiusPixels;
     }
 }

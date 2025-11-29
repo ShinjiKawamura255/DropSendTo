@@ -33,7 +33,8 @@ public class ConfigTransferServiceTests
             MouseGestureRequireCtrl = true,
             MouseGestureSuppressDuringPresentation = true,
             MouseGestureEnforceRadiusLimit = false,
-            MouseGestureRadiusPixels = 180
+            MouseGestureMinRadiusPixels = 80,
+            MouseGestureMaxRadiusPixels = 180
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";
@@ -62,7 +63,8 @@ public class ConfigTransferServiceTests
         imported.MouseGestureRequireCtrl.Should().BeTrue();
         imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
         imported.MouseGestureEnforceRadiusLimit.Should().BeFalse();
-        imported.MouseGestureRadiusPixels.Should().Be(180);
+        imported.MouseGestureMinRadiusPixels.Should().Be(80);
+        imported.MouseGestureMaxRadiusPixels.Should().Be(180);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
         imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);

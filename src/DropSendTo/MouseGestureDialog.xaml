@@ -61,20 +61,31 @@
                 <TextBlock x:Name="RadiusValueText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="#CCCCCC"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                <Slider x:Name="RadiusSlider"
-                        Minimum="40"
-                        Maximum="320"
-                        TickFrequency="10"
-                        IsSnapToTickEnabled="True"
-                        ValueChanged="OnRadiusChanged"
-                        Width="200"/>
-                <CheckBox x:Name="EnforceRadiusCheckBox"
-                          Content="半径制限を有効にする"
-                          Margin="12,0,0,0"
-                          Checked="OnEnforceRadiusChanged"
-                          Unchecked="OnEnforceRadiusChanged"/>
+                <StackPanel Width="200">
+                    <TextBlock Text="最小半径" FontSize="11" Foreground="#CCCCCC"/>
+                    <Slider x:Name="MinRadiusSlider"
+                            Minimum="40"
+                            Maximum="320"
+                            TickFrequency="10"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="OnMinRadiusChanged"/>
+                </StackPanel>
+                <StackPanel Width="200" Margin="8,0,0,0">
+                    <TextBlock Text="最大半径" FontSize="11" Foreground="#CCCCCC"/>
+                    <Slider x:Name="MaxRadiusSlider"
+                            Minimum="40"
+                            Maximum="320"
+                            TickFrequency="10"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="OnMaxRadiusChanged"/>
+                </StackPanel>
             </StackPanel>
-            <TextBlock Text="※ スライダーをドラッグしている間は、カーソル位置を中心に有効半径のガイドを表示します。半径を超えた動きはジェスチャ判定から除外されます。"
+            <CheckBox x:Name="EnforceRadiusCheckBox"
+                      Content="半径制限を有効にする"
+                      Margin="0,4,0,0"
+                      Checked="OnEnforceRadiusChanged"
+                      Unchecked="OnEnforceRadiusChanged"/>
+            <TextBlock Text="※ スライダーをドラッグしている間は、カーソル位置を中心に有効半径帯のガイドを表示します。範囲外の動きはジェスチャ判定から除外されます。"
                        Foreground="#999999"
                        FontSize="11"
                        TextWrapping="Wrap"

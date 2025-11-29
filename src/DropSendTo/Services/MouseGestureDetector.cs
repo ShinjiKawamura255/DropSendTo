@@ -18,21 +18,30 @@ internal sealed record MouseGestureOptions(
     bool RequireCtrl,
     bool SuppressDuringPresentation,
     bool EnforceRadiusLimit,
-    int RadiusPixels)
+    int MinRadiusPixels,
+    int MaxRadiusPixels)
 {
     public static MouseGestureOptions Default { get; } =
-        new(true, 3, 2, false, false, false, true, 120);
+        new(true, 3, 2, false, false, false, true, 40, 140);
 
     public MouseGestureOptions Normalize()
     {
         int Clamp(int value) => Math.Clamp(value, 1, 50);
         int ClampRadius(int value) => Math.Clamp(value, 40, 320);
 
+        var min = ClampRadius(MinRadiusPixels);
+        var max = ClampRadius(MaxRadiusPixels);
+        if (min > max)
+        {
+            min = max;
+        }
+
         return this with
         {
             ClockwiseTurnsToShow = Clamp(ClockwiseTurnsToShow),
             CounterClockwiseTurnsToHide = Clamp(CounterClockwiseTurnsToHide),
-            RadiusPixels = ClampRadius(RadiusPixels)
+            MinRadiusPixels = min,
+            MaxRadiusPixels = max
         };
     }
 }
@@ -52,8 +61,9 @@ internal sealed class MouseGestureDetector
     private int _clockwiseTurns;
     private int _counterClockwiseTurns;
     private DateTime _lastMoveUtc;
-    private double _minMovementSquared = CalculateMinMovementSquared(MouseGestureOptions.Default.RadiusPixels);
-    private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.RadiusPixels);
+    private double _minMovementSquared = CalculateMinMovementSquared(MouseGestureOptions.Default.MaxRadiusPixels);
+    private double _minRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MinRadiusPixels);
+    private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MaxRadiusPixels);
     private bool _enforceRadiusLimit = MouseGestureOptions.Default.EnforceRadiusLimit;
 
     private const double FullTurn = Math.PI * 2;
@@ -75,8 +85,9 @@ internal sealed class MouseGestureDetector
         lock (_lock)
         {
             _options = options.Normalize();
-            _minMovementSquared = CalculateMinMovementSquared(_options.RadiusPixels);
-            _maxRadiusSquared = CalculateMaxRadiusSquared(_options.RadiusPixels);
+            _minMovementSquared = CalculateMinMovementSquared(_options.MaxRadiusPixels);
+            _minRadiusSquared = CalculateMaxRadiusSquared(_options.MinRadiusPixels);
+            _maxRadiusSquared = CalculateMaxRadiusSquared(_options.MaxRadiusPixels);
             _enforceRadiusLimit = _options.EnforceRadiusLimit;
             ResetState();
         }
@@ -141,6 +152,10 @@ internal sealed class MouseGestureDetector
                     _hasLastPoint = true;
                     _anchorPoint = point;
                     _hasAnchorPoint = true;
+                    return MouseGestureAction.None;
+                }
+                if (anchorDistanceSquared < _minRadiusSquared)
+                {
                     return MouseGestureAction.None;
                 }
             }
@@ -262,8 +277,8 @@ internal sealed class MouseGestureDetector
 
     private static double CalculateMinMovementSquared(int radiusPixels)
     {
-        // Use a small fraction of the configured radius as the minimum vector length to suppress jitter.
-        double minDistance = Math.Max(6, radiusPixels * 0.12);
+        // Use a small fraction of the configured outer radius as the minimum vector length to suppress jitter.
+        double minDistance = Math.Max(6, radiusPixels * 0.1);
         return minDistance * minDistance;
     }
 

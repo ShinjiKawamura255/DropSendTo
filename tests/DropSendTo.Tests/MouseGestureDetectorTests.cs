@@ -99,7 +99,7 @@ public class MouseGestureDetectorTests
     public void HandleMove_ShouldIgnoreGesturesOutsideRadius()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { RadiusPixels = 80, EnforceRadiusLimit = true };
+        var options = MouseGestureOptions.Default with { MinRadiusPixels = 60, MaxRadiusPixels = 120, EnforceRadiusLimit = true };
 
         var result = Run(detector, options, CreateCirclePoints(2, clockwise: true, radius: 180), ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.None);
@@ -113,10 +113,24 @@ public class MouseGestureDetectorTests
     public void HandleMove_ShouldAllowLargeRadius_WhenLimitDisabled()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { RadiusPixels = 80, EnforceRadiusLimit = false };
+        var options = MouseGestureOptions.Default with { MinRadiusPixels = 60, MaxRadiusPixels = 120, EnforceRadiusLimit = false };
 
         var result = Run(detector, options, CreateCirclePoints(3, clockwise: true, radius: 200), ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.ShowWindow);
+    }
+
+    [Fact]
+    public void HandleMove_ShouldIgnoreWithinMinRadius()
+    {
+        var detector = new MouseGestureDetector();
+        var options = MouseGestureOptions.Default with { MinRadiusPixels = 100, MaxRadiusPixels = 200, EnforceRadiusLimit = true };
+
+        var result = Run(detector, options, CreateCirclePoints(3, clockwise: true, radius: 50), ctrlPressed: false, blocked: false);
+        result.Should().Be(MouseGestureAction.None);
+
+        var counts = detector.GetTurnCountsForDebug();
+        counts.Clockwise.Should().Be(0);
+        counts.CounterClockwise.Should().Be(0);
     }
 
     private static MouseGestureAction Run(
