@@ -26,6 +26,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         RequireCtrlCheckBox.IsChecked = ResultOptions.RequireCtrl;
         SuppressPresentationCheckBox.IsChecked = ResultOptions.SuppressDuringPresentation;
         RadiusSlider.Value = ResultOptions.RadiusPixels;
+        EnforceRadiusCheckBox.IsChecked = ResultOptions.EnforceRadiusLimit;
         RadiusSlider.AddHandler(Thumb.DragStartedEvent, new DragStartedEventHandler(OnRadiusDragStarted));
         RadiusSlider.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler(OnRadiusDragCompleted));
         UpdateRadiusText();
@@ -56,6 +57,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
             InvertDirectionsCheckBox.IsChecked == true,
             RequireCtrlCheckBox.IsChecked == true,
             SuppressPresentationCheckBox.IsChecked == true,
+            EnforceRadiusCheckBox.IsChecked == true,
             (int)RadiusSlider.Value).Normalize();
 
         IsConfirmed = true;
@@ -79,8 +81,9 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         InvertDirectionsCheckBox.IsEnabled = enabled;
         RequireCtrlCheckBox.IsEnabled = enabled;
         SuppressPresentationCheckBox.IsEnabled = enabled;
-        RadiusSlider.IsEnabled = enabled;
-        if (!enabled)
+        RadiusSlider.IsEnabled = enabled && EnforceRadiusCheckBox.IsChecked == true;
+        EnforceRadiusCheckBox.IsEnabled = enabled;
+        if (!enabled || EnforceRadiusCheckBox.IsChecked != true)
         {
             StopRadiusGuide();
         }
@@ -125,8 +128,11 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
     private void OnRadiusDragStarted(object? sender, DragStartedEventArgs e)
     {
         _isDraggingRadius = true;
-        StartRadiusGuide();
-        UpdateRadiusGuide();
+        if (EnforceRadiusCheckBox.IsChecked == true)
+        {
+            StartRadiusGuide();
+            UpdateRadiusGuide();
+        }
     }
 
     private void OnRadiusDragCompleted(object? sender, DragCompletedEventArgs e)
@@ -137,6 +143,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void StartRadiusGuide()
     {
+        if (EnforceRadiusCheckBox.IsChecked != true) return;
         _guideWindow ??= new MouseGestureRadiusGuideWindow();
         _guideWindow.Show();
     }
@@ -157,6 +164,11 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         {
             _guideWindow.Update((int)RadiusSlider.Value, pt);
         }
+    }
+
+    private void OnEnforceRadiusChanged(object sender, RoutedEventArgs e)
+    {
+        UpdateEnabledState();
     }
 
     private static bool TryGetCursorPosition(out System.Drawing.Point point)

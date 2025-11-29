@@ -98,11 +98,11 @@ public class ConfigService
     private const int MaxGestureTurns = 50;
     private const int MinGestureRadius = 40;
     private const int MaxGestureRadius = 320;
+    private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
 
     private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
     private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
     private static int NormalizeGestureTurns(int value) => Math.Clamp(value, MinGestureTurns, MaxGestureTurns);
-    private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
 
     private static void EnsureSlotCapacity(Layer layer, int requiredSlots)
     {
@@ -142,6 +142,7 @@ public class ConfigService
         cfg.MouseGestureClockwiseTurnsToShow = NormalizeGestureTurns(cfg.MouseGestureClockwiseTurnsToShow);
         cfg.MouseGestureCounterClockwiseTurnsToHide = NormalizeGestureTurns(cfg.MouseGestureCounterClockwiseTurnsToHide);
         cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
+        cfg.MouseGestureEnforceRadiusLimit = cfg.MouseGestureEnforceRadiusLimit;
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -493,6 +494,13 @@ public class ConfigService
         {
             cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
             cfg.Version = 22;
+            changed = true;
+        }
+
+        if (cfg.Version < 23)
+        {
+            cfg.MouseGestureEnforceRadiusLimit = true;
+            cfg.Version = 23;
             changed = true;
         }
 

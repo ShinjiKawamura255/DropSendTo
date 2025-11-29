@@ -60,12 +60,20 @@
                 <TextBlock Text="判定半径（この半径内のみ有効）" VerticalAlignment="Center" />
                 <TextBlock x:Name="RadiusValueText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="#CCCCCC"/>
             </StackPanel>
-            <Slider x:Name="RadiusSlider"
-                    Minimum="40"
-                    Maximum="320"
-                    TickFrequency="10"
-                    IsSnapToTickEnabled="True"
-                    ValueChanged="OnRadiusChanged"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <Slider x:Name="RadiusSlider"
+                        Minimum="40"
+                        Maximum="320"
+                        TickFrequency="10"
+                        IsSnapToTickEnabled="True"
+                        ValueChanged="OnRadiusChanged"
+                        Width="200"/>
+                <CheckBox x:Name="EnforceRadiusCheckBox"
+                          Content="半径制限を有効にする"
+                          Margin="12,0,0,0"
+                          Checked="OnEnforceRadiusChanged"
+                          Unchecked="OnEnforceRadiusChanged"/>
+            </StackPanel>
             <TextBlock Text="※ スライダーをドラッグしている間は、カーソル位置を中心に有効半径のガイドを表示します。半径を超えた動きはジェスチャ判定から除外されます。"
                        Foreground="#999999"
                        FontSize="11"

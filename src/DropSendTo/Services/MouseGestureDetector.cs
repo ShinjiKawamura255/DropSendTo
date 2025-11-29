@@ -17,10 +17,11 @@ internal sealed record MouseGestureOptions(
     bool InvertDirections,
     bool RequireCtrl,
     bool SuppressDuringPresentation,
+    bool EnforceRadiusLimit,
     int RadiusPixels)
 {
     public static MouseGestureOptions Default { get; } =
-        new(true, 3, 2, false, false, false, 120);
+        new(true, 3, 2, false, false, false, true, 120);
 
     public MouseGestureOptions Normalize()
     {
@@ -53,6 +54,7 @@ internal sealed class MouseGestureDetector
     private DateTime _lastMoveUtc;
     private double _minMovementSquared = CalculateMinMovementSquared(MouseGestureOptions.Default.RadiusPixels);
     private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.RadiusPixels);
+    private bool _enforceRadiusLimit = MouseGestureOptions.Default.EnforceRadiusLimit;
 
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
@@ -75,6 +77,7 @@ internal sealed class MouseGestureDetector
             _options = options.Normalize();
             _minMovementSquared = CalculateMinMovementSquared(_options.RadiusPixels);
             _maxRadiusSquared = CalculateMaxRadiusSquared(_options.RadiusPixels);
+            _enforceRadiusLimit = _options.EnforceRadiusLimit;
             ResetState();
         }
     }
@@ -109,8 +112,11 @@ internal sealed class MouseGestureDetector
                 _lastPoint = point;
                 _hasLastPoint = true;
                 _hasLastVector = false;
-                _anchorPoint = point;
-                _hasAnchorPoint = true;
+                if (_enforceRadiusLimit)
+                {
+                    _anchorPoint = point;
+                    _hasAnchorPoint = true;
+                }
                 return MouseGestureAction.None;
             }
 
@@ -123,7 +129,7 @@ internal sealed class MouseGestureDetector
                 return MouseGestureAction.None;
             }
 
-            if (_hasAnchorPoint)
+            if (_enforceRadiusLimit && _hasAnchorPoint)
             {
                 var anchorDx = point.X - _anchorPoint.X;
                 var anchorDy = point.Y - _anchorPoint.Y;

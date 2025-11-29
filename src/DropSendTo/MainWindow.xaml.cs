@@ -2891,6 +2891,7 @@ public partial class MainWindow : Window
             || _config.MouseGestureInvertDirections != result.InvertDirections
             || _config.MouseGestureRequireCtrl != result.RequireCtrl
             || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
+            || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
             || _config.MouseGestureRadiusPixels != result.RadiusPixels;
 
         if (!changed)
@@ -2904,6 +2905,7 @@ public partial class MainWindow : Window
         _config.MouseGestureInvertDirections = result.InvertDirections;
         _config.MouseGestureRequireCtrl = result.RequireCtrl;
         _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+        _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
         _config.MouseGestureRadiusPixels = result.RadiusPixels;
 
         ApplyMouseGestureOptions();
@@ -3019,6 +3021,7 @@ public partial class MainWindow : Window
             _config.MouseGestureInvertDirections,
             _config.MouseGestureRequireCtrl,
             _config.MouseGestureSuppressDuringPresentation,
+            _config.MouseGestureEnforceRadiusLimit,
             _config.MouseGestureRadiusPixels);
 
     private void ApplyMouseGestureOptions()

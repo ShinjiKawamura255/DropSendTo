@@ -32,6 +32,7 @@ public class ConfigTransferServiceTests
             MouseGestureInvertDirections = true,
             MouseGestureRequireCtrl = true,
             MouseGestureSuppressDuringPresentation = true,
+            MouseGestureEnforceRadiusLimit = false,
             MouseGestureRadiusPixels = 180
         };
 
@@ -60,6 +61,7 @@ public class ConfigTransferServiceTests
         imported.MouseGestureInvertDirections.Should().BeTrue();
         imported.MouseGestureRequireCtrl.Should().BeTrue();
         imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
+        imported.MouseGestureEnforceRadiusLimit.Should().BeFalse();
         imported.MouseGestureRadiusPixels.Should().Be(180);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
