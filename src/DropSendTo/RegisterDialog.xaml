@@ -112,6 +112,12 @@
                     Click="OnRecordStop"
                     IsEnabled="False"
                     ToolTip="記録を終了し、取得した操作を Macro Script に追加します"/>
+            <Separator Margin="0,6,0,6"/>
+            <Button x:Name="MacroInsertButton"
+                    Content="挿入..."
+                    Width="90"
+                    Click="OnMacroInsertClick"
+                    ToolTip="Macro Script Tips のグループごとにコマンドや予約語を選んで挿入します"/>
         </StackPanel>
 
         <TextBlock x:Name="RecordingStatusText"

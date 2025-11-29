@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Microsoft.Win32;
 using DropSendTo.Models;
@@ -76,6 +77,108 @@ public partial class RegisterDialog : Window
     private int _recordedLineCount;
     private int _recordingStartTextLength;
     private const int MacroIndentSize = 4;
+    private static readonly string[] WinAnchorTokens =
+    {
+        "WIN_TOPLEFT",
+        "WIN_TOPCENTER",
+        "WIN_TOPRIGHT",
+        "WIN_LEFTCENTER",
+        "WIN_CENTER",
+        "WIN_RIGHTCENTER",
+        "WIN_BOTTOMLEFT",
+        "WIN_BOTTOMCENTER",
+        "WIN_BOTTOMRIGHT"
+    };
+
+    private static readonly string[] WinAliasTokens =
+    {
+        "WIN_TOPMIDDLE",
+        "WIN_LEFTMIDDLE",
+        "WIN_RIGHTMIDDLE",
+        "WIN_BOTTOMMIDDLE",
+        "WIN_MIDDLE",
+        "WIN_MID"
+    };
+
+    private static readonly IReadOnlyList<MacroSnippetGroup> MacroSnippetGroups = new[]
+    {
+        new MacroSnippetGroup("変数", new[]
+        {
+            new MacroSnippet("SET <名前> <値>", "SET Name Value"),
+            new MacroSnippet("UNSET <名前>", "UNSET Name"),
+            new MacroSnippet("ADD <名前> <整数>", "ADD Counter 1"),
+            new MacroSnippet("SUB <名前> <整数>", "SUB Counter 1"),
+            new MacroSnippet("MUL <名前> <整数>", "MUL Counter 2"),
+            new MacroSnippet("DIV <名前> <整数>", "DIV Counter 2"),
+            new MacroSnippet("APPEND <名前> <文字列>", "APPEND Message !"),
+            new MacroSnippet("PREPEND <名前> <文字列>", "PREPEND Message ["),
+            new MacroSnippet("REPLACE <名前> \"検索\" \"置換\"", "REPLACE Body \" \" \"\""),
+            new MacroSnippet("REPLACE_REGEX <名前> \"正規表現\" \"置換\"", "REPLACE_REGEX Body \"[0-9]+\" \"\""),
+            new MacroSnippet("TESTPATH <名前> <パス>", "TESTPATH PathOk {{drop_path}}"),
+            new MacroSnippet("RESOLVE_LINK <変数> <パス>", "RESOLVE_LINK TargetPath {{drop_path}}"),
+            new MacroSnippet("RENAME <元パス> <新しいパス>", "RENAME {{drop_path}} {{drop_path}}.bak"),
+            new MacroSnippet("POPUP \"メッセージ\"", "POPUP \"{{drop_path}} が見つかりません\"")
+        }),
+        new MacroSnippetGroup("フロー制御 / Prefix", new[]
+        {
+            new MacroSnippet("WAIT <ミリ秒>", "WAIT 250"),
+            new MacroSnippet("REPEAT ... ENDREPEAT", "REPEAT 3\n    \nENDREPEAT"),
+            new MacroSnippet("FOREACH_DROP ... ENDFOREACH", "FOREACH_DROP Item INDEX i\n    TEXT [{{i}}] {{Item}}\nENDFOREACH"),
+            new MacroSnippet("IF / ELSE / ENDIF", "IF \"{{clipboard}}\" CONTAINS \"keyword\"\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
+            new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
+            new MacroSnippet("COMMAND [引数指定]", "COMMAND {{clipboard}}"),
+            new MacroSnippet("PREFIX SEND", "PREFIX SEND"),
+            new MacroSnippet("PREFIX ARM", "PREFIX ARM"),
+            new MacroSnippet("PREFIX PASSTHROUGH", "PREFIX PASSTHROUGH")
+        }),
+        new MacroSnippetGroup("キーボード操作", new[]
+        {
+            new MacroSnippet("KEY <修飾+キー>", "KEY Ctrl+Shift+S"),
+            new MacroSnippet("KEYDOWN <キー>", "KEYDOWN Ctrl"),
+            new MacroSnippet("KEYUP <キー>", "KEYUP Ctrl"),
+            new MacroSnippet("TEXT <文字列>", "TEXT Hello"),
+            new MacroSnippet("SETCLIP <文字列>", "SETCLIP {{drop_path}}"),
+            new MacroSnippet("CLIPTEXT <文字列>", "CLIPTEXT {{clipboard}}")
+        }),
+        new MacroSnippetGroup("COMMAND 命令", new[]
+        {
+            new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
+            new MacroSnippet("COMMAND [引数指定]", "COMMAND {{drop_args}}")
+        }),
+        new MacroSnippetGroup("マウス操作", new[]
+        {
+            new MacroSnippet("MOUSEMOVEABS <X> <Y>", "MOUSEMOVEABS 640 360"),
+            new MacroSnippet("MOUSEMOVEABS WIN_* 予約語", "MOUSEMOVEABS WIN_CENTER"),
+            new MacroSnippet("MOUSEMOVEWIN <dX> <dY>", "MOUSEMOVEWIN 100 60"),
+            new MacroSnippet("MOUSEMOVEREL <dX> <dY>", "MOUSEMOVEREL 30 -20"),
+            new MacroSnippet("MOUSELEFTCLICK", "MOUSELEFTCLICK"),
+            new MacroSnippet("MOUSELEFTDOUBLECLICK", "MOUSELEFTDOUBLECLICK"),
+            new MacroSnippet("MOUSELEFTDOWN", "MOUSELEFTDOWN"),
+            new MacroSnippet("MOUSELEFTUP", "MOUSELEFTUP"),
+            new MacroSnippet("MOUSERIGHTCLICK", "MOUSERIGHTCLICK"),
+            new MacroSnippet("MOUSEMIDDLEDOWN / MOUSEMIDDLEUP", "MOUSEMIDDLEDOWN\nMOUSEMIDDLEUP"),
+            new MacroSnippet("MOUSESCROLLDOWN [回数]", "MOUSESCROLLDOWN 3"),
+            new MacroSnippet("MOUSESCROLLLEFT/RIGHT [回数]", "MOUSESCROLLLEFT 1")
+        }),
+        new MacroSnippetGroup("プレースホルダー / 予約語", new[]
+        {
+            new MacroSnippet("{{clipboard}}", "{{clipboard}}"),
+            new MacroSnippet("{{clipboard_args}}", "{{clipboard_args}}"),
+            new MacroSnippet("{{clipboard_args:n}}", "{{clipboard_args:3}}"),
+            new MacroSnippet("{{drop_args}}", "{{drop_args}}"),
+            new MacroSnippet("{{drop_path}}", "{{drop_path}}"),
+            new MacroSnippet("{{drop_path:n}}", "{{drop_path:1}}"),
+            new MacroSnippet("{{drop_count}}", "{{drop_count}}"),
+            new MacroSnippet("CURSOR_START (_X/_Y)", "CURSOR_START"),
+            new MacroSnippet("{{args}} (Args Template 展開)", "{{args}}")
+        }),
+        new MacroSnippetGroup("よくある例", new[]
+        {
+            new MacroSnippet("コピー→貼り付け後に追記", "KEY Ctrl+C\nWAIT 200\nTEXT processed"),
+            new MacroSnippet("REPEAT ブロック例", "REPEAT 3\n    KEYDOWN Shift\n    KEY A\n    KEYUP Shift\nENDREPEAT"),
+            new MacroSnippet("FOREACH_DROP で列挙", "FOREACH_DROP Item INDEX i\n    SET Body {{Item}}\n    REPLACE Body \" \" \"_\"\n    TEXT [{{i}}] {{Body}}\nENDFOREACH")
+        })
+    };
 
     public RegisterDialog()
     {
@@ -110,6 +213,7 @@ public partial class RegisterDialog : Window
         {
             MacroBox.PreviewKeyDown += OnMacroBoxPreviewKeyDown;
         }
+        InitializeMacroInsertMenu();
         UpdateModeState();
     }
 
@@ -405,6 +509,10 @@ public partial class RegisterDialog : Window
         {
             MacroBox.IsReadOnly = recording;
         }
+        if (MacroInsertButton != null)
+        {
+            MacroInsertButton.IsEnabled = macroEnabled && !recording;
+        }
     }
 
     private void OnRecordingLineGenerated(object? sender, string line)
@@ -641,6 +749,79 @@ public partial class RegisterDialog : Window
         return System.Windows.Media.Color.FromRgb(Blend(color.R), Blend(color.G), Blend(color.B));
     }
 
+    private void InitializeMacroInsertMenu()
+    {
+        if (MacroInsertButton == null)
+        {
+            return;
+        }
+
+        var menu = new ContextMenu();
+        foreach (var group in MacroSnippetGroups)
+        {
+            var groupMenuItem = new MenuItem { Header = EscapeAccessKey(group.Header) };
+            if (string.Equals(group.Header, "プレースホルダー / 予約語", StringComparison.Ordinal))
+            {
+                groupMenuItem.Items.Add(CreateWinReservationMenu(OnMacroSnippetClick));
+                groupMenuItem.Items.Add(new Separator());
+            }
+            foreach (var snippet in group.Items)
+            {
+                var item = new MenuItem { Header = EscapeAccessKey(snippet.Header), Tag = snippet.Content };
+                item.Click += OnMacroSnippetClick;
+                groupMenuItem.Items.Add(item);
+            }
+            menu.Items.Add(groupMenuItem);
+        }
+
+        MacroInsertButton.ContextMenu = menu;
+    }
+
+    private void OnMacroInsertClick(object sender, RoutedEventArgs e)
+    {
+        if (MacroInsertButton?.ContextMenu is not ContextMenu menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = MacroInsertButton;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void OnMacroSnippetClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string content })
+        {
+            return;
+        }
+
+        InsertMacroSnippet(content);
+    }
+
+    private void InsertMacroSnippet(string snippet)
+    {
+        if (MacroBox == null || !MacroBox.IsEnabled || MacroBox.IsReadOnly)
+        {
+            return;
+        }
+
+        MacroBox.Focus();
+        var selectionStart = MacroBox.SelectionStart;
+        MacroBox.SelectedText = snippet;
+        MacroBox.CaretIndex = selectionStart + snippet.Length;
+
+        try
+        {
+            var lineIndex = MacroBox.GetLineIndexFromCharacterIndex(MacroBox.CaretIndex);
+            MacroBox.ScrollToLine(lineIndex);
+        }
+        catch
+        {
+            MacroBox.ScrollToEnd();
+        }
+    }
+
     private sealed class SlotColorOption
     {
         public SlotColorOption(SlotAccentColor color, string name, System.Windows.Media.Brush background, System.Windows.Media.Brush accent, System.Windows.Media.Brush foreground)
@@ -658,6 +839,51 @@ public partial class RegisterDialog : Window
         public System.Windows.Media.Brush AccentBrush { get; }
         public System.Windows.Media.Brush ForegroundBrush { get; }
     }
+
+    private sealed record MacroSnippetGroup(string Header, IReadOnlyList<MacroSnippet> Items);
+
+    private sealed record MacroSnippet(string Header, string Content);
+
+    private static MenuItem CreateWinReservationMenu(RoutedEventHandler insertHandler)
+    {
+        var winMenu = new MenuItem { Header = EscapeAccessKey("WIN_* 予約語") };
+
+        var anchorMenu = new MenuItem { Header = EscapeAccessKey("基本座標") };
+        foreach (var token in WinAnchorTokens)
+        {
+            anchorMenu.Items.Add(CreateWinSnippetItem(token, insertHandler));
+        }
+        winMenu.Items.Add(anchorMenu);
+
+        var aliasMenu = new MenuItem { Header = EscapeAccessKey("互換表記") };
+        foreach (var token in WinAliasTokens)
+        {
+            aliasMenu.Items.Add(CreateWinSnippetItem(token, insertHandler));
+        }
+        winMenu.Items.Add(aliasMenu);
+
+        var componentMenu = new MenuItem { Header = EscapeAccessKey("成分 (_X / _Y)") };
+        foreach (var token in WinAnchorTokens.Concat(WinAliasTokens))
+        {
+            componentMenu.Items.Add(CreateWinSnippetItem($"{token}_X", insertHandler));
+            componentMenu.Items.Add(CreateWinSnippetItem($"{token}_Y", insertHandler));
+        }
+        componentMenu.Items.Add(new Separator());
+        componentMenu.Items.Add(CreateWinSnippetItem("CURSOR_START_X", insertHandler));
+        componentMenu.Items.Add(CreateWinSnippetItem("CURSOR_START_Y", insertHandler));
+        winMenu.Items.Add(componentMenu);
+
+        return winMenu;
+    }
+
+    private static MenuItem CreateWinSnippetItem(string content, RoutedEventHandler insertHandler)
+    {
+        var item = new MenuItem { Header = EscapeAccessKey(content), Tag = content };
+        item.Click += insertHandler;
+        return item;
+    }
+
+    private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
 }
 
 public sealed class SlotSavedEventArgs : EventArgs
