@@ -496,7 +496,7 @@ public class ConfigService
 
         if (cfg.Version < 22)
         {
-            cfg.MouseGestureMinRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMinRadiusPixels <= 0 ? 40 : cfg.MouseGestureMinRadiusPixels);
+            cfg.MouseGestureMinRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMinRadiusPixels < 0 ? 0 : cfg.MouseGestureMinRadiusPixels);
             cfg.MouseGestureMaxRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMaxRadiusPixels <= 0 ? 140 : cfg.MouseGestureMaxRadiusPixels);
             if (cfg.MouseGestureMinRadiusPixels > cfg.MouseGestureMaxRadiusPixels)
             {

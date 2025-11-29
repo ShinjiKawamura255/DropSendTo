@@ -55,8 +55,6 @@ internal sealed class MouseGestureDetector
     private Point _lastPoint;
     private bool _hasLastVector;
     private (double X, double Y) _lastVector;
-    private Point _anchorPoint;
-    private bool _hasAnchorPoint;
     private double _accumulatedAngle;
     private int _clockwiseTurns;
     private int _counterClockwiseTurns;
@@ -65,11 +63,13 @@ internal sealed class MouseGestureDetector
     private double _minRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MinRadiusPixels);
     private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MaxRadiusPixels);
     private bool _enforceRadiusLimit = MouseGestureOptions.Default.EnforceRadiusLimit;
+    private readonly List<(double X, double Y, DateTime Timestamp)> _recentPoints = new();
 
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
     private const int IdleResetMilliseconds = 330;
     private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
+    private const double CenterWindowSeconds = 2.0;
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
@@ -124,11 +124,7 @@ internal sealed class MouseGestureDetector
                 _lastPoint = point;
                 _hasLastPoint = true;
                 _hasLastVector = false;
-                if (_enforceRadiusLimit)
-                {
-                    _anchorPoint = point;
-                    _hasAnchorPoint = true;
-                }
+                AddRecentPoint(point, nowUtc);
                 return MouseGestureAction.None;
             }
 
@@ -138,13 +134,17 @@ internal sealed class MouseGestureDetector
             _lastPoint = point;
             if (distanceSquared < _minMovementSquared)
             {
+                AddRecentPoint(point, nowUtc);
                 return MouseGestureAction.None;
             }
 
-            if (_enforceRadiusLimit && _hasAnchorPoint)
+            AddRecentPoint(point, nowUtc);
+            var center = GetRecentCenter();
+
+            if (_enforceRadiusLimit && center.HasValue)
             {
-                var anchorDx = point.X - _anchorPoint.X;
-                var anchorDy = point.Y - _anchorPoint.Y;
+                var anchorDx = point.X - center.Value.X;
+                var anchorDy = point.Y - center.Value.Y;
                 var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
                 var softMaxSquared = _maxRadiusSquared * (MaxRadiusSlackFactor * MaxRadiusSlackFactor);
                 if (anchorDistanceSquared > softMaxSquared)
@@ -152,8 +152,7 @@ internal sealed class MouseGestureDetector
                     ResetState();
                     _lastPoint = point;
                     _hasLastPoint = true;
-                    _anchorPoint = point;
-                    _hasAnchorPoint = true;
+                    AddRecentPoint(point, nowUtc);
                     return MouseGestureAction.None;
                 }
                 if (anchorDistanceSquared < _minRadiusSquared)
@@ -161,8 +160,7 @@ internal sealed class MouseGestureDetector
                     ResetState();
                     _lastPoint = point;
                     _hasLastPoint = true;
-                    _anchorPoint = point;
-                    _hasAnchorPoint = true;
+                    AddRecentPoint(point, nowUtc);
                     return MouseGestureAction.None;
                 }
             }
@@ -274,12 +272,11 @@ internal sealed class MouseGestureDetector
         _hasLastPoint = false;
         _hasLastVector = false;
         _lastVector = default;
-        _anchorPoint = default;
-        _hasAnchorPoint = false;
         _accumulatedAngle = 0;
         _clockwiseTurns = 0;
         _counterClockwiseTurns = 0;
         _lastMoveUtc = DateTime.MinValue;
+        _recentPoints.Clear();
     }
 
     private static double CalculateMinMovementSquared(int radiusPixels)
@@ -292,5 +289,40 @@ internal sealed class MouseGestureDetector
     private static double CalculateMaxRadiusSquared(int radiusPixels)
     {
         return Math.Max(1, radiusPixels) * (double)Math.Max(1, radiusPixels);
+    }
+
+    private void AddRecentPoint(Point point, DateTime nowUtc)
+    {
+        _recentPoints.Add((point.X, point.Y, nowUtc));
+        PruneRecent(nowUtc);
+    }
+
+    private void PruneRecent(DateTime nowUtc)
+    {
+        if (_recentPoints.Count == 0) return;
+        var cutoff = nowUtc.AddSeconds(-CenterWindowSeconds);
+        int idx = 0;
+        while (idx < _recentPoints.Count && _recentPoints[idx].Timestamp < cutoff)
+        {
+            idx++;
+        }
+        if (idx > 0)
+        {
+            _recentPoints.RemoveRange(0, idx);
+        }
+    }
+
+    private (double X, double Y)? GetRecentCenter()
+    {
+        if (_recentPoints.Count == 0) return null;
+        double sumX = 0;
+        double sumY = 0;
+        foreach (var sample in _recentPoints)
+        {
+            sumX += sample.X;
+            sumY += sample.Y;
+        }
+        double count = _recentPoints.Count;
+        return (sumX / count, sumY / count);
     }
 }
