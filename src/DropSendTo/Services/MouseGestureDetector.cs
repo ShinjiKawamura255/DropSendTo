@@ -56,7 +56,7 @@ internal sealed class MouseGestureDetector
 
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
-    private const int IdleResetMilliseconds = 330;
+    private const int IdleResetMilliseconds = 600;
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
