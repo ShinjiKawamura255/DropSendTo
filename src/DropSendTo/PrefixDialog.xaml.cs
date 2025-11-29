@@ -3,10 +3,11 @@ using DropSendTo.Services;
 
 namespace DropSendTo;
 
-public partial class PrefixDialog : Window
+public partial class PrefixDialog : Window, IConfirmableDialog
 {
     public string NormalizedPrefix { get; private set; }
     public bool IsPrefixDisabled { get; private set; }
+    public bool IsConfirmed { get; private set; }
 
     public PrefixDialog(string initialPrefix, bool prefixDisabled)
     {
@@ -46,7 +47,8 @@ public partial class PrefixDialog : Window
         NormalizedPrefix = PrefixBox.Text.Trim();
         if (IsPrefixDisabled)
         {
-            DialogResult = true;
+            IsConfirmed = true;
+            Close();
             return;
         }
 
@@ -63,7 +65,8 @@ public partial class PrefixDialog : Window
         }
 
         NormalizedPrefix = chord.NormalizedString;
-        DialogResult = true;
+        IsConfirmed = true;
+        Close();
     }
 
     private void ShowError(string message)

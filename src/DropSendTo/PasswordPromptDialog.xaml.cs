@@ -2,7 +2,7 @@ using System.Windows;
 
 namespace DropSendTo;
 
-internal partial class PasswordPromptDialog : Window
+internal partial class PasswordPromptDialog : Window, IConfirmableDialog
 {
     private readonly bool _requireConfirmation;
 
@@ -18,6 +18,7 @@ internal partial class PasswordPromptDialog : Window
     }
 
     public string Password { get; private set; } = string.Empty;
+    public bool IsConfirmed { get; private set; }
 
     private void OnPasswordChanged(object sender, RoutedEventArgs e)
     {
@@ -60,7 +61,7 @@ internal partial class PasswordPromptDialog : Window
         }
 
         Password = PasswordBox.Password;
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 }

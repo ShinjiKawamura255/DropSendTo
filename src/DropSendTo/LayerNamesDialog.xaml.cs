@@ -5,11 +5,12 @@ using System.Windows;
 
 namespace DropSendTo;
 
-public partial class LayerNamesDialog : Window
+public partial class LayerNamesDialog : Window, IConfirmableDialog
 {
     private readonly string[] _names = { string.Empty, string.Empty, string.Empty, string.Empty };
 
     public IReadOnlyList<string> LayerNames => _names;
+    public bool IsConfirmed { get; private set; }
 
     public LayerNamesDialog(IEnumerable<string>? initialNames)
     {
@@ -29,6 +30,7 @@ public partial class LayerNamesDialog : Window
         _names[1] = Layer2Box.Text?.Trim() ?? string.Empty;
         _names[2] = Layer3Box.Text?.Trim() ?? string.Empty;
         _names[3] = Layer4Box.Text?.Trim() ?? string.Empty;
-        DialogResult = true;
+        IsConfirmed = true;
+        Close();
     }
 }

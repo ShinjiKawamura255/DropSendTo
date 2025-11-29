@@ -70,5 +70,8 @@
 - Keep patches minimal and focused; avoid unrelated renames.
 - Prefer `dotnet` CLI; avoid WSL paths for build/run.
 
+## UI ダイアログ方針
+- メインウィンドウの操作をブロックしないよう、設定/メニューから起動するダイアログは `ShowDialog` を避けてモデルレスで開き、完了イベントや Task で結果を受け取る。Owner を設定しつつ非同期に閉じられる実装を徹底する。
+
 ## Macro Script Tips 更新ルール
 - Macro Script の新規コマンド追加・挙動変更時は、`src/DropSendTo/MacroTipsWindow.xaml` の Tips に対応する説明と簡単な使用例を必ず追記する。利用者が UI 上で新コマンドに気付けるようにすること。

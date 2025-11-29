@@ -7,9 +7,11 @@ using DropSendTo.Models;
 
 namespace DropSendTo;
 
-internal partial class SlotSelectionDialog : Window
+internal partial class SlotSelectionDialog : Window, IConfirmableDialog
 {
     private readonly List<SlotSelectionOption> _options;
+
+    public bool IsConfirmed { get; private set; }
 
     public SlotSelectionDialog(IEnumerable<SlotSelectionOption> options, string title)
     {
@@ -32,14 +34,14 @@ internal partial class SlotSelectionDialog : Window
         {
             return;
         }
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 
     private void OnSlotDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (SelectedOption == null) return;
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 

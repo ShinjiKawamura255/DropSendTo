@@ -1793,9 +1793,9 @@ public partial class MainWindow : Window
         var miEdit = new MenuItem { Header = "Edit..." };
         miEdit.Click += (_, _) => EditSlot(fe);
         var miMove = new MenuItem { Header = "Move to..." , IsEnabled = sourceHasContent && hasMoveTargets };
-        miMove.Click += (_, _) => MoveSlot(_currentLayer, idx);
+        miMove.Click += async (_, _) => await MoveSlotAsync(_currentLayer, idx);
         var miCopy = new MenuItem { Header = "Copy to..." , IsEnabled = sourceHasContent && hasCopyTargets };
-        miCopy.Click += (_, _) => CopySlot(_currentLayer, idx);
+        miCopy.Click += async (_, _) => await CopySlotAsync(_currentLayer, idx);
         var miClear = new MenuItem { Header = "Clear..." };
         miClear.Click += (_, _) => ClearSlot(fe);
         cm.Items.Add(miEdit);
@@ -2352,7 +2352,7 @@ public partial class MainWindow : Window
         return string.Format(CultureInfo.InvariantCulture, "Layer {0} - Slot {1}", layerIndex + 1, slotIndex + 1);
     }
 
-    private void MoveSlot(int sourceLayerIndex, int sourceSlotIndex)
+    private async Task MoveSlotAsync(int sourceLayerIndex, int sourceSlotIndex)
     {
         var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
         if (IsSlotEmpty(sourceSlot))
@@ -2372,7 +2372,7 @@ public partial class MainWindow : Window
 
         var dialog = new SlotSelectionDialog(candidates, "スロットの移動先を選択") { Owner = this };
         WindowCascadeService.Arrange(dialog, this);
-        if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
+        if (!await dialog.ShowForResultAsync() || dialog.SelectedOption == null)
         {
             return;
         }
@@ -2391,7 +2391,7 @@ public partial class MainWindow : Window
         RefreshUi();
     }
 
-    private void CopySlot(int sourceLayerIndex, int sourceSlotIndex)
+    private async Task CopySlotAsync(int sourceLayerIndex, int sourceSlotIndex)
     {
         var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
         if (IsSlotEmpty(sourceSlot))
@@ -2409,7 +2409,7 @@ public partial class MainWindow : Window
 
         var dialog = new SlotSelectionDialog(candidates, "スロットのコピー先を選択") { Owner = this };
         WindowCascadeService.Arrange(dialog, this);
-        if (dialog.ShowDialog() != true || dialog.SelectedOption == null)
+        if (!await dialog.ShowForResultAsync() || dialog.SelectedOption == null)
         {
             return;
         }
@@ -2720,7 +2720,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExportConfig(object sender, RoutedEventArgs e)
+    private async void OnExportConfig(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -2732,7 +2732,7 @@ public partial class MainWindow : Window
                 Owner = this
             };
             WindowCascadeService.Arrange(passwordDialog, this);
-            if (passwordDialog.ShowDialog() != true)
+            if (!await passwordDialog.ShowForResultAsync())
             {
                 return;
             }
@@ -2768,7 +2768,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnImportConfig(object sender, RoutedEventArgs e)
+    private async void OnImportConfig(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -2792,7 +2792,7 @@ public partial class MainWindow : Window
                 Owner = this
             };
             WindowCascadeService.Arrange(passwordDialog, this);
-            if (passwordDialog.ShowDialog() != true)
+            if (!await passwordDialog.ShowForResultAsync())
             {
                 return;
             }
@@ -2851,11 +2851,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnChangePrefix(object sender, RoutedEventArgs e)
+    private async void OnChangePrefix(object sender, RoutedEventArgs e)
     {
         var dlg = new PrefixDialog(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled) { Owner = this };
         WindowCascadeService.Arrange(dlg, this);
-        if (dlg.ShowDialog() == true)
+        if (await dlg.ShowForResultAsync())
         {
             var newPrefix = dlg.NormalizedPrefix;
             bool prefixChanged = !string.Equals(_config.ShortcutPrefix, newPrefix, StringComparison.Ordinal);
@@ -2873,12 +2873,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
+    private async void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
     {
         var options = BuildMouseGestureOptions();
         var dlg = new MouseGestureDialog(options) { Owner = this };
         WindowCascadeService.Arrange(dlg, this);
-        if (dlg.ShowDialog() != true)
+        if (!await dlg.ShowForResultAsync())
         {
             return;
         }
@@ -2908,7 +2908,7 @@ public partial class MainWindow : Window
         _configService.Save(_config);
     }
 
-    private void OnEditLayerNames(object sender, RoutedEventArgs e)
+    private async void OnEditLayerNames(object sender, RoutedEventArgs e)
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
         {
@@ -2918,7 +2918,7 @@ public partial class MainWindow : Window
         var names = _config.Layers.Select(l => l.Name ?? string.Empty).ToList();
         var dialog = new LayerNamesDialog(names) { Owner = this };
         WindowCascadeService.Arrange(dialog, this);
-        if (dialog.ShowDialog() != true)
+        if (!await dialog.ShowForResultAsync())
         {
             return;
         }

@@ -5,9 +5,10 @@ using DropSendTo.Services;
 
 namespace DropSendTo;
 
-internal partial class MouseGestureDialog : Window
+internal partial class MouseGestureDialog : Window, IConfirmableDialog
 {
     internal MouseGestureOptions ResultOptions { get; private set; } = MouseGestureOptions.Default;
+    public bool IsConfirmed { get; private set; }
 
     internal MouseGestureDialog(MouseGestureOptions options)
     {
@@ -46,7 +47,7 @@ internal partial class MouseGestureDialog : Window
             RequireCtrlCheckBox.IsChecked == true,
             SuppressPresentationCheckBox.IsChecked == true).Normalize();
 
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 
