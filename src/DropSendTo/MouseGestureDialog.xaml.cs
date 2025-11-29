@@ -11,6 +11,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 {
     private MouseGestureRadiusGuideWindow? _guideWindow;
     private bool _isDraggingRadius;
+    private bool _isInitialized;
 
     internal MouseGestureOptions ResultOptions { get; private set; } = MouseGestureOptions.Default;
     public bool IsConfirmed { get; private set; }
@@ -35,6 +36,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         UpdateRadiusText();
         UpdateEnabledState();
         Closed += (_, _) => StopRadiusGuide();
+        _isInitialized = true;
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
@@ -115,12 +117,14 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void OnMinRadiusChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        if (!_isInitialized || MinRadiusSlider == null || MaxRadiusSlider == null) return;
         ClampRadiusSliders();
         OnRadiusChanged();
     }
 
     private void OnMaxRadiusChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        if (!_isInitialized || MinRadiusSlider == null || MaxRadiusSlider == null) return;
         ClampRadiusSliders();
         OnRadiusChanged();
     }
@@ -144,6 +148,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void OnRadiusDragStarted(object? sender, DragStartedEventArgs e)
     {
+        if (!_isInitialized) return;
         _isDraggingRadius = true;
         if (EnforceRadiusCheckBox.IsChecked == true)
         {
@@ -154,6 +159,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void OnRadiusDragCompleted(object? sender, DragCompletedEventArgs e)
     {
+        if (!_isInitialized) return;
         _isDraggingRadius = false;
         StopRadiusGuide();
     }
@@ -176,6 +182,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void UpdateRadiusGuide()
     {
+        if (!_isInitialized) return;
         if (_guideWindow == null) return;
         if (TryGetCursorPosition(out var pt))
         {
@@ -190,6 +197,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void ClampRadiusSliders()
     {
+        if (!_isInitialized) return;
         if (MinRadiusSlider.Value > MaxRadiusSlider.Value)
         {
             if (ReferenceEquals(MinRadiusSlider, Keyboard.FocusedElement))
