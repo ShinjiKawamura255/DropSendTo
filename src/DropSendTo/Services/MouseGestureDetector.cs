@@ -70,8 +70,9 @@ internal sealed class MouseGestureDetector
     private const int IdleResetMilliseconds = 330;
     private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
     private const double CenterWindowSeconds = 2.0;
-    private const double MinAxisSpreadPixels = 24;
-    private const double MinAspectRatio = 0.25;
+    private const double MinAxisSpreadPixels = 32;
+    private const double MinAspectRatio = 0.35;
+    private const int MinSamplesForAspectCheck = 12;
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
@@ -334,7 +335,7 @@ internal sealed class MouseGestureDetector
 
     private bool IsDegenerate((double X, double Y) center)
     {
-        if (_recentPoints.Count < 6)
+        if (_recentPoints.Count < MinSamplesForAspectCheck)
         {
             return false;
         }

@@ -70,10 +70,13 @@
                             ValueChanged="OnMaxRadiusChanged"/>
                 </StackPanel>
                 <CheckBox x:Name="EnforceRadiusCheckBox"
-                          Content="半径制限を有効にする"
                           Margin="12,0,0,0"
+                          VerticalAlignment="Center"
+                          Width="120"
                           Checked="OnEnforceRadiusChanged"
-                          Unchecked="OnEnforceRadiusChanged"/>
+                          Unchecked="OnEnforceRadiusChanged">
+                    <TextBlock Text="半径制限を有効にする" TextWrapping="Wrap"/>
+                </CheckBox>
             </StackPanel>
             <TextBlock Text="※ スライダーをドラッグしている間は、カーソル位置を中心に有効最大半径のガイドを表示します。範囲外の動きはジェスチャ判定から除外されます。"
                        Foreground="#999999"
