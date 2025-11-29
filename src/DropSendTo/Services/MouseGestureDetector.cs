@@ -69,6 +69,7 @@ internal sealed class MouseGestureDetector
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
     private const int IdleResetMilliseconds = 330;
+    private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
@@ -145,7 +146,8 @@ internal sealed class MouseGestureDetector
                 var anchorDx = point.X - _anchorPoint.X;
                 var anchorDy = point.Y - _anchorPoint.Y;
                 var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
-                if (anchorDistanceSquared > _maxRadiusSquared)
+                var softMaxSquared = _maxRadiusSquared * (MaxRadiusSlackFactor * MaxRadiusSlackFactor);
+                if (anchorDistanceSquared > softMaxSquared)
                 {
                     ResetState();
                     _lastPoint = point;
@@ -156,6 +158,11 @@ internal sealed class MouseGestureDetector
                 }
                 if (anchorDistanceSquared < _minRadiusSquared)
                 {
+                    ResetState();
+                    _lastPoint = point;
+                    _hasLastPoint = true;
+                    _anchorPoint = point;
+                    _hasAnchorPoint = true;
                     return MouseGestureAction.None;
                 }
             }
