@@ -64,7 +64,7 @@
                 <StackPanel Width="200">
                     <TextBlock Text="最小半径" FontSize="11" Foreground="#CCCCCC"/>
                     <Slider x:Name="MinRadiusSlider"
-                            Minimum="40"
+                            Minimum="0"
                             Maximum="320"
                             TickFrequency="10"
                             IsSnapToTickEnabled="True"
@@ -73,7 +73,7 @@
                 <StackPanel Width="200" Margin="8,0,0,0">
                     <TextBlock Text="最大半径" FontSize="11" Foreground="#CCCCCC"/>
                     <Slider x:Name="MaxRadiusSlider"
-                            Minimum="40"
+                            Minimum="0"
                             Maximum="320"
                             TickFrequency="10"
                             IsSnapToTickEnabled="True"

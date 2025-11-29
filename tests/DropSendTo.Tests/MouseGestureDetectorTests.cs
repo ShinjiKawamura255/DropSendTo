@@ -99,7 +99,7 @@ public class MouseGestureDetectorTests
     public void HandleMove_ShouldIgnoreGesturesOutsideRadius()
     {
         var detector = new MouseGestureDetector();
-        var options = MouseGestureOptions.Default with { MinRadiusPixels = 60, MaxRadiusPixels = 120, EnforceRadiusLimit = true };
+        var options = MouseGestureOptions.Default with { MinRadiusPixels = 0, MaxRadiusPixels = 120, EnforceRadiusLimit = true };
 
         var result = Run(detector, options, CreateCirclePoints(2, clockwise: true, radius: 180), ctrlPressed: false, blocked: false);
         result.Should().Be(MouseGestureAction.None);

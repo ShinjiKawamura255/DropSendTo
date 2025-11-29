@@ -96,7 +96,7 @@ public class ConfigService
     private const int MaxSlotColumns = 4;
     private const int MinGestureTurns = 1;
     private const int MaxGestureTurns = 50;
-    private const int MinGestureRadius = 40;
+    private const int MinGestureRadius = 0;
     private const int MaxGestureRadius = 320;
     private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
 
@@ -510,6 +510,13 @@ public class ConfigService
         if (cfg.Version < 23)
         {
             cfg.Version = 23;
+            changed = true;
+        }
+
+        if (cfg.Version < 24)
+        {
+            cfg.MouseGestureMinRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureMinRadiusPixels);
+            cfg.Version = 24;
             changed = true;
         }
 

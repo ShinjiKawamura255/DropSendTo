@@ -22,12 +22,12 @@ internal sealed record MouseGestureOptions(
     int MaxRadiusPixels)
 {
     public static MouseGestureOptions Default { get; } =
-        new(true, 3, 2, false, false, false, true, 40, 140);
+        new(true, 3, 2, false, false, false, true, 0, 140);
 
     public MouseGestureOptions Normalize()
     {
         int Clamp(int value) => Math.Clamp(value, 1, 50);
-        int ClampRadius(int value) => Math.Clamp(value, 40, 320);
+        int ClampRadius(int value) => Math.Clamp(value, 0, 320);
 
         var min = ClampRadius(MinRadiusPixels);
         var max = ClampRadius(MaxRadiusPixels);
@@ -278,7 +278,7 @@ internal sealed class MouseGestureDetector
     private static double CalculateMinMovementSquared(int radiusPixels)
     {
         // Use a small fraction of the configured outer radius as the minimum vector length to suppress jitter.
-        double minDistance = Math.Max(6, radiusPixels * 0.1);
+        double minDistance = Math.Max(3, radiusPixels * 0.05);
         return minDistance * minDistance;
     }
 
