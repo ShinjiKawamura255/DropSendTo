@@ -95,6 +95,20 @@ public class MouseGestureDetectorTests
         after.CounterClockwise.Should().Be(0);
     }
 
+    [Fact]
+    public void HandleMove_ShouldIgnoreGesturesOutsideRadius()
+    {
+        var detector = new MouseGestureDetector();
+        var options = MouseGestureOptions.Default with { RadiusPixels = 80 };
+
+        var result = Run(detector, options, CreateCirclePoints(2, clockwise: true, radius: 180), ctrlPressed: false, blocked: false);
+        result.Should().Be(MouseGestureAction.None);
+
+        var counts = detector.GetTurnCountsForDebug();
+        counts.Clockwise.Should().Be(0);
+        counts.CounterClockwise.Should().Be(0);
+    }
+
     private static MouseGestureAction Run(
         MouseGestureDetector detector,
         MouseGestureOptions options,
@@ -119,6 +133,14 @@ public class MouseGestureDetectorTests
     private static IEnumerable<Point> CreateCirclePoints(int turns, bool clockwise)
     {
         const double radius = 120;
+        return CreateCirclePoints(turns, clockwise, radius);
+    }
+
+    private static IEnumerable<Point> CreateCirclePoints(int turns, bool clockwise, double radius)
+    {
+        // Start at the anchor/center point so that the allowed radius is measured from the initial position.
+        yield return new Point(0, 0);
+
         const int segmentsPerTurn = 18;
         int direction = clockwise ? 1 : -1;
         for (int i = 0; i <= turns * segmentsPerTurn; i++)

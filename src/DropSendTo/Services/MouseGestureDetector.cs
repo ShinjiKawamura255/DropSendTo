@@ -45,11 +45,14 @@ internal sealed class MouseGestureDetector
     private Point _lastPoint;
     private bool _hasLastVector;
     private (double X, double Y) _lastVector;
+    private Point _anchorPoint;
+    private bool _hasAnchorPoint;
     private double _accumulatedAngle;
     private int _clockwiseTurns;
     private int _counterClockwiseTurns;
     private DateTime _lastMoveUtc;
     private double _minMovementSquared = CalculateMinMovementSquared(MouseGestureOptions.Default.RadiusPixels);
+    private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.RadiusPixels);
 
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
@@ -71,6 +74,7 @@ internal sealed class MouseGestureDetector
         {
             _options = options.Normalize();
             _minMovementSquared = CalculateMinMovementSquared(_options.RadiusPixels);
+            _maxRadiusSquared = CalculateMaxRadiusSquared(_options.RadiusPixels);
             ResetState();
         }
     }
@@ -105,6 +109,8 @@ internal sealed class MouseGestureDetector
                 _lastPoint = point;
                 _hasLastPoint = true;
                 _hasLastVector = false;
+                _anchorPoint = point;
+                _hasAnchorPoint = true;
                 return MouseGestureAction.None;
             }
 
@@ -115,6 +121,22 @@ internal sealed class MouseGestureDetector
             if (distanceSquared < _minMovementSquared)
             {
                 return MouseGestureAction.None;
+            }
+
+            if (_hasAnchorPoint)
+            {
+                var anchorDx = point.X - _anchorPoint.X;
+                var anchorDy = point.Y - _anchorPoint.Y;
+                var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
+                if (anchorDistanceSquared > _maxRadiusSquared)
+                {
+                    ResetState();
+                    _lastPoint = point;
+                    _hasLastPoint = true;
+                    _anchorPoint = point;
+                    _hasAnchorPoint = true;
+                    return MouseGestureAction.None;
+                }
             }
 
             // Invert Y to use mathematical CCW sign convention.
@@ -224,6 +246,8 @@ internal sealed class MouseGestureDetector
         _hasLastPoint = false;
         _hasLastVector = false;
         _lastVector = default;
+        _anchorPoint = default;
+        _hasAnchorPoint = false;
         _accumulatedAngle = 0;
         _clockwiseTurns = 0;
         _counterClockwiseTurns = 0;
@@ -235,5 +259,10 @@ internal sealed class MouseGestureDetector
         // Use a small fraction of the configured radius as the minimum vector length to suppress jitter.
         double minDistance = Math.Max(6, radiusPixels * 0.12);
         return minDistance * minDistance;
+    }
+
+    private static double CalculateMaxRadiusSquared(int radiusPixels)
+    {
+        return Math.Max(1, radiusPixels) * (double)Math.Max(1, radiusPixels);
     }
 }
