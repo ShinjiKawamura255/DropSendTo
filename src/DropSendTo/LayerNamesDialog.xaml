@@ -31,7 +31,7 @@
         <TextBox x:Name="Layer4Box" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6" />
 
         <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,4"
-                   Text="空欄のままでも構いません（表示時は Layer N を使用します）。"
+                   Text="空欄のままでも構いません（未登録の場合はレイヤー名を表示しません）。"
                    Foreground="#CCCCCC" FontSize="12" TextWrapping="Wrap"/>
 
         <StackPanel Orientation="Horizontal" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
