@@ -18,7 +18,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
     internal MouseGestureDialog(MouseGestureOptions options)
     {
         InitializeComponent();
-        ResultOptions = options.Normalize();
+        ResultOptions = (options ?? MouseGestureOptions.Default).Normalize();
         EnableCheckBox.IsChecked = ResultOptions.Enabled;
         ClockwiseTurnsBox.Text = ResultOptions.ClockwiseTurnsToShow.ToString();
         CounterClockwiseTurnsBox.Text = ResultOptions.CounterClockwiseTurnsToHide.ToString();

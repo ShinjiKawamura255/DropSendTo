@@ -2875,6 +2875,12 @@ public partial class MainWindow : Window
 
     private async void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
     {
+        if (_config == null)
+        {
+            WpfMessageBox.Show("設定がまだ読み込まれていません。少し待ってから再度お試しください。", "Mouse Gesture", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         var options = BuildMouseGestureOptions();
         var dlg = new MouseGestureDialog(options) { Owner = this };
         WindowCascadeService.Arrange(dlg, this);
@@ -3017,15 +3023,15 @@ public partial class MainWindow : Window
 
     private MouseGestureOptions BuildMouseGestureOptions() =>
         new(
-            _config.EnableMouseGestures,
-            _config.MouseGestureClockwiseTurnsToShow,
-            _config.MouseGestureCounterClockwiseTurnsToHide,
-            _config.MouseGestureInvertDirections,
-            _config.MouseGestureRequireCtrl,
-            _config.MouseGestureSuppressDuringPresentation,
-            _config.MouseGestureEnforceRadiusLimit,
-            _config.MouseGestureMinRadiusPixels,
-            _config.MouseGestureMaxRadiusPixels);
+            _config?.EnableMouseGestures ?? MouseGestureOptions.Default.Enabled,
+            _config?.MouseGestureClockwiseTurnsToShow ?? MouseGestureOptions.Default.ClockwiseTurnsToShow,
+            _config?.MouseGestureCounterClockwiseTurnsToHide ?? MouseGestureOptions.Default.CounterClockwiseTurnsToHide,
+            _config?.MouseGestureInvertDirections ?? MouseGestureOptions.Default.InvertDirections,
+            _config?.MouseGestureRequireCtrl ?? MouseGestureOptions.Default.RequireCtrl,
+            _config?.MouseGestureSuppressDuringPresentation ?? MouseGestureOptions.Default.SuppressDuringPresentation,
+            _config?.MouseGestureEnforceRadiusLimit ?? MouseGestureOptions.Default.EnforceRadiusLimit,
+            _config?.MouseGestureMinRadiusPixels ?? MouseGestureOptions.Default.MinRadiusPixels,
+            _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels);
 
     private void ApplyMouseGestureOptions()
     {
