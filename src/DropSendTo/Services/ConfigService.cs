@@ -96,10 +96,13 @@ public class ConfigService
     private const int MaxSlotColumns = 4;
     private const int MinGestureTurns = 1;
     private const int MaxGestureTurns = 50;
+    private const int MinGestureRadius = 40;
+    private const int MaxGestureRadius = 320;
 
     private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
     private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
     private static int NormalizeGestureTurns(int value) => Math.Clamp(value, MinGestureTurns, MaxGestureTurns);
+    private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
 
     private static void EnsureSlotCapacity(Layer layer, int requiredSlots)
     {
@@ -138,6 +141,7 @@ public class ConfigService
         }
         cfg.MouseGestureClockwiseTurnsToShow = NormalizeGestureTurns(cfg.MouseGestureClockwiseTurnsToShow);
         cfg.MouseGestureCounterClockwiseTurnsToHide = NormalizeGestureTurns(cfg.MouseGestureCounterClockwiseTurnsToHide);
+        cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
         if (cfg.ShortcutPrefixDisabled)
         {
             cfg.ShortcutPrefix = cfg.ShortcutPrefix.Trim();
@@ -482,6 +486,13 @@ public class ConfigService
             cfg.MouseGestureRequireCtrl = false;
             cfg.MouseGestureSuppressDuringPresentation = false;
             cfg.Version = 21;
+            changed = true;
+        }
+
+        if (cfg.Version < 22)
+        {
+            cfg.MouseGestureRadiusPixels = NormalizeGestureRadius(cfg.MouseGestureRadiusPixels <= 0 ? 120 : cfg.MouseGestureRadiusPixels);
+            cfg.Version = 22;
             changed = true;
         }
 

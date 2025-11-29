@@ -31,7 +31,8 @@ public class ConfigTransferServiceTests
             MouseGestureCounterClockwiseTurnsToHide = 4,
             MouseGestureInvertDirections = true,
             MouseGestureRequireCtrl = true,
-            MouseGestureSuppressDuringPresentation = true
+            MouseGestureSuppressDuringPresentation = true,
+            MouseGestureRadiusPixels = 180
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";
@@ -59,6 +60,7 @@ public class ConfigTransferServiceTests
         imported.MouseGestureInvertDirections.Should().BeTrue();
         imported.MouseGestureRequireCtrl.Should().BeTrue();
         imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
+        imported.MouseGestureRadiusPixels.Should().Be(180);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
         imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);
