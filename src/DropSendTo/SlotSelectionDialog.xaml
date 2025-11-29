@@ -40,7 +40,8 @@
                     Click="OnOk"/>
             <Button Content="キャンセル"
                     Width="80"
-                    IsCancel="True"/>
+                    IsCancel="True"
+                    Click="OnCancel"/>
         </StackPanel>
     </Grid>
 </Window>

@@ -74,4 +74,10 @@ public partial class PrefixDialog : Window, IConfirmableDialog
         ErrorBlock.Text = message;
         ErrorBlock.Visibility = Visibility.Visible;
     }
+
+    private void OnCancel(object sender, RoutedEventArgs e)
+    {
+        IsConfirmed = false;
+        Close();
+    }
 }

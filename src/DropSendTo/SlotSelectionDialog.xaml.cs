@@ -50,6 +50,11 @@ internal partial class SlotSelectionDialog : Window, IConfirmableDialog
         UpdateButtonState();
     }
 
+    private void OnCancel(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
     private void UpdateButtonState()
     {
         if (OkButton != null)

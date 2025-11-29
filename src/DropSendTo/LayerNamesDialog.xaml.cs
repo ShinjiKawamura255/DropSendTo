@@ -33,4 +33,10 @@ public partial class LayerNamesDialog : Window, IConfirmableDialog
         IsConfirmed = true;
         Close();
     }
+
+    private void OnCancel(object sender, RoutedEventArgs e)
+    {
+        IsConfirmed = false;
+        Close();
+    }
 }
