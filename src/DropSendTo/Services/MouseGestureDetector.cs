@@ -69,7 +69,7 @@ internal sealed class MouseGestureDetector
     private const double TurnThreshold = FullTurn * 0.9;
     private const int IdleResetMilliseconds = 330;
     private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
-    private const double CenterWindowSeconds = 2.0;
+    private const double CenterWindowSeconds = 1.0;
     private const double MinAxisSpreadPixels = 32;
     private const double MinAspectRatio = 0.35;
     private const int MinSamplesForAspectCheck = 12;
