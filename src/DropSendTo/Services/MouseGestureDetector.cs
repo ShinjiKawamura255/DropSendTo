@@ -35,6 +35,7 @@ internal sealed record MouseGestureOptions(
 
 internal sealed class MouseGestureDetector
 {
+    private readonly Func<DateTime> _utcNowProvider;
     private readonly object _lock = new();
     private MouseGestureOptions _options = MouseGestureOptions.Default;
     private bool _hasLastPoint;
@@ -49,7 +50,17 @@ internal sealed class MouseGestureDetector
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
     private const double MinDistanceSquared = 64; // 8px
-    private const int IdleResetMilliseconds = 1200;
+    private const int IdleResetMilliseconds = 1_000;
+
+    public MouseGestureDetector()
+        : this(() => DateTime.UtcNow)
+    {
+    }
+
+    internal MouseGestureDetector(Func<DateTime> utcNowProvider)
+    {
+        _utcNowProvider = utcNowProvider ?? throw new ArgumentNullException(nameof(utcNowProvider));
+    }
 
     public void UpdateOptions(MouseGestureOptions options)
     {
@@ -81,11 +92,8 @@ internal sealed class MouseGestureDetector
                 return MouseGestureAction.None;
             }
 
-            var nowUtc = DateTime.UtcNow;
-            if (_hasLastPoint && (nowUtc - _lastMoveUtc).TotalMilliseconds > IdleResetMilliseconds)
-            {
-                ResetState();
-            }
+            var nowUtc = _utcNowProvider();
+            TryResetForIdle(nowUtc);
             _lastMoveUtc = nowUtc;
 
             if (!_hasLastPoint)
@@ -133,6 +141,14 @@ internal sealed class MouseGestureDetector
             }
 
             return EvaluateCompletion();
+        }
+    }
+
+    public void HandleIdleTimeout()
+    {
+        lock (_lock)
+        {
+            TryResetForIdle(_utcNowProvider());
         }
     }
 
@@ -184,6 +200,19 @@ internal sealed class MouseGestureDetector
         }
 
         return MouseGestureAction.None;
+    }
+
+    private void TryResetForIdle(DateTime nowUtc)
+    {
+        if (!_hasLastPoint)
+        {
+            return;
+        }
+
+        if ((nowUtc - _lastMoveUtc).TotalMilliseconds > IdleResetMilliseconds)
+        {
+            ResetState();
+        }
     }
 
     private void ResetState()

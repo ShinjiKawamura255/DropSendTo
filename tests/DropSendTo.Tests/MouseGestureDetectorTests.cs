@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using DropSendTo.Services;
@@ -69,6 +70,31 @@ public class MouseGestureDetectorTests
         result.Should().Be(MouseGestureAction.None);
     }
 
+    [Fact]
+    public void HandleIdleTimeout_ShouldResetCounts_AfterOneSecondOfInactivity()
+    {
+        var clock = new FakeClock(DateTime.UtcNow);
+        var detector = new MouseGestureDetector(clock.UtcNow);
+        var options = MouseGestureOptions.Default;
+
+        detector.UpdateOptions(options);
+        foreach (var point in CreateCirclePoints(2, clockwise: true))
+        {
+            detector.HandleMove(point, false, false);
+            clock.Advance(TimeSpan.FromMilliseconds(50));
+        }
+
+        var before = detector.GetTurnCountsForDebug();
+        before.Clockwise.Should().BeGreaterThan(0);
+
+        clock.Advance(TimeSpan.FromMilliseconds(1_100));
+        detector.HandleIdleTimeout();
+
+        var after = detector.GetTurnCountsForDebug();
+        after.Clockwise.Should().Be(0);
+        after.CounterClockwise.Should().Be(0);
+    }
+
     private static MouseGestureAction Run(
         MouseGestureDetector detector,
         MouseGestureOptions options,
@@ -102,6 +128,23 @@ public class MouseGestureDetectorTests
             int x = (int)(radius * System.Math.Cos(angle));
             int y = (int)(radius * System.Math.Sin(angle));
             yield return new Point(x, y);
+        }
+    }
+
+    private sealed class FakeClock
+    {
+        private DateTime _now;
+
+        public FakeClock(DateTime start)
+        {
+            _now = start;
+        }
+
+        public DateTime UtcNow() => _now;
+
+        public void Advance(TimeSpan delta)
+        {
+            _now += delta;
         }
     }
 }

@@ -91,6 +91,7 @@ internal sealed class ShortcutService : IDisposable
         "wfcrun",
         "hdx"
     };
+    private const int MouseGestureIdleResetMilliseconds = 1_000;
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
     private readonly Dispatcher _dispatcher;
@@ -121,12 +122,14 @@ internal sealed class ShortcutService : IDisposable
     private Func<bool> _remoteSessionDetector;
     private bool _sequenceCaptureInProgress;
     private bool _awaitingFirstShortcutKey;
+    private readonly Timer _mouseGestureIdleTimer;
 
     public ShortcutService()
     {
         _dispatcher = ApplicationDispatcherProvider.GetDispatcher();
         _remoteSessionDetector = DetectRemoteSessionForeground;
         _prefixTimeoutTimer = new Timer(OnPrefixTimeout, null, Timeout.Infinite, Timeout.Infinite);
+        _mouseGestureIdleTimer = new Timer(OnMouseGestureIdleTimeout, null, Timeout.Infinite, Timeout.Infinite);
         _mouseGestureDetector.UpdateOptions(_mouseGestureOptions);
         SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
         SystemEvents.SessionSwitch += OnSystemSessionSwitch;
@@ -884,6 +887,7 @@ internal sealed class ShortcutService : IDisposable
         bool ctrlPressed = IsCtrlPressed();
         bool presentationBlocked = options.SuppressDuringPresentation && IsPresentationModeLikelyActive();
         var point = new Point(data.pt.x, data.pt.y);
+        TrackMouseGestureMovement();
         return _mouseGestureDetector.HandleMove(point, ctrlPressed, presentationBlocked);
     }
 
@@ -951,6 +955,7 @@ internal sealed class ShortcutService : IDisposable
         if (_disposed) return;
         _disposed = true;
         _prefixTimeoutTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        _mouseGestureIdleTimer.Change(Timeout.Infinite, Timeout.Infinite);
         SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
         SystemEvents.SessionSwitch -= OnSystemSessionSwitch;
         if (_hookHandle != IntPtr.Zero)
@@ -964,6 +969,7 @@ internal sealed class ShortcutService : IDisposable
             _mouseHookHandle = IntPtr.Zero;
         }
         _prefixTimeoutTimer.Dispose();
+        _mouseGestureIdleTimer.Dispose();
     }
 
     private void TrackModifierKeyDownLocked(ushort vk)
@@ -975,6 +981,23 @@ internal sealed class ShortcutService : IDisposable
 
         _activeModifiers.Add(normalized);
         _modifierLastPressedUtc[normalized] = DateTime.UtcNow;
+    }
+
+    private void TrackMouseGestureMovement()
+    {
+        _mouseGestureIdleTimer.Change(MouseGestureIdleResetMilliseconds, Timeout.Infinite);
+    }
+
+    private void OnMouseGestureIdleTimeout(object? state)
+    {
+        try
+        {
+            _mouseGestureDetector.HandleIdleTimeout();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to reset mouse gesture state on idle: {ex}");
+        }
     }
 
     private void TrackModifierKeyUpLocked(ushort vk)
