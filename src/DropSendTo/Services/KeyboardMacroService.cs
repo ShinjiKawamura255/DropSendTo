@@ -44,6 +44,8 @@ public sealed class KeyboardMacroService : IDisposable
     private Func<bool>? _prefixIsArmedAccessor;
     private Action? _prefixResetAction;
     private static Func<uint, INPUT[], int, uint>? _sendInputOverride;
+    private const int DefaultReadFileLimitBytes = 4096;
+    private const int MaxReadFileLimitBytes = 1024 * 1024;
 
     public void Initialize(WindowInteropHelper helper)
     {
@@ -734,6 +736,18 @@ public sealed class KeyboardMacroService : IDisposable
                     if (!TryApplyResolveLinkDirective(payload, variables, specialResolver, validateOnly, out var resolveError))
                     {
                         var message = resolveError ?? "RESOLVE_LINK の解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "READFILE"))
+                {
+                    var payload = line.Length > 8 ? line[8..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (!TryApplyReadFileDirective(payload, variables, specialResolver, validateOnly, out var readError))
+                    {
+                        var message = readError ?? "READFILE の解釈に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
                     continue;
@@ -2206,6 +2220,154 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         variables[nameToken] = resolved;
+        return true;
+    }
+
+    private static bool TryApplyReadFileDirective(string payload, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "READFILE には変数名とパスを指定してください。";
+            return false;
+        }
+
+        int index = 0;
+        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+        {
+            index++;
+        }
+
+        var firstSpace = FindFirstWhitespace(payload[index..]);
+        if (firstSpace < 0)
+        {
+            error = "READFILE には変数名とパスを指定してください。";
+            return false;
+        }
+
+        var nameToken = payload.Substring(index, firstSpace).Trim();
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"READFILE の変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        index += firstSpace;
+        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+        {
+            index++;
+        }
+        if (index >= payload.Length)
+        {
+            error = "READFILE にパスを指定してください。";
+            return false;
+        }
+
+        if (!TryParsePathOperand(payload, ref index, "READFILE", "パス", out var pathRaw, out error))
+        {
+            return false;
+        }
+
+        int maxBytes = DefaultReadFileLimitBytes;
+        bool maxExplicit = false;
+
+        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+        {
+            index++;
+        }
+
+        if (index < payload.Length)
+        {
+            var remaining = payload[index..].Trim();
+            if (remaining.Length == 0)
+            {
+                // nothing to do
+            }
+            else
+            {
+                var parts = remaining.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && parts[0].Equals("MAX", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out maxBytes) || maxBytes <= 0)
+                    {
+                        error = "READFILE の MAX は正の整数で指定してください。";
+                        return false;
+                    }
+                    if (maxBytes > MaxReadFileLimitBytes)
+                    {
+                        error = $"READFILE の MAX は {MaxReadFileLimitBytes} バイト以下で指定してください。";
+                        return false;
+                    }
+                    maxExplicit = true;
+                }
+                else
+                {
+                    error = "READFILE の引数の後ろに余分な記述があります。";
+                    return false;
+                }
+            }
+        }
+
+        if (!TryExpandVariables(pathRaw, variables, out var expandedPath, out var pathExpandError, specialResolver))
+        {
+            error = pathExpandError ?? "READFILE のパス展開に失敗しました。";
+            return false;
+        }
+
+        var normalizedPath = TrimPathQuotes(expandedPath);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            error = "READFILE のパスは空にできません。";
+            return false;
+        }
+
+        if (validateOnly)
+        {
+            variables[nameToken] = string.Empty;
+            return true;
+        }
+
+        if (!File.Exists(normalizedPath))
+        {
+            error = $"READFILE のパスが存在しません: \"{normalizedPath}\"";
+            return false;
+        }
+
+        var info = new FileInfo(normalizedPath);
+        if (!maxExplicit && info.Length > DefaultReadFileLimitBytes)
+        {
+            error = $"READFILE は既定で {DefaultReadFileLimitBytes} バイトまでです。MAX <bytes> を指定してください（最大 {MaxReadFileLimitBytes} バイト）。";
+            return false;
+        }
+
+        maxBytes = Math.Clamp(maxBytes, 1, MaxReadFileLimitBytes);
+        int bytesToRead = (int)Math.Min(info.Length, maxBytes);
+        try
+        {
+            using var stream = new FileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length < bytesToRead)
+            {
+                bytesToRead = (int)stream.Length;
+            }
+
+            var buffer = ArrayPool<byte>.Shared.Rent(bytesToRead);
+            try
+            {
+                int read = stream.Read(buffer, 0, bytesToRead);
+                var text = Encoding.UTF8.GetString(buffer, 0, read);
+                variables[nameToken] = text;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException or DecoderFallbackException)
+        {
+            error = $"READFILE の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+
         return true;
     }
 
