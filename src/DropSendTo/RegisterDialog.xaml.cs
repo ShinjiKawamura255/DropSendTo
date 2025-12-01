@@ -127,6 +127,7 @@ public partial class RegisterDialog : Window
             new MacroSnippet("IF / ELSE / ENDIF", "IF \"{{clipboard}}\" CONTAINS \"keyword\"\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
             new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
             new MacroSnippet("COMMAND [引数指定]", "COMMAND {{clipboard}}"),
+            new MacroSnippet("RETURN [\"メッセージ\"]", "RETURN \"finished\""),
             new MacroSnippet("PREFIX SEND", "PREFIX SEND"),
             new MacroSnippet("PREFIX ARM", "PREFIX ARM"),
             new MacroSnippet("PREFIX PASSTHROUGH", "PREFIX PASSTHROUGH")

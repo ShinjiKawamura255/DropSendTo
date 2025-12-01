@@ -75,4 +75,5 @@
 
 ## Macro Script Tips 更新ルール
 - Macro Script の新規コマンド追加・挙動変更時は、`src/DropSendTo/MacroTipsWindow.xaml` の Tips に対応する説明と簡単な使用例を必ず追記する。利用者が UI 上で新コマンドに気付けるようにすること。
+- Macro Script コマンドを追加したら、スニペット挿入メニュー（`src/DropSendTo/RegisterDialog.xaml.cs` の `MacroSnippetGroups`）にも適切なグループでエントリを追加すること。
 - 新規コマンドを追加したら `KeyboardMacroService` の構文チェック（検証モード）にも必ず対応を入れ、変数が検証モードでも未定義扱いにならないようにする。合わせて単体テストと docs/SPEC.md にも反映する。
