@@ -918,11 +918,11 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         int argIndex = 0;
                         if (payload[0] == '"')
+                    {
+                        if (!TryParseQuotedArgument(payload, ref argIndex, "RETURN", "メッセージ", out var messageLiteral, out var returnParseError))
                         {
-                            if (!TryParseQuotedArgument(payload, ref argIndex, "RETURN", "メッセージ", out var messageLiteral, out var returnParseError))
-                            {
-                                var message = returnParseError ?? "RETURN のメッセージ指定が不正です。";
-                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            var message = returnParseError ?? "RETURN のメッセージ指定が不正です。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                             }
                             if (argIndex < payload.Length && !string.IsNullOrWhiteSpace(payload[argIndex..]))
                             {
@@ -946,6 +946,10 @@ public sealed class KeyboardMacroService : IDisposable
                         }
                     }
 
+                    if (!validateOnly && !string.IsNullOrWhiteSpace(returnMessage))
+                    {
+                        _logger.Info($"Macro RETURN: {returnMessage}");
+                    }
                     return CompleteResult(MacroExecutionResult.Ok(returnMessage));
                 }
 
