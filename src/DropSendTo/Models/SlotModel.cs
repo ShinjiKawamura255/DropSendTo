@@ -15,6 +15,7 @@ public class SlotModel
     public string? KeyboardMacroScript { get; set; } = string.Empty;
     public SlotExecutionMode ExecutionMode { get; set; } = SlotExecutionMode.Command;
     public SlotAccentColor AccentColor { get; set; } = SlotAccentColor.Default;
+    public SlotMinimizeOptions MinimizeOptions { get; set; } = SlotMinimizeOptions.CreateDefault();
 }
 
 public enum SlotExecutionMode

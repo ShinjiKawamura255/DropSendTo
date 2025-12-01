@@ -214,6 +214,7 @@ public partial class RegisterDialog : Window
             MacroBox.PreviewKeyDown += OnMacroBoxPreviewKeyDown;
         }
         InitializeMacroInsertMenu();
+        ApplyMinimizeOptions(SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
     }
 
@@ -239,6 +240,7 @@ public partial class RegisterDialog : Window
                 : SlotAccentColor.Default;
             ColorComboBox.SelectedValue = accent;
         }
+        ApplyMinimizeOptions(slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
     }
 
@@ -324,7 +326,7 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor()));
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions()));
         Close();
     }
 
@@ -720,6 +722,21 @@ public partial class RegisterDialog : Window
         return SlotAccentColor.Default;
     }
 
+    private void ApplyMinimizeOptions(SlotMinimizeOptions options)
+    {
+        var opt = options ?? SlotMinimizeOptions.CreateDefault();
+        MinimizeOnClickCheckBox.IsChecked = opt.EnableOnClick;
+        MinimizeOnShortcutCheckBox.IsChecked = opt.EnableOnShortcut;
+        MinimizeOnDropCheckBox.IsChecked = opt.EnableOnDrop;
+    }
+
+    private SlotMinimizeOptions BuildMinimizeOptions() => new()
+    {
+        EnableOnClick = MinimizeOnClickCheckBox.IsChecked == true,
+        EnableOnShortcut = MinimizeOnShortcutCheckBox.IsChecked == true,
+        EnableOnDrop = MinimizeOnDropCheckBox.IsChecked == true
+    };
+
     private static SlotColorOption CreateColorOption(SlotAccentColor color, string name, System.Windows.Media.Color background, System.Windows.Media.Color accent, System.Windows.Media.Color foreground) =>
         new(
             color,
@@ -893,7 +910,7 @@ public partial class RegisterDialog : Window
 
 public sealed class SlotSavedEventArgs : EventArgs
 {
-    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor)
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor, SlotMinimizeOptions minimizeOptions)
     {
         AppTitle = appTitle;
         CommandPath = commandPath;
@@ -902,6 +919,7 @@ public sealed class SlotSavedEventArgs : EventArgs
         ShortcutChord = shortcutChord;
         ExecutionMode = executionMode;
         AccentColor = accentColor;
+        MinimizeOptions = minimizeOptions;
     }
 
     public string AppTitle { get; }
@@ -911,4 +929,5 @@ public sealed class SlotSavedEventArgs : EventArgs
     public string ShortcutChord { get; }
     public SlotExecutionMode ExecutionMode { get; }
     public SlotAccentColor AccentColor { get; }
+    public SlotMinimizeOptions MinimizeOptions { get; }
 }

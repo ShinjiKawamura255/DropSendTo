@@ -1208,7 +1208,7 @@ public partial class MainWindow : Window
                 {
                     int index = _keyboardSelectedSlotIndex;
                     DeactivateKeyboardNavigation();
-                    _ = TriggerSlotAsync(_currentLayer, index, SlotTriggerSource.Shortcut);
+                    _ = TriggerSlotAsync(_currentLayer, index, SlotTriggerKind.Shortcut);
                 }
                 return true;
             case NavigationCommand.Cancel:
@@ -1835,13 +1835,6 @@ public partial class MainWindow : Window
         Paused
     }
 
-    private enum SlotTriggerSource
-    {
-        Mouse,
-        Shortcut,
-        Drop
-    }
-
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
     private sealed record SlotLayoutDragData(int SourceLayerIndex, int SourceSlotIndex);
     private sealed record SlotVisual(
@@ -2081,6 +2074,7 @@ public partial class MainWindow : Window
             slot.ShortcutKey = args.ShortcutChord;
             slot.ExecutionMode = args.ExecutionMode;
             slot.AccentColor = args.AccentColor;
+            slot.MinimizeOptions = args.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
             _configService.Save(_config);
             RefreshUi();
         };
@@ -2460,7 +2454,7 @@ public partial class MainWindow : Window
                                      !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
             if (shouldInvokeMacro)
             {
-                _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerSource.Drop, paths);
+                _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Drop, paths);
                 e.Handled = true;
                 return;
             }
@@ -3433,12 +3427,12 @@ public partial class MainWindow : Window
         TryBeginSlotLayoutDrag(sender as FrameworkElement);
     }
 
-    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerSource source, IReadOnlyList<string>? droppedPaths = null)
+    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null)
     {
         if (slotIndex < 0 || slotIndex >= _slotVisuals.Count) return;
         var layer = _config.Layers[layerIndex];
         var slot = layer.Slots[slotIndex];
-        if (source == SlotTriggerSource.Mouse && !slot.ClickEnabled) return;
+        if (trigger == SlotTriggerKind.Click && !slot.ClickEnabled) return;
 
         var slotTitle = slot.Title?.ReplaceLineEndings(" ").Trim() ?? string.Empty;
         if (slotTitle.Length == 0)
@@ -3456,11 +3450,10 @@ public partial class MainWindow : Window
         var script = slot.KeyboardMacroScript ?? string.Empty;
         var macroConfigured = !string.IsNullOrWhiteSpace(script);
         var commandConfigured = !string.IsNullOrWhiteSpace(slot.Command);
-        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={source}, mode={mode}, macroConfigured={macroConfigured}, commandConfigured={commandConfigured})");
+        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={trigger}, mode={mode}, macroConfigured={macroConfigured}, commandConfigured={commandConfigured})");
 
         if (!macroConfigured && !commandConfigured) return;
 
-        bool isCommandOnly = mode == SlotExecutionMode.Command;
         bool shouldRunMacro = mode != SlotExecutionMode.Command && macroConfigured;
 
         IAsyncDisposable? suspension = null;
@@ -3473,7 +3466,7 @@ public partial class MainWindow : Window
                 {
                     if (_macroService.CancelCurrentMacro())
                     {
-                        _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                        _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                         MarkSlotMacroCanceling(layerIndex, slotIndex);
                     }
                     return;
@@ -3488,24 +3481,24 @@ public partial class MainWindow : Window
                             {
                                 if (_macroService.CancelCurrentMacro())
                                 {
-                                _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                                MarkSlotMacroCanceling(layerIndex, slotIndex);
+                                    _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                                    MarkSlotMacroCanceling(layerIndex, slotIndex);
+                                }
                             }
-                        }
-                        else
-                        {
-                            _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                            WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
-                        }
-                        return;
-                    case MacroConcurrencyMode.Interrupt:
-                        _logger.Info($"Interrupting running macro before executing slot (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
-                        if (_currentSlotRun != null)
-                        {
-                            MarkSlotMacroCanceling(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex);
-                        }
-                        await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
-                        break;
+                            else
+                            {
+                                _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                                WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
+                            }
+                            return;
+                        case MacroConcurrencyMode.Interrupt:
+                            _logger.Info($"Interrupting running macro before executing slot (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                            if (_currentSlotRun != null)
+                            {
+                                MarkSlotMacroCanceling(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex);
+                            }
+                            await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
+                            break;
                         case MacroConcurrencyMode.SuspendAndResume:
                             pausedContext = _currentSlotRun;
                             SetSlotPaused(pausedContext, true);
@@ -3515,7 +3508,7 @@ public partial class MainWindow : Window
                             }
                             catch (Exception ex)
                             {
-                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {ex}");
+                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {ex}");
                                 suspension = null;
                             }
 
@@ -3531,7 +3524,7 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                    _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                 }
             }
 
@@ -3546,7 +3539,7 @@ public partial class MainWindow : Window
                     var launchResult = _launcher.Launch(slot, dropPathsOrEmpty, overrideArgs);
                     if (!launchResult.Success)
                     {
-                        _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {launchResult.Message}");
+                        _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {launchResult.Message}");
                     }
                     return launchResult;
                 },
@@ -3565,11 +3558,11 @@ public partial class MainWindow : Window
                 {
                     if (macroResult.IsCanceled)
                     {
-                        _logger.Info($"Macro canceled (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                        _logger.Info($"Macro canceled (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                     }
                     else
                     {
-                        _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {macroResult.Message}");
+                        _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {macroResult.Message}");
                     }
                     if (!macroResult.IsCanceled)
                     {
@@ -3577,11 +3570,12 @@ public partial class MainWindow : Window
                     }
                     return;
                 }
-                _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: true);
             }
             catch (Exception ex)
             {
-                _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {ex}");
+                _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {ex}");
                 WpfMessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -3597,12 +3591,13 @@ public partial class MainWindow : Window
             var result = _launcher.Launch(slot, dropPathsOrEmpty);
             if (!result.Success)
             {
-                _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}): {result.Message}");
+                _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {result.Message}");
                 WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             else
             {
-                _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={source}).");
+                _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: false);
             }
         }
         }
@@ -3621,6 +3616,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void MaybeMinimizeAfterSlot(SlotModel slot, SlotTriggerKind trigger, bool macroExecuted)
+    {
+        var options = slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
+        if (!options.ShouldMinimizeAfter(trigger))
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(new Action(MinimizeWindowToTray));
+    }
+
     private async void OnSlotClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement fe) return;
@@ -3634,7 +3640,7 @@ public partial class MainWindow : Window
             DeactivateKeyboardNavigation();
         }
         int idx = GetSlotIndex(fe);
-        await TriggerSlotAsync(_currentLayer, idx, SlotTriggerSource.Mouse);
+        await TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Click);
     }
 
     private void OnShortcutTriggered(object? sender, ShortcutTriggeredEventArgs e)
@@ -3648,7 +3654,7 @@ public partial class MainWindow : Window
                 {
                     SetLayer(binding.LayerIndex);
                 }
-                _ = TriggerSlotAsync(binding.LayerIndex, binding.SlotIndex, SlotTriggerSource.Shortcut);
+                _ = TriggerSlotAsync(binding.LayerIndex, binding.SlotIndex, SlotTriggerKind.Shortcut);
                 break;
             }
         }

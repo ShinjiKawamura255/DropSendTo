@@ -41,4 +41,25 @@ public class SlotModelTests
         var cfg2 = cfgSvc.LoadOrCreate();
         cfg2.Layers[1].Slots[2].KeyboardMacroScript.Should().Be("KEY Ctrl+C");
     }
+
+    [Fact]
+    public void MinimizeOptions_Defaults_To_Disabled_And_Persists()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var cfgSvc = new ConfigService(temp);
+        var cfg = cfgSvc.LoadOrCreate();
+        var slot = cfg.Layers[0].Slots[0];
+        slot.MinimizeOptions.EnableOnClick.Should().BeFalse();
+        slot.MinimizeOptions.EnableOnShortcut.Should().BeFalse();
+        slot.MinimizeOptions.EnableOnDrop.Should().BeFalse();
+
+        slot.MinimizeOptions.EnableOnClick = true;
+        slot.MinimizeOptions.EnableOnShortcut = true;
+        cfgSvc.Save(cfg);
+
+        var cfg2 = cfgSvc.LoadOrCreate();
+        cfg2.Layers[0].Slots[0].MinimizeOptions.EnableOnClick.Should().BeTrue();
+        cfg2.Layers[0].Slots[0].MinimizeOptions.EnableOnShortcut.Should().BeTrue();
+    }
 }
