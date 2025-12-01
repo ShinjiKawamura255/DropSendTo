@@ -97,6 +97,7 @@
 | `RENAME <元パス> <新しいパス>` | ファイル/フォルダの名前を変更（変数展開・クォート可） | `RENAME "{{drop_path}}" "{{drop_path}}.bak"` |
 | `TESTPATH <変数> <パス>` | ファイル/フォルダの存在を `1` (存在) / `0` (未存在) として変数に格納 | `TESTPATH PathOk {{drop_path}}` |
 | `READFILE <変数> <パス> [MAX <バイト>]` | ファイル内容を変数へ読み込み（既定 4096 バイト。超える場合は MAX で明示） | `READFILE Prompt C:\notes\prompt.txt` |
+| `RETURN ["メッセージ"]` | マクロを即終了（メッセージは任意でログ/結果に残る） | `RETURN "条件を満たさないため中止"` |
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |

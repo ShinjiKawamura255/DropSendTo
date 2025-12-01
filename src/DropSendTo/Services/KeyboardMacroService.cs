@@ -909,6 +909,46 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "RETURN"))
+                {
+                    var payload = line.Length > 6 ? line[6..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    string returnMessage = string.Empty;
+                    if (!string.IsNullOrWhiteSpace(payload))
+                    {
+                        int argIndex = 0;
+                        if (payload[0] == '"')
+                        {
+                            if (!TryParseQuotedArgument(payload, ref argIndex, "RETURN", "メッセージ", out var messageLiteral, out var returnParseError))
+                            {
+                                var message = returnParseError ?? "RETURN のメッセージ指定が不正です。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            }
+                            if (argIndex < payload.Length && !string.IsNullOrWhiteSpace(payload[argIndex..]))
+                            {
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "RETURN のメッセージの後ろに余分な記述があります。")));
+                            }
+                            if (!TryExpandVariables(messageLiteral, variables, out var expanded, out var returnExpandError, specialResolver))
+                            {
+                                var message = returnExpandError ?? "RETURN のメッセージ展開に失敗しました。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            }
+                            returnMessage = expanded;
+                        }
+                        else
+                        {
+                            if (!TryExpandVariables(payload, variables, out var expanded, out var returnExpandError, specialResolver))
+                            {
+                                var message = returnExpandError ?? "RETURN のメッセージ展開に失敗しました。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            }
+                            returnMessage = expanded;
+                        }
+                    }
+
+                    return CompleteResult(MacroExecutionResult.Ok(returnMessage));
+                }
+
                 if (StartsWithCommand(line, "PREFIX"))
                 {
                     var token = line.Length > 6 ? line[6..].Trim() : string.Empty;
@@ -5099,6 +5139,7 @@ private static extern IntPtr GetKeyboardLayout(uint idThread);
     public record MacroExecutionResult(bool Success, string Message, bool Executed, bool IsCanceled)
     {
         public static MacroExecutionResult Ok() => new(true, string.Empty, true, false);
+        public static MacroExecutionResult Ok(string message) => new(true, message ?? string.Empty, true, false);
         public static MacroExecutionResult Skip(string message) => new(true, message, false, false);
         public static MacroExecutionResult Fail(string message) => new(false, message, false, false);
         public static MacroExecutionResult Canceled(string message) => new(false, message, false, true);
