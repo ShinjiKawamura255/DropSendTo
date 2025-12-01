@@ -915,7 +915,7 @@ public sealed class KeyboardMacroService : IDisposable
                             return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                         }
                     }
-                    if (!TryAppendPrefixSequence(buffer, passthrough, out var prefixError))
+                    if (!TryAppendPrefixSequence(buffer, passthrough, validateOnly, out var prefixError))
                     {
                         var message = prefixError ?? "PREFIX コマンドの実行に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
@@ -2195,6 +2195,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         if (validateOnly)
         {
+            variables[nameToken] = normalizedPath;
             return true;
         }
 
@@ -3115,7 +3116,7 @@ public sealed class KeyboardMacroService : IDisposable
     {
         error = null;
         var buffer = new List<INPUT>(8);
-        if (!TryAppendPrefixSequence(buffer, passthrough: true, out error))
+        if (!TryAppendPrefixSequence(buffer, passthrough: true, allowMissingResolver: false, out error))
         {
             return false;
         }
@@ -3576,12 +3577,16 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    private bool TryAppendPrefixSequence(List<INPUT> buffer, bool passthrough, out string? error)
+    private bool TryAppendPrefixSequence(List<INPUT> buffer, bool passthrough, bool allowMissingResolver, out string? error)
     {
         error = null;
         var resolver = _prefixChordAccessor;
         if (resolver == null)
         {
+            if (allowMissingResolver)
+            {
+                return true;
+            }
             error = "PREFIX コマンドは現在利用できません。";
             return false;
         }
@@ -3589,6 +3594,10 @@ public sealed class KeyboardMacroService : IDisposable
         var chord = resolver();
         if (chord == null)
         {
+            if (allowMissingResolver)
+            {
+                return true;
+            }
             error = "Prefix が無効化されているため PREFIX コマンドを使用できません。";
             return false;
         }

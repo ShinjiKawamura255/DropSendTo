@@ -263,8 +263,13 @@ public partial class RegisterDialog : Window
 
             if (!KeyboardMacroService.TryValidateScript(formattedMacro, mode, out var macroError))
             {
-                WpfMessageBox.Show(macroError ?? "Macro Script の構文が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                var message = (macroError ?? "Macro Script の構文が正しくありません。") +
+                              "\n\n構文チェックを無視して保存しますか？";
+                var result = WpfMessageBox.Show(message, "Macro Script", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
             }
 
             if (MacroScriptFormatter.TryGetPlaceholderWarning(formattedMacro, out var warning))
