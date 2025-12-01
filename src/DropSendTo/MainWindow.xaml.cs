@@ -2475,21 +2475,7 @@ public partial class MainWindow : Window
     {
         if (this.ContextMenu != null)
         {
-            AlwaysOnTopMenuItem.IsChecked = this.Topmost;
-            if (PrefixLayerShortcutMenuItem != null)
-            {
-                PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
-            }
-            if (EmacsNavigationMenuItem != null)
-            {
-                EmacsNavigationMenuItem.IsChecked = _config.EnableEmacsNavigation;
-            }
-            if (ViNavigationMenuItem != null)
-            {
-                ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
-            }
-            PopulateLayoutMenu(LayoutMenuItem);
-            PopulateSlotSizeMenu(SlotSizeMenuItem);
+            UpdateContextMenuState();
             this.ContextMenu.PlacementTarget = (UIElement)sender;
             this.ContextMenu.PreviewKeyDown -= OnContextMenuPreviewKeyDown;
             this.ContextMenu.PreviewKeyDown += OnContextMenuPreviewKeyDown;
@@ -3074,10 +3060,23 @@ public partial class MainWindow : Window
 
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
+        UpdateContextMenuState();
+    }
+
+    private void UpdateContextMenuState()
+    {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
         if (PrefixLayerShortcutMenuItem != null)
         {
             PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
+        }
+        if (EmacsNavigationMenuItem != null)
+        {
+            EmacsNavigationMenuItem.IsChecked = _config.EnableEmacsNavigation;
+        }
+        if (ViNavigationMenuItem != null)
+        {
+            ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
         }
         if (RemoteSessionPriorityMenuItem != null)
         {
