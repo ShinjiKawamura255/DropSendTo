@@ -781,6 +781,10 @@ public partial class RegisterDialog : Window
         }
 
         var menu = new ContextMenu();
+        var searchItem = new MenuItem { Header = EscapeAccessKey("検索して挿入...") };
+        searchItem.Click += OnMacroSnippetSearchClick;
+        menu.Items.Add(searchItem);
+        menu.Items.Add(new Separator());
         foreach (var group in MacroSnippetGroups)
         {
             var groupMenuItem = new MenuItem { Header = EscapeAccessKey(group.Header) };
@@ -821,6 +825,49 @@ public partial class RegisterDialog : Window
         }
 
         InsertMacroSnippet(content);
+    }
+
+    private void OnMacroSnippetSearchClick(object sender, RoutedEventArgs e)
+    {
+        var entries = BuildMacroSnippetEntries();
+        var dialog = new MacroSnippetSearchWindow(entries) { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.SelectedSnippet))
+        {
+            InsertMacroSnippet(dialog.SelectedSnippet);
+        }
+    }
+
+    private IReadOnlyList<MacroSnippetEntry> BuildMacroSnippetEntries()
+    {
+        var list = new List<MacroSnippetEntry>();
+        foreach (var group in MacroSnippetGroups)
+        {
+            foreach (var snippet in group.Items)
+            {
+                list.Add(new MacroSnippetEntry(group.Header, snippet.Header, snippet.Content));
+            }
+        }
+
+        void AddWin(string header, string content) => list.Add(new MacroSnippetEntry("WIN_* 予約語", header, content));
+
+        foreach (var token in WinAnchorTokens)
+        {
+            AddWin(token, token);
+        }
+        foreach (var token in WinAliasTokens)
+        {
+            AddWin(token, token);
+        }
+        foreach (var token in WinAnchorTokens.Concat(WinAliasTokens))
+        {
+            AddWin($"{token}_X", $"{token}_X");
+            AddWin($"{token}_Y", $"{token}_Y");
+        }
+        AddWin("CURSOR_START_X", "CURSOR_START_X");
+        AddWin("CURSOR_START_Y", "CURSOR_START_Y");
+
+        return list;
     }
 
     private void InsertMacroSnippet(string snippet)
@@ -900,14 +947,14 @@ public partial class RegisterDialog : Window
         return winMenu;
     }
 
-    private static MenuItem CreateWinSnippetItem(string content, RoutedEventHandler insertHandler)
-    {
-        var item = new MenuItem { Header = EscapeAccessKey(content), Tag = content };
-        item.Click += insertHandler;
-        return item;
-    }
+private static MenuItem CreateWinSnippetItem(string content, RoutedEventHandler insertHandler)
+{
+    var item = new MenuItem { Header = EscapeAccessKey(content), Tag = content };
+    item.Click += insertHandler;
+    return item;
+}
 
-    private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
+private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
 }
 
 public sealed class SlotSavedEventArgs : EventArgs
@@ -933,3 +980,5 @@ public sealed class SlotSavedEventArgs : EventArgs
     public SlotAccentColor AccentColor { get; }
     public SlotMinimizeOptions MinimizeOptions { get; }
 }
+
+public sealed record MacroSnippetEntry(string Group, string Header, string Content);
