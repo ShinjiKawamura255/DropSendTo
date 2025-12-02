@@ -77,4 +77,9 @@ public partial class MacroSnippetSearchWindow : Window
                || entry.Content.Contains(query, StringComparison.OrdinalIgnoreCase)
                || entry.Group.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
+
+    private void OnCloseClicked(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }

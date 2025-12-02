@@ -786,52 +786,12 @@ public partial class RegisterDialog : Window
         {
             return;
         }
-
-        var menu = new ContextMenu();
-        var searchItem = new MenuItem { Header = EscapeAccessKey("検索して挿入...") };
-        searchItem.Click += OnMacroSnippetSearchClick;
-        menu.Items.Add(searchItem);
-        menu.Items.Add(new Separator());
-        foreach (var group in MacroSnippetGroups)
-        {
-            var groupMenuItem = new MenuItem { Header = EscapeAccessKey(group.Header) };
-            if (string.Equals(group.Header, "プレースホルダー / 予約語", StringComparison.Ordinal))
-            {
-                groupMenuItem.Items.Add(CreateWinReservationMenu(OnMacroSnippetClick));
-                groupMenuItem.Items.Add(new Separator());
-            }
-            foreach (var snippet in group.Items)
-            {
-                var item = new MenuItem { Header = EscapeAccessKey(snippet.Header), Tag = snippet.Content };
-                item.Click += OnMacroSnippetClick;
-                groupMenuItem.Items.Add(item);
-            }
-            menu.Items.Add(groupMenuItem);
-        }
-
-        MacroInsertButton.ContextMenu = menu;
+        MacroInsertButton.ContextMenu = null;
     }
 
     private void OnMacroInsertClick(object sender, RoutedEventArgs e)
     {
-        if (MacroInsertButton?.ContextMenu is not ContextMenu menu)
-        {
-            return;
-        }
-
-        menu.PlacementTarget = MacroInsertButton;
-        menu.Placement = PlacementMode.Bottom;
-        menu.IsOpen = true;
-    }
-
-    private void OnMacroSnippetClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem { Tag: string content })
-        {
-            return;
-        }
-
-        InsertMacroSnippet(content);
+        OnMacroSnippetSearchClick(sender, e);
     }
 
     private void OnMacroSnippetSearchClick(object sender, RoutedEventArgs e)
