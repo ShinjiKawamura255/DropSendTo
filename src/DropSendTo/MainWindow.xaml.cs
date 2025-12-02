@@ -2450,20 +2450,8 @@ public partial class MainWindow : Window
                 WpfMessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            bool shouldInvokeMacro = mode == SlotExecutionMode.MacroScriptExtended &&
-                                     !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
-            if (shouldInvokeMacro)
-            {
-                _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Drop, paths);
-                e.Handled = true;
-                return;
-            }
-
-            var result = _launcher.Launch(slot, paths);
-            if (!result.Success)
-            {
-                WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Drop, paths);
+            e.Handled = true;
         }
         catch (Exception ex)
         {
