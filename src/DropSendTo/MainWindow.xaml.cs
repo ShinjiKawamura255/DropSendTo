@@ -67,6 +67,11 @@ public partial class MainWindow : Window
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
     private const int MaxSlotColumns = 4;
+    private enum ShowLayerTrigger
+    {
+        MouseGesture,
+        Prefix
+    }
     private static readonly (int rows, int columns)[] SlotLayoutOptions =
         BuildSlotLayoutOptions();
 
@@ -2894,6 +2899,56 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnConfigureShowLayerPreferences(object sender, RoutedEventArgs e)
+    {
+        if (_config == null)
+        {
+            WpfMessageBox.Show("設定がまだ読み込まれていません。少し待ってから再度お試しください。", "Show Layer", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new ShowLayerPreferenceDialog(new ShowLayerPreferenceOptions(
+            _config.MouseGestureShowLayerWhenVisible,
+            _config.MouseGestureShowLayerWhenHidden,
+            _config.PrefixShowLayerWhenVisible,
+            _config.PrefixShowLayerWhenHidden))
+        { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
+        if (!await dialog.ShowForResultAsync())
+        {
+            return;
+        }
+
+        var result = dialog.ResultOptions;
+        bool changed = false;
+
+        if (_config.MouseGestureShowLayerWhenVisible != result.MouseGestureVisibleLayer)
+        {
+            _config.MouseGestureShowLayerWhenVisible = result.MouseGestureVisibleLayer;
+            changed = true;
+        }
+        if (_config.MouseGestureShowLayerWhenHidden != result.MouseGestureHiddenLayer)
+        {
+            _config.MouseGestureShowLayerWhenHidden = result.MouseGestureHiddenLayer;
+            changed = true;
+        }
+        if (_config.PrefixShowLayerWhenVisible != result.PrefixVisibleLayer)
+        {
+            _config.PrefixShowLayerWhenVisible = result.PrefixVisibleLayer;
+            changed = true;
+        }
+        if (_config.PrefixShowLayerWhenHidden != result.PrefixHiddenLayer)
+        {
+            _config.PrefixShowLayerWhenHidden = result.PrefixHiddenLayer;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _configService.Save(_config);
+        }
+    }
+
     private async void OnEditLayerNames(object sender, RoutedEventArgs e)
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
@@ -3652,8 +3707,41 @@ public partial class MainWindow : Window
         _ = SendPrefixPassthroughAsync(e.ShortcutText);
     }
 
+    private bool IsWindowHiddenForShow() => _isMinimizedToTray || !IsVisible || WindowState == WindowState.Minimized;
+
+    private static int? NormalizeShowLayerPreference(int value) => value < 0 ? null : value;
+
+    private void ApplyShowLayerPreference(ShowLayerTrigger trigger, bool fromHidden)
+    {
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        int configured = trigger switch
+        {
+            ShowLayerTrigger.MouseGesture => fromHidden ? _config.MouseGestureShowLayerWhenHidden : _config.MouseGestureShowLayerWhenVisible,
+            ShowLayerTrigger.Prefix => fromHidden ? _config.PrefixShowLayerWhenHidden : _config.PrefixShowLayerWhenVisible,
+            _ => -1
+        };
+
+        var desired = NormalizeShowLayerPreference(configured);
+        if (!desired.HasValue)
+        {
+            return;
+        }
+
+        int clamped = Math.Clamp(desired.Value, 0, _config.Layers.Count - 1);
+        if (clamped != _currentLayer)
+        {
+            SetLayer(clamped);
+        }
+    }
+
     private void OnPrefixActivationRequested(object? sender, EventArgs e)
     {
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
@@ -3672,6 +3760,8 @@ public partial class MainWindow : Window
     private void OnMouseGestureShowRequested(object? sender, EventArgs e)
     {
         HideLayerNameOverlayImmediate();
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.MouseGesture, wasHidden);
         if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();

@@ -65,6 +65,8 @@
             </MenuItem>
             <MenuItem Header="マウスジェスチャ (表示/最小化)..."
                       Click="OnConfigureMouseGestures"/>
+            <MenuItem Header="表示時のレイヤー固定..."
+                      Click="OnConfigureShowLayerPreferences"/>
             <MenuItem x:Name="PrefixLayerShortcutMenuItem"
                       Header="Prefix: Ctrl+N/P でレイヤー切替"
                       IsCheckable="True"

@@ -149,6 +149,10 @@ internal sealed class ConfigTransferService
         public bool MouseGestureSuppressDuringPresentation { get; set; }
         public bool MouseGestureEnforceRadiusLimit { get; set; }
         public int MouseGestureMaxRadiusPixels { get; set; }
+        public int MouseGestureShowLayerWhenVisible { get; set; }
+        public int MouseGestureShowLayerWhenHidden { get; set; }
+        public int PrefixShowLayerWhenVisible { get; set; }
+        public int PrefixShowLayerWhenHidden { get; set; }
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
@@ -179,6 +183,10 @@ internal sealed class ConfigTransferService
                 MouseGestureSuppressDuringPresentation = config.MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = config.MouseGestureEnforceRadiusLimit,
                 MouseGestureMaxRadiusPixels = config.MouseGestureMaxRadiusPixels,
+                MouseGestureShowLayerWhenVisible = config.MouseGestureShowLayerWhenVisible,
+                MouseGestureShowLayerWhenHidden = config.MouseGestureShowLayerWhenHidden,
+                PrefixShowLayerWhenVisible = config.PrefixShowLayerWhenVisible,
+                PrefixShowLayerWhenHidden = config.PrefixShowLayerWhenHidden,
                 PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
@@ -219,6 +227,10 @@ internal sealed class ConfigTransferService
                 MouseGestureSuppressDuringPresentation = MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = MouseGestureEnforceRadiusLimit,
                 MouseGestureMaxRadiusPixels = MouseGestureMaxRadiusPixels,
+                MouseGestureShowLayerWhenVisible = MouseGestureShowLayerWhenVisible,
+                MouseGestureShowLayerWhenHidden = MouseGestureShowLayerWhenHidden,
+                PrefixShowLayerWhenVisible = PrefixShowLayerWhenVisible,
+                PrefixShowLayerWhenHidden = PrefixShowLayerWhenHidden,
                 PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,

@@ -99,6 +99,7 @@ public class ConfigService
     private const int MinGestureRadius = 0;
     private const int MaxGestureRadius = 320;
     private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
+    private static int NormalizeShowLayerPreference(int value) => value < 0 ? -1 : Math.Clamp(value, 0, 3);
 
     private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
     private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
@@ -211,6 +212,11 @@ public class ConfigService
                 };
             }
         }
+
+        cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenVisible);
+        cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenHidden);
+        cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenVisible);
+        cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenHidden);
     }
 
     private static bool Migrate(AppConfig cfg)
@@ -545,6 +551,16 @@ public class ConfigService
                 }
             }
             cfg.Version = 26;
+            changed = true;
+        }
+
+        if (cfg.Version < 27)
+        {
+            cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(-1);
+            cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(-1);
+            cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(-1);
+            cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(-1);
+            cfg.Version = 27;
             changed = true;
         }
 

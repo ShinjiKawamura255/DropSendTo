@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 26;
+    public int Version { get; set; } = 27;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -28,6 +28,10 @@ public class AppConfig
     public bool MouseGestureEnforceRadiusLimit { get; set; } = true;
     public int MouseGestureMinRadiusPixels { get; set; } = 0;
     public int MouseGestureMaxRadiusPixels { get; set; } = 140;
+    public int MouseGestureShowLayerWhenVisible { get; set; } = -1;
+    public int MouseGestureShowLayerWhenHidden { get; set; } = -1;
+    public int PrefixShowLayerWhenVisible { get; set; } = -1;
+    public int PrefixShowLayerWhenHidden { get; set; } = -1;
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;
     public SlotSize SlotSize { get; set; } = SlotSize.Medium;
