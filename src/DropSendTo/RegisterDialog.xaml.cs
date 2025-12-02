@@ -73,6 +73,7 @@ public partial class RegisterDialog : Window
         }
     }
     private MacroTipsWindow? _tipsWindow;
+    private MacroSnippetSearchWindow? _snippetSearchWindow;
     private readonly MacroRecordingService _recordingService = new();
     private int _recordedLineCount;
     private int _recordingStartTextLength;
@@ -413,6 +414,12 @@ public partial class RegisterDialog : Window
             _tipsWindow.Closed -= OnTipsWindowClosed;
             _tipsWindow.Close();
             _tipsWindow = null;
+        }
+        if (_snippetSearchWindow is { })
+        {
+            _snippetSearchWindow.SnippetChosen -= OnSnippetSearchChosen;
+            _snippetSearchWindow.Close();
+            _snippetSearchWindow = null;
         }
         if (RecordStartButton != null)
         {
@@ -829,12 +836,35 @@ public partial class RegisterDialog : Window
 
     private void OnMacroSnippetSearchClick(object sender, RoutedEventArgs e)
     {
-        var entries = BuildMacroSnippetEntries();
-        var dialog = new MacroSnippetSearchWindow(entries) { Owner = this };
-        WindowCascadeService.Arrange(dialog, this);
-        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.SelectedSnippet))
+        if (_snippetSearchWindow is { IsVisible: true })
         {
-            InsertMacroSnippet(dialog.SelectedSnippet);
+            _snippetSearchWindow.Activate();
+            return;
+        }
+
+        var entries = BuildMacroSnippetEntries();
+        _snippetSearchWindow = new MacroSnippetSearchWindow(entries)
+        {
+            Owner = this
+        };
+        _snippetSearchWindow.SnippetChosen += OnSnippetSearchChosen;
+        _snippetSearchWindow.Closed += (_, _) =>
+        {
+            if (_snippetSearchWindow != null)
+            {
+                _snippetSearchWindow.SnippetChosen -= OnSnippetSearchChosen;
+                _snippetSearchWindow = null;
+            }
+        };
+        WindowCascadeService.Arrange(_snippetSearchWindow, this);
+        _snippetSearchWindow.Show();
+    }
+
+    private void OnSnippetSearchChosen(object? sender, string snippet)
+    {
+        if (!string.IsNullOrWhiteSpace(snippet))
+        {
+            InsertMacroSnippet(snippet);
         }
     }
 
@@ -879,8 +909,9 @@ public partial class RegisterDialog : Window
 
         MacroBox.Focus();
         var selectionStart = MacroBox.SelectionStart;
-        MacroBox.SelectedText = snippet;
-        MacroBox.CaretIndex = selectionStart + snippet.Length;
+        var insertion = snippet.EndsWith(Environment.NewLine, StringComparison.Ordinal) ? snippet : snippet + Environment.NewLine;
+        MacroBox.SelectedText = insertion;
+        MacroBox.CaretIndex = selectionStart + insertion.Length;
 
         try
         {

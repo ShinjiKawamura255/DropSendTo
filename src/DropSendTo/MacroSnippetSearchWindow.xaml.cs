@@ -14,6 +14,7 @@ public partial class MacroSnippetSearchWindow : Window
     private readonly ObservableCollection<MacroSnippetEntry> _filtered = new();
 
     public string? SelectedSnippet { get; private set; }
+    public event EventHandler<string>? SnippetChosen;
 
     public MacroSnippetSearchWindow(IEnumerable<MacroSnippetEntry> snippets)
     {
@@ -51,8 +52,7 @@ public partial class MacroSnippetSearchWindow : Window
         if (SnippetList.SelectedItem is MacroSnippetEntry entry)
         {
             SelectedSnippet = entry.Content;
-            DialogResult = true;
-            Close();
+            SnippetChosen?.Invoke(this, entry.Content);
         }
     }
 
