@@ -32,7 +32,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
             <StackPanel Margin="0,0,4,0">
                 <TextBlock Text="Macro Script Tips" FontSize="18" FontWeight="Bold" Margin="0,0,0,12"/>
 
