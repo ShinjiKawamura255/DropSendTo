@@ -2362,6 +2362,7 @@ public partial class MainWindow : Window
     private async Task MoveSlotAsync(int sourceLayerIndex, int sourceSlotIndex)
     {
         var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
+        sourceSlot.MinimizeOptions ??= SlotMinimizeOptions.CreateDefault();
         if (IsSlotEmpty(sourceSlot))
         {
             WpfMessageBox.Show("空のスロットは移動できません。", "Move Slot", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -2401,6 +2402,7 @@ public partial class MainWindow : Window
     private async Task CopySlotAsync(int sourceLayerIndex, int sourceSlotIndex)
     {
         var sourceSlot = _config.Layers[sourceLayerIndex].Slots[sourceSlotIndex];
+        sourceSlot.MinimizeOptions ??= SlotMinimizeOptions.CreateDefault();
         if (IsSlotEmpty(sourceSlot))
         {
             WpfMessageBox.Show("空のスロットはコピーできません。", "Copy Slot", MessageBoxButton.OK, MessageBoxImage.Information);
