@@ -2133,7 +2133,15 @@ public partial class MainWindow : Window
             ShortcutKey = source.ShortcutKey,
             KeyboardMacroScript = source.KeyboardMacroScript,
             ExecutionMode = source.ExecutionMode,
-            AccentColor = source.AccentColor
+            AccentColor = source.AccentColor,
+            MinimizeOptions = source.MinimizeOptions == null
+                ? SlotMinimizeOptions.CreateDefault()
+                : new SlotMinimizeOptions
+                {
+                    EnableOnClick = source.MinimizeOptions.EnableOnClick,
+                    EnableOnShortcut = source.MinimizeOptions.EnableOnShortcut,
+                    EnableOnDrop = source.MinimizeOptions.EnableOnDrop
+                }
         };
     }
 
