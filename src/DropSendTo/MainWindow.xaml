@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="DropSendTo"
         Icon="img/icon.ico" Height="148" Width="234"
+        AllowDrop="True"
         Topmost="True"
         AllowsTransparency="True"
         Background="Transparent"

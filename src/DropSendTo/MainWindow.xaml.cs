@@ -30,6 +30,7 @@ using WpfButton = System.Windows.Controls.Button;
 using WpfDataFormats = System.Windows.DataFormats;
 using WpfDragDropEffects = System.Windows.DragDropEffects;
 using DrawingIcon = System.Drawing.Icon;
+using DrawingPoint = System.Drawing.Point;
 
 namespace DropSendTo;
 
@@ -3757,8 +3758,10 @@ public partial class MainWindow : Window
             PositionWindowAtMouse();
         }
         BringWindowToForeground();
+        RearmDragDropTargets();
         ActivateKeyboardNavigation();
         ShowLayerNameOverlay();
+        RefreshDragHoverIfMouseButtonDown();
     }
 
     private void OnPrefixMinimizeRequested(object? sender, EventArgs e)
@@ -3772,13 +3775,20 @@ public partial class MainWindow : Window
         HideLayerNameOverlayImmediate();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.MouseGesture, wasHidden);
-        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        bool isDrag = IsAnyMouseButtonPressed();
+        if (isDrag)
+        {
+            PositionWindowNearCursorForDragGesture();
+        }
+        else if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
         }
         BringWindowToForeground();
+        RearmDragDropTargets();
         ActivateKeyboardNavigation();
         ShowLayerNameOverlay();
+        RefreshDragHoverIfMouseButtonDown();
     }
 
     private void OnMouseGestureHideRequested(object? sender, EventArgs e)
@@ -3811,6 +3821,106 @@ public partial class MainWindow : Window
     private void OnPrefixPositionToggleRequested(object? sender, EventArgs e)
     {
         ToggleWindowPlacementMode();
+    }
+
+    // When the window is summoned during a drag, force a minimal cursor move so WPF delivers DragEnter/DragOver immediately.
+    private void RefreshDragHoverIfMouseButtonDown()
+    {
+        if (!IsAnyMouseButtonPressed())
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(SendMinimalDragHoverPulse));
+        SendMinimalDragHoverPulse();
+    }
+
+    private static bool IsAnyMouseButtonPressed()
+    {
+        return NativeMethods.IsKeyPressed(NativeMethods.VK_LBUTTON)
+               || NativeMethods.IsKeyPressed(NativeMethods.VK_RBUTTON)
+               || NativeMethods.IsKeyPressed(NativeMethods.VK_MBUTTON)
+               || NativeMethods.IsKeyPressed(NativeMethods.VK_XBUTTON1)
+               || NativeMethods.IsKeyPressed(NativeMethods.VK_XBUTTON2);
+    }
+
+    private void RearmDragDropTargets()
+    {
+        bool allow = AllowDrop;
+        AllowDrop = false;
+        AllowDrop = allow;
+
+        foreach (var slot in _slotVisuals)
+        {
+            slot.Border.AllowDrop = false;
+            slot.Border.AllowDrop = true;
+        }
+    }
+
+    private void SendMinimalDragHoverPulse()
+    {
+        if (!IsAnyMouseButtonPressed())
+        {
+            return;
+        }
+
+        // Zero or 1px wiggle to force drag hit testing without moving far.
+        if (!NativeMethods.SendMouseMoveRelative(0, 0))
+        {
+            NativeMethods.MouseEventMove(0, 0);
+        }
+        if (!NativeMethods.SendMouseMoveRelative(1, 0))
+        {
+            NativeMethods.MouseEventMove(1, 0);
+        }
+        if (!NativeMethods.SendMouseMoveRelative(-1, 0))
+        {
+            NativeMethods.MouseEventMove(-1, 0);
+        }
+    }
+
+    private void PositionWindowNearCursorForDragGesture()
+    {
+        if (!TryGetCursorPosition(out var cursor))
+        {
+            return;
+        }
+
+        var logicalCursor = ConvertScreenToDeviceIndependent(new System.Windows.Point(cursor.X, cursor.Y));
+        var rect = GetWindowRect();
+        double desiredLeft = logicalCursor.X - rect.Width / 2.0;
+        const double offset = 16;
+
+        var bounds = ScreenBoundsResolver.ForRect(this, new Rect(desiredLeft, logicalCursor.Y, rect.Width, rect.Height));
+        double spaceBelow = bounds.Bottom - (logicalCursor.Y + offset);
+        double spaceAbove = (logicalCursor.Y - offset) - bounds.Top;
+        bool preferBelow = spaceBelow >= rect.Height || spaceBelow >= spaceAbove;
+        double desiredTop = preferBelow
+            ? logicalCursor.Y + offset
+            : logicalCursor.Y - offset - rect.Height;
+
+        var (left, top) = _placement.Clamp(desiredLeft, desiredTop, bounds, rect.Width, rect.Height);
+        Left = left;
+        Top = top;
+    }
+
+    private System.Windows.Point ConvertScreenToDeviceIndependent(System.Windows.Point screenPoint)
+    {
+        var source = PresentationSource.FromVisual(this);
+        var matrix = source?.CompositionTarget?.TransformFromDevice ?? System.Windows.Media.Matrix.Identity;
+        return matrix.Transform(screenPoint);
+    }
+
+    private static bool TryGetCursorPosition(out DrawingPoint point)
+    {
+        if (NativeMethods.GetCursorPos(out var nativePoint))
+        {
+            point = new DrawingPoint(nativePoint.X, nativePoint.Y);
+            return true;
+        }
+
+        point = default;
+        return false;
     }
 
     private void OnPrefixNextLayerRequested(object? sender, EventArgs e)
@@ -4100,6 +4210,13 @@ public partial class MainWindow : Window
     private static class NativeMethods
     {
         internal const int SW_RESTORE = 9;
+        internal const int VK_LBUTTON = 0x01;
+        internal const int VK_RBUTTON = 0x02;
+        internal const int VK_MBUTTON = 0x04;
+        internal const int VK_XBUTTON1 = 0x05;
+        internal const int VK_XBUTTON2 = 0x06;
+        private const int MOUSEEVENTF_MOVE = 0x0001;
+        private const int INPUT_MOUSE = 0;
 
         [DllImport("user32.dll")]
         internal static extern bool IsIconic(IntPtr hWnd);
@@ -4119,10 +4236,84 @@ public partial class MainWindow : Window
         [DllImport("user32.dll")]
         internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+        [DllImport("user32.dll")]
+        internal static extern short GetAsyncKeyState(int vKey);
+
+        [DllImport("user32.dll")]
+        internal static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        internal static extern bool SetCursorPos(int X, int Y);
+
+        [DllImport("user32.dll")]
+        internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, UIntPtr dwExtraInfo);
+
+        [DllImport("user32.dll")]
+        internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
         [DllImport("kernel32.dll")]
         internal static extern uint GetCurrentThreadId();
 
         [DllImport("user32.dll")]
         internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct INPUT
+        {
+            public int type;
+            public MOUSEINPUT mi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        internal static bool IsKeyPressed(int virtualKey) => (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+
+        internal static void MouseEventMove(int dx, int dy) => mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, UIntPtr.Zero);
+
+        internal static bool SendMouseMoveRelative(int dx, int dy)
+        {
+            var input = new INPUT
+            {
+                type = INPUT_MOUSE,
+                mi = new MOUSEINPUT
+                {
+                    dx = dx,
+                    dy = dy,
+                    mouseData = 0,
+                    dwFlags = MOUSEEVENTF_MOVE,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
+                }
+            };
+            return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
+        }
     }
 }
