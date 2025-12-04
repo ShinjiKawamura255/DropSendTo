@@ -1250,7 +1250,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var tokens = query.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var tokens = query
+            .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(NormalizeTokenForSearch)
+            .Where(t => !string.IsNullOrEmpty(t))
+            .ToArray();
         if (tokens.Length == 0)
         {
             return;
@@ -1285,6 +1289,19 @@ public partial class MainWindow : Window
         var normalized = NormalizeForSearch(baseText);
         var romaji = ConvertKanaToRomaji(baseText);
         return string.Join(" ", baseText, normalized, romaji);
+    }
+
+    private static string NormalizeTokenForSearch(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return string.Empty;
+        }
+
+        var cleaned = token
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("ー", string.Empty, StringComparison.Ordinal);
+        return NormalizeForSearch(cleaned);
     }
 
     private static bool MatchesAllTokens(string haystack, IReadOnlyList<string> tokens)
