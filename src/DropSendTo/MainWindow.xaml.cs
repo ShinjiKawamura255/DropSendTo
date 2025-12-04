@@ -60,6 +60,11 @@ public partial class MainWindow : Window
     private bool _minimizeOnLoaded;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
+    private SearchOverlayWindow? _searchOverlayWindow;
+    private bool _searchLayerActive;
+    private string _searchQuery = string.Empty;
+    private readonly List<SearchResult> _searchResults = new();
+    private readonly List<VisibleSlotMapping> _visibleSlotMappings = new();
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
     private static readonly SolidColorBrush PrefixArmedBorderBrush;
     private static readonly SolidColorBrush PrefixArmedForegroundBrush;
@@ -328,6 +333,20 @@ public partial class MainWindow : Window
         return SlotColorSchemes[SlotAccentColor.Default];
     }
 
+    private void RenderEmptySlot(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= _slotVisuals.Count)
+        {
+            return;
+        }
+
+        var visual = _slotVisuals[slotIndex];
+        visual.Title.Text = string.Empty;
+        visual.DragPreviewHost.Visibility = Visibility.Collapsed;
+        UpdateSlotStatusVisual(visual, string.Empty, MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
+        ApplySlotColor(slotIndex);
+    }
+
     private void ApplySlotColor(int slotIndex)
     {
         if (_config == null || slotIndex < 0 || slotIndex >= _slotVisuals.Count)
@@ -335,18 +354,25 @@ public partial class MainWindow : Window
             return;
         }
 
-        var layer = _config.Layers[_currentLayer];
-        if (slotIndex >= layer.Slots.Count)
+        var visual = _slotVisuals[slotIndex];
+
+        if (!TryGetVisibleSlotModel(slotIndex, out _, out _, out var slot))
         {
+            var defaultScheme = GetSlotColorScheme(SlotAccentColor.Default);
+            visual.Border.Background = defaultScheme.Background;
+            visual.Border.BorderBrush = defaultScheme.Border;
+            visual.Title.Foreground = defaultScheme.Title;
+            visual.Border.IsEnabled = false;
+            visual.Border.Opacity = 0.7;
             return;
         }
 
-        var slot = layer.Slots[slotIndex];
         var scheme = GetSlotColorScheme(slot.AccentColor);
-        var visual = _slotVisuals[slotIndex];
         visual.Border.Background = scheme.Background;
         visual.Border.BorderBrush = scheme.Border;
         visual.Title.Foreground = scheme.Title;
+        visual.Border.IsEnabled = true;
+        visual.Border.Opacity = 1;
     }
 
     private void UpdateKeyboardSelectionVisual()
@@ -359,7 +385,8 @@ public partial class MainWindow : Window
         for (int i = 0; i < _slotVisuals.Count; i++)
         {
             bool isSelected = _keyboardNavigationActive && i == _keyboardSelectedSlotIndex;
-            ApplyKeyboardSelectionVisual(_slotVisuals[i], isSelected);
+            bool hasSlot = TryGetVisibleSlot(i, out _, out _);
+            ApplyKeyboardSelectionVisual(_slotVisuals[i], isSelected && hasSlot);
         }
     }
 
@@ -422,6 +449,8 @@ public partial class MainWindow : Window
         }
 
         CaptureFixedWindowPosition(clampBeforeStoring: true);
+        CloseSearchLayer();
+        HideLayerNameOverlayImmediate();
         _isMinimizedToTray = true;
         if (_config.LastWindowVisibility != WindowVisibilityState.Tray)
         {
@@ -556,6 +585,7 @@ public partial class MainWindow : Window
         UpdateSlotPanelEditModePadding();
         UpdateWindowSize(rows, columns);
         ClampWindowWithinBounds();
+        RefreshVisibleSlotMappings();
         UpdateKeyboardSelectionVisual();
     }
 
@@ -840,7 +870,7 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
-        if (HandleKeyboardNavigationKey(e) || HandleLayerSelectionKey(e))
+        if (HandleSearchKey(e) || HandleKeyboardNavigationKey(e) || HandleLayerSelectionKey(e))
         {
             e.Handled = true;
             return;
@@ -856,6 +886,28 @@ public partial class MainWindow : Window
             DeactivateKeyboardNavigation();
         }
         base.OnPreviewMouseDown(e);
+    }
+
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        if (_layerNameOverlayWindow?.IsVisible == true)
+        {
+            PositionLayerNameOverlay(_layerNameOverlayWindow);
+        }
+        if (_searchOverlayWindow?.IsVisible == true)
+        {
+            PositionSearchOverlay();
+        }
+    }
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+    {
+        base.OnRenderSizeChanged(sizeInfo);
+        if (_searchOverlayWindow?.IsVisible == true)
+        {
+            PositionSearchOverlay();
+        }
     }
 
     protected override void OnDeactivated(EventArgs e)
@@ -880,6 +932,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (_searchLayerActive)
+        {
+            CloseSearchLayer();
+        }
+
         var target = Math.Clamp(index, 0, totalLayers - 1);
         if (target == _currentLayer)
         {
@@ -890,11 +947,6 @@ public partial class MainWindow : Window
         _currentLayer = target;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
-        if (_keyboardNavigationActive)
-        {
-            NormalizeKeyboardSelectionIndex();
-            UpdateKeyboardSelectionVisual();
-        }
 
         ShowLayerNameOverlay();
     }
@@ -953,6 +1005,30 @@ public partial class MainWindow : Window
         return new Rect(Left, Top, width, height);
     }
 
+    private void PositionOverlayWindow(Window overlay)
+    {
+        overlay.InvalidateMeasure();
+        overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
+        overlay.Width = overlay.DesiredSize.Width;
+        overlay.Height = overlay.DesiredSize.Height;
+        overlay.UpdateLayout();
+
+        var anchorRect = GetWindowRect();
+        var bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
+        const double offset = 10;
+
+        double targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
+        double targetTop = anchorRect.Top - overlay.Height - offset;
+        if (targetTop < bounds.Top)
+        {
+            targetTop = anchorRect.Bottom + offset;
+        }
+
+        var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
+        overlay.Left = clampedLeft;
+        overlay.Top = clampedTop;
+    }
+
     private LayerNameOverlayWindow EnsureLayerNameOverlay()
     {
         if (_layerNameOverlayWindow == null)
@@ -979,27 +1055,19 @@ public partial class MainWindow : Window
 
     private void PositionLayerNameOverlay(LayerNameOverlayWindow overlay)
     {
-        overlay.InvalidateMeasure();
-        overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
-        overlay.Width = overlay.DesiredSize.Width;
-        overlay.Height = overlay.DesiredSize.Height;
-        overlay.UpdateLayout();
+        PositionOverlayWindow(overlay);
+    }
 
-        var anchorRect = GetWindowRect();
-        var bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
-        const double offset = 10;
-
-        double targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
-        double targetTop = anchorRect.Top - overlay.Height - offset;
-        bool canPlaceTop = targetTop >= bounds.Top;
-        if (!canPlaceTop)
+    private void UpdateOverlayTopmost()
+    {
+        if (_layerNameOverlayWindow != null)
         {
-            targetTop = anchorRect.Bottom + offset;
+            _layerNameOverlayWindow.Topmost = this.Topmost;
         }
-
-        var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
-        overlay.Left = clampedLeft;
-        overlay.Top = clampedTop;
+        if (_searchOverlayWindow != null)
+        {
+            _searchOverlayWindow.Topmost = this.Topmost;
+        }
     }
 
     private async Task FadeLayerNameOverlayAsync(LayerNameOverlayWindow overlay, double targetOpacity, TimeSpan duration, CancellationToken token)
@@ -1077,6 +1145,293 @@ public partial class MainWindow : Window
         }
     }
 
+    private SearchOverlayWindow EnsureSearchOverlay()
+    {
+        if (_searchOverlayWindow == null)
+        {
+            _searchOverlayWindow = new SearchOverlayWindow
+            {
+                Owner = this,
+                Topmost = this.Topmost
+            };
+            _searchOverlayWindow.SearchTextChanged += OnSearchOverlayTextChanged;
+            _searchOverlayWindow.CancelRequested += OnSearchOverlayCancelRequested;
+            _searchOverlayWindow.SlotNavigationRequested += OnSearchOverlaySlotNavigationRequested;
+        }
+        return _searchOverlayWindow;
+    }
+
+    private void PositionSearchOverlay()
+    {
+        if (_searchOverlayWindow == null)
+        {
+            return;
+        }
+        PositionOverlayWindow(_searchOverlayWindow);
+    }
+
+    private void HideSearchOverlay()
+    {
+        _searchOverlayWindow?.Hide();
+    }
+
+    private void OpenSearchLayer()
+    {
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        _searchLayerActive = true;
+        SetSlotLayoutEditMode(false);
+        var overlay = EnsureSearchOverlay();
+        overlay.Topmost = this.Topmost;
+        overlay.Query = _searchQuery;
+        overlay.Show();
+        overlay.UpdateLayout();
+        PositionSearchOverlay();
+        _ = Dispatcher.BeginInvoke(new Action(PositionSearchOverlay), DispatcherPriority.Background);
+        overlay.FocusInput(selectAll: string.IsNullOrEmpty(_searchQuery));
+        RebuildSearchResults();
+        RefreshUi();
+    }
+
+    private void CloseSearchLayer()
+    {
+        if (!_searchLayerActive && _searchOverlayWindow?.IsVisible != true)
+        {
+            return;
+        }
+
+        _searchLayerActive = false;
+        _searchQuery = string.Empty;
+        _searchResults.Clear();
+        HideSearchOverlay();
+        RefreshUi();
+    }
+
+    private void OnSearchOverlayTextChanged(object? sender, string text)
+    {
+        _searchQuery = text ?? string.Empty;
+        RebuildSearchResults();
+        RefreshUi();
+    }
+
+    private void OnSearchOverlayCancelRequested(object? sender, EventArgs e)
+    {
+        CloseSearchLayer();
+    }
+
+    private void OnSearchOverlaySlotNavigationRequested(object? sender, EventArgs e)
+    {
+        if (!_searchLayerActive)
+        {
+            return;
+        }
+
+        BringWindowToForeground();
+        ActivateKeyboardNavigation();
+        NormalizeKeyboardSelectionIndex();
+        UpdateKeyboardSelectionVisual();
+    }
+
+    private void RebuildSearchResults()
+    {
+        _searchResults.Clear();
+        if (!_searchLayerActive)
+        {
+            return;
+        }
+
+        var query = (_searchQuery ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(query) || _config?.Layers == null)
+        {
+            return;
+        }
+
+        var tokens = query.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return;
+        }
+
+        for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
+        {
+            var layer = _config.Layers[layerIndex];
+            if (layer?.Slots == null) continue;
+            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            {
+                var slot = layer.Slots[slotIndex];
+                if (slot == null || IsSlotEmpty(slot))
+                {
+                    continue;
+                }
+
+                var haystack = BuildSlotSearchText(slot);
+                if (MatchesAllTokens(haystack, tokens))
+                {
+                    _searchResults.Add(new SearchResult(layerIndex, slotIndex));
+                }
+            }
+        }
+    }
+
+    private static string BuildSlotSearchText(SlotModel slot)
+    {
+        var title = slot.Title ?? string.Empty;
+        var keywords = slot.SearchKeywords ?? string.Empty;
+        return (title + " " + keywords).ReplaceLineEndings(" ");
+    }
+
+    private static bool MatchesAllTokens(string haystack, IReadOnlyList<string> tokens)
+    {
+        if (tokens.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var token in tokens)
+        {
+            if (!IsFuzzyMatch(haystack, token))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsFuzzyMatch(string haystack, string token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return true;
+        }
+
+        if (haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        return IsSubsequence(haystack, token);
+    }
+
+    private static bool IsSubsequence(string haystack, string token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return true;
+        }
+
+        int hIndex = 0;
+        var source = haystack.ToLowerInvariant();
+        var needle = token.ToLowerInvariant();
+        foreach (char ch in needle)
+        {
+            hIndex = source.IndexOf(ch, hIndex);
+            if (hIndex < 0)
+            {
+                return false;
+            }
+            hIndex++;
+        }
+        return true;
+    }
+
+    private void RefreshVisibleSlotMappings()
+    {
+        _visibleSlotMappings.Clear();
+        if (_slotVisuals.Count == 0)
+        {
+            return;
+        }
+
+        if (_searchLayerActive)
+        {
+            int max = Math.Min(_slotVisuals.Count, _searchResults.Count);
+            for (int i = 0; i < max; i++)
+            {
+                var result = _searchResults[i];
+                _visibleSlotMappings.Add(new VisibleSlotMapping(result.LayerIndex, result.SlotIndex));
+            }
+            while (_visibleSlotMappings.Count < _slotVisuals.Count)
+            {
+                _visibleSlotMappings.Add(VisibleSlotMapping.Empty);
+            }
+        }
+        else
+        {
+            for (int i = 0; i < _slotVisuals.Count; i++)
+            {
+                _visibleSlotMappings.Add(new VisibleSlotMapping(_currentLayer, i));
+            }
+        }
+    }
+
+    private bool TryGetVisibleSlot(int displayIndex, out int layerIndex, out int slotIndex)
+    {
+        layerIndex = -1;
+        slotIndex = -1;
+        if (displayIndex < 0 || displayIndex >= _visibleSlotMappings.Count)
+        {
+            return false;
+        }
+
+        var map = _visibleSlotMappings[displayIndex];
+        if (map.IsEmpty)
+        {
+            return false;
+        }
+
+        layerIndex = map.LayerIndex;
+        slotIndex = map.SlotIndex;
+        return true;
+    }
+
+    private bool TryGetVisibleSlotModel(int displayIndex, out int layerIndex, out int slotIndex, out SlotModel slot)
+    {
+        slot = null!;
+        if (!TryGetVisibleSlot(displayIndex, out layerIndex, out slotIndex))
+        {
+            return false;
+        }
+
+        if (_config?.Layers == null || layerIndex < 0 || layerIndex >= _config.Layers.Count)
+        {
+            return false;
+        }
+
+        var layer = _config.Layers[layerIndex];
+        if (layer.Slots == null || slotIndex < 0 || slotIndex >= layer.Slots.Count)
+        {
+            return false;
+        }
+
+        slot = layer.Slots[slotIndex];
+        return slot != null;
+    }
+
+    private bool TryFindDisplayIndex(int layerIndex, int slotIndex, out int displayIndex)
+    {
+        for (int i = 0; i < _visibleSlotMappings.Count; i++)
+        {
+            var map = _visibleSlotMappings[i];
+            if (!map.IsEmpty && map.LayerIndex == layerIndex && map.SlotIndex == slotIndex)
+            {
+                displayIndex = i;
+                return true;
+            }
+        }
+
+        displayIndex = -1;
+        return false;
+    }
+
+    private void FocusSearchOverlayInput(bool selectAll)
+    {
+        var overlay = EnsureSearchOverlay();
+        overlay.FocusInput(selectAll);
+    }
+
 
     private void ActivateKeyboardNavigation()
     {
@@ -1092,16 +1447,31 @@ public partial class MainWindow : Window
         UpdateKeyboardSelectionVisual();
     }
 
+    private int GetNavigableSlotCount()
+    {
+        if (_searchLayerActive)
+        {
+            return Math.Min(_slotVisuals.Count, _searchResults.Count);
+        }
+        return _slotVisuals.Count;
+    }
+
     private void NormalizeKeyboardSelectionIndex()
     {
-        int totalSlots = _config.SlotRows * _config.SlotColumns;
+        int totalSlots = GetNavigableSlotCount();
+        if (totalSlots <= 0)
+        {
+            _keyboardSelectedSlotIndex = -1;
+            return;
+        }
+
         if (_keyboardSelectedSlotIndex >= totalSlots)
         {
             _keyboardSelectedSlotIndex = totalSlots - 1;
         }
-        if (_keyboardSelectedSlotIndex < 0 && totalSlots == 0)
+        if (_keyboardSelectedSlotIndex < 0)
         {
-            _keyboardSelectedSlotIndex = -1;
+            _keyboardSelectedSlotIndex = totalSlots - 1;
         }
     }
 
@@ -1109,6 +1479,14 @@ public partial class MainWindow : Window
     {
         if (!_keyboardNavigationActive)
         {
+            return;
+        }
+
+        int totalSlots = GetNavigableSlotCount();
+        if (totalSlots <= 0)
+        {
+            _keyboardSelectedSlotIndex = -1;
+            UpdateKeyboardSelectionVisual();
             return;
         }
 
@@ -1134,8 +1512,63 @@ public partial class MainWindow : Window
 
         row = Math.Clamp(row + deltaRow, 0, rows - 1);
         column = Math.Clamp(column + deltaColumn, 0, columns - 1);
-        _keyboardSelectedSlotIndex = row * columns + column;
+        _keyboardSelectedSlotIndex = Math.Min(row * columns + column, totalSlots - 1);
         UpdateKeyboardSelectionVisual();
+    }
+
+    private bool HandleSearchKey(System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
+        bool viEnabled = _config?.EnableViNavigation ?? true;
+
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return false;
+        }
+
+        if (_searchLayerActive && modifiers == System.Windows.Input.ModifierKeys.None && key == System.Windows.Input.Key.Escape)
+        {
+            CloseSearchLayer();
+            return true;
+        }
+
+        if (_searchLayerActive && emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.G)
+        {
+            CloseSearchLayer();
+            return true;
+        }
+
+        if (viEnabled &&
+            modifiers == System.Windows.Input.ModifierKeys.None &&
+            (key == System.Windows.Input.Key.Oem2 || key == System.Windows.Input.Key.OemQuestion || key == System.Windows.Input.Key.Divide))
+        {
+            OpenSearchLayer();
+            return true;
+        }
+
+        if (emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control)
+        {
+            if (key == System.Windows.Input.Key.S)
+            {
+                OpenSearchLayer();
+                return true;
+            }
+
+            if (key == System.Windows.Input.Key.F)
+            {
+                return false;
+            }
+        }
+
+        if (modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.F)
+        {
+            OpenSearchLayer();
+            return true;
+        }
+
+        return false;
     }
 
     private bool HandleKeyboardNavigationKey(System.Windows.Input.KeyEventArgs e)
@@ -1152,6 +1585,23 @@ public partial class MainWindow : Window
 
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
         NavigationCommand command = NavigationCommand.MoveUp;
+        if (_searchLayerActive && key == System.Windows.Input.Key.Tab &&
+            (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None ||
+             System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Shift))
+        {
+            if (_keyboardNavigationActive)
+            {
+                FocusSearchOverlayInput(selectAll: false);
+                DeactivateKeyboardNavigation();
+            }
+            else
+            {
+                ActivateKeyboardNavigation();
+                NormalizeKeyboardSelectionIndex();
+                UpdateKeyboardSelectionVisual();
+            }
+            return true;
+        }
         if (_metaPrefixPending && DateTime.UtcNow <= _metaPrefixExpiryUtc &&
             System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None)
         {
@@ -1214,7 +1664,7 @@ public partial class MainWindow : Window
                 {
                     int index = _keyboardSelectedSlotIndex;
                     DeactivateKeyboardNavigation();
-                    _ = TriggerSlotAsync(_currentLayer, index, SlotTriggerKind.Shortcut);
+                    _ = TriggerVisibleSlotAsync(index, SlotTriggerKind.Shortcut);
                 }
                 return true;
             case NavigationCommand.Cancel:
@@ -1361,6 +1811,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        int totalSlots = GetNavigableSlotCount();
+        if (totalSlots <= 0)
+        {
+            return;
+        }
+
         int rows = _config.SlotRows;
         int columns = _config.SlotColumns;
         if (rows <= 0 || columns <= 0)
@@ -1370,14 +1826,14 @@ public partial class MainWindow : Window
 
         if (_keyboardSelectedSlotIndex < 0)
         {
-            _keyboardSelectedSlotIndex = 0;
+            _keyboardSelectedSlotIndex = Math.Min(0, totalSlots - 1);
             UpdateKeyboardSelectionVisual();
             return;
         }
 
         int row = _keyboardSelectedSlotIndex / columns;
         int column = start ? 0 : columns - 1;
-        _keyboardSelectedSlotIndex = row * columns + column;
+        _keyboardSelectedSlotIndex = Math.Min(row * columns + column, totalSlots - 1);
         UpdateKeyboardSelectionVisual();
     }
 
@@ -1789,19 +2245,22 @@ public partial class MainWindow : Window
     {
         if (sender is not FrameworkElement fe) return;
         var idx = GetSlotIndex(fe);
-        var slot = _config.Layers[_currentLayer].Slots[idx];
+        if (!TryGetVisibleSlotModel(idx, out var layerIndex, out var slotIndex, out var slot))
+        {
+            return;
+        }
         var emptyTargets = GetEmptySlotOptions();
         bool sourceHasContent = !IsSlotEmpty(slot);
-        bool hasMoveTargets = emptyTargets.Any(opt => opt.LayerIndex != _currentLayer || opt.SlotIndex != idx);
+        bool hasMoveTargets = emptyTargets.Any(opt => opt.LayerIndex != layerIndex || opt.SlotIndex != slotIndex);
         bool hasCopyTargets = emptyTargets.Count > 0;
 
         var cm = new ContextMenu();
         var miEdit = new MenuItem { Header = "Edit..." };
         miEdit.Click += (_, _) => EditSlot(fe);
         var miMove = new MenuItem { Header = "Move to..." , IsEnabled = sourceHasContent && hasMoveTargets };
-        miMove.Click += async (_, _) => await MoveSlotAsync(_currentLayer, idx);
+        miMove.Click += async (_, _) => await MoveSlotAsync(layerIndex, slotIndex);
         var miCopy = new MenuItem { Header = "Copy to..." , IsEnabled = sourceHasContent && hasCopyTargets };
-        miCopy.Click += async (_, _) => await CopySlotAsync(_currentLayer, idx);
+        miCopy.Click += async (_, _) => await CopySlotAsync(layerIndex, slotIndex);
         var miClear = new MenuItem { Header = "Clear..." };
         miClear.Click += (_, _) => ClearSlot(fe);
         cm.Items.Add(miEdit);
@@ -1841,6 +2300,13 @@ public partial class MainWindow : Window
         Paused
     }
 
+    private sealed record SearchResult(int LayerIndex, int SlotIndex);
+    private readonly record struct VisibleSlotMapping(int LayerIndex, int SlotIndex)
+    {
+        public bool IsEmpty => LayerIndex < 0 || SlotIndex < 0;
+        public static VisibleSlotMapping Empty => new(-1, -1);
+    }
+
     private sealed record ShortcutBinding(string NormalizedKey, int LayerIndex, int SlotIndex);
     private sealed record SlotLayoutDragData(int SourceLayerIndex, int SourceSlotIndex);
     private sealed record SlotVisual(
@@ -1867,7 +2333,12 @@ public partial class MainWindow : Window
 
     private SlotMacroState GetSlotMacroState(int index)
     {
-        var context = GetSlotContext(_currentLayer, index);
+        if (!TryGetVisibleSlot(index, out var layerIndex, out var slotIndex))
+        {
+            return SlotMacroState.Idle;
+        }
+
+        var context = GetSlotContext(layerIndex, slotIndex);
         if (context == null) return SlotMacroState.Idle;
         if (context.CancellationRequested) return SlotMacroState.Cancelling;
         if (context.IsPaused) return SlotMacroState.Paused;
@@ -1900,7 +2371,8 @@ public partial class MainWindow : Window
                 break;
             default:
                 ApplySlotColor(index);
-                UpdateSlotStatusVisual(visual, "マクロ実行中...", MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
+                var statusText = TryGetVisibleSlot(index, out _, out _) ? "マクロ実行中..." : string.Empty;
+                UpdateSlotStatusVisual(visual, statusText, MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
                 break;
         }
     }
@@ -1948,9 +2420,9 @@ public partial class MainWindow : Window
         }
         _currentSlotRun = new SlotRunContext(layerIndex, index);
         UpdateNotifyIconState(true);
-        if (layerIndex == _currentLayer)
+        if (TryFindDisplayIndex(layerIndex, index, out var displayIndex))
         {
-            RenderSlotMacroState(index, SlotMacroState.Running);
+            RenderSlotMacroState(displayIndex, SlotMacroState.Running);
         }
     }
 
@@ -2007,7 +2479,7 @@ public partial class MainWindow : Window
 
     private void UpdateSlotVisual(SlotRunContext context)
     {
-        if (context.LayerIndex != _currentLayer)
+        if (!TryFindDisplayIndex(context.LayerIndex, context.SlotIndex, out var displayIndex))
         {
             return;
         }
@@ -2030,7 +2502,7 @@ public partial class MainWindow : Window
             state = SlotMacroState.Idle;
         }
 
-        RenderSlotMacroState(context.SlotIndex, state);
+        RenderSlotMacroState(displayIndex, state);
     }
 
     private void ClearSlotMacroState(int layerIndex, int index)
@@ -2042,17 +2514,18 @@ public partial class MainWindow : Window
             _currentSlotRun = _slotRunStack.Count > 0 ? _slotRunStack.Pop() : null;
         }
 
-        if (layerIndex == _currentLayer)
+        if (TryFindDisplayIndex(layerIndex, index, out var displayIndex))
         {
-            RenderSlotMacroState(index, SlotMacroState.Idle);
+            RenderSlotMacroState(displayIndex, SlotMacroState.Idle);
         }
 
-        if (_currentSlotRun != null && _currentSlotRun.LayerIndex == _currentLayer)
+        if (_currentSlotRun != null &&
+            TryFindDisplayIndex(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex, out var currentDisplayIndex))
         {
             var state = _currentSlotRun.CancellationRequested
                 ? SlotMacroState.Cancelling
                 : (_currentSlotRun.IsPaused ? SlotMacroState.Paused : SlotMacroState.Running);
-            RenderSlotMacroState(_currentSlotRun.SlotIndex, state);
+            RenderSlotMacroState(currentDisplayIndex, state);
         }
 
         if (!HasAnyRunningSlot() && !_macroService.IsMacroRunning)
@@ -2064,7 +2537,10 @@ public partial class MainWindow : Window
     private void EditSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
-        var slot = _config.Layers[_currentLayer].Slots[idx];
+        if (!TryGetVisibleSlotModel(idx, out _, out _, out var slot))
+        {
+            return;
+        }
         var dlg = new RegisterDialog(slot)
         {
             Owner = this
@@ -2081,6 +2557,7 @@ public partial class MainWindow : Window
             slot.ExecutionMode = args.ExecutionMode;
             slot.AccentColor = args.AccentColor;
             slot.MinimizeOptions = args.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
+            slot.SearchKeywords = args.SearchKeywords;
             _configService.Save(_config);
             RefreshUi();
         };
@@ -2091,7 +2568,10 @@ public partial class MainWindow : Window
     private void ClearSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
-        var slot = _config.Layers[_currentLayer].Slots[idx];
+        if (!TryGetVisibleSlotModel(idx, out var layerIndex, out var slotIndex, out var slot))
+        {
+            return;
+        }
         if (!IsSlotEmpty(slot))
         {
             var result = WpfMessageBox.Show(
@@ -2104,7 +2584,7 @@ public partial class MainWindow : Window
                 return;
             }
         }
-        _config.Layers[_currentLayer].Slots[idx] = new SlotModel();
+        _config.Layers[layerIndex].Slots[slotIndex] = new SlotModel();
         _configService.Save(_config);
         RefreshUi();
     }
@@ -2142,7 +2622,8 @@ public partial class MainWindow : Window
                     EnableOnClick = source.MinimizeOptions.EnableOnClick,
                     EnableOnShortcut = source.MinimizeOptions.EnableOnShortcut,
                     EnableOnDrop = source.MinimizeOptions.EnableOnDrop
-                }
+                },
+            SearchKeywords = source.SearchKeywords
         };
     }
 
@@ -2171,6 +2652,11 @@ public partial class MainWindow : Window
     private void TryBeginSlotLayoutDrag(FrameworkElement? fe)
     {
         if (!_isSlotLayoutEditMode || fe == null || _isSlotLayoutDragInProgress)
+        {
+            return;
+        }
+
+        if (_searchLayerActive)
         {
             return;
         }
@@ -2454,7 +2940,10 @@ public partial class MainWindow : Window
             var paths = (string[])e.Data.GetData(WpfDataFormats.FileDrop);
             if (sender is not FrameworkElement fe) return;
             int idx = GetSlotIndex(fe);
-            var slot = _config.Layers[_currentLayer].Slots[idx];
+            if (!TryGetVisibleSlotModel(idx, out var layerIndex, out var slotIndex, out var slot))
+            {
+                return;
+            }
             var mode = slot.ExecutionMode;
             if (mode == SlotExecutionMode.MacroScript)
             {
@@ -2466,7 +2955,7 @@ public partial class MainWindow : Window
                 WpfMessageBox.Show("No app registered for this slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            _ = TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Drop, paths);
+            _ = TriggerSlotAsync(layerIndex, slotIndex, SlotTriggerKind.Drop, paths);
             e.Handled = true;
         }
         catch (Exception ex)
@@ -2606,6 +3095,12 @@ public partial class MainWindow : Window
         if (isEnabled == _isSlotLayoutEditMode)
         {
             UpdateEditModeIndicatorText();
+            return;
+        }
+
+        if (isEnabled && _searchLayerActive)
+        {
+            WpfMessageBox.Show("検索レイヤー表示中はレイアウト編集モードに切り替えられません。検索を閉じてから再度お試しください。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -3031,6 +3526,7 @@ public partial class MainWindow : Window
         if (sender is not MenuItem item) return;
         Topmost = item.IsChecked;
         _config.AlwaysOnTop = Topmost;
+        UpdateOverlayTopmost();
         _configService.Save(_config);
     }
 
@@ -3480,6 +3976,16 @@ public partial class MainWindow : Window
         TryBeginSlotLayoutDrag(sender as FrameworkElement);
     }
 
+    private Task TriggerVisibleSlotAsync(int displayIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null)
+    {
+        if (!TryGetVisibleSlot(displayIndex, out var layerIndex, out var slotIndex))
+        {
+            return Task.CompletedTask;
+        }
+
+        return TriggerSlotAsync(layerIndex, slotIndex, trigger, droppedPaths);
+    }
+
     private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null)
     {
         if (slotIndex < 0 || slotIndex >= _slotVisuals.Count) return;
@@ -3693,7 +4199,7 @@ public partial class MainWindow : Window
             DeactivateKeyboardNavigation();
         }
         int idx = GetSlotIndex(fe);
-        await TriggerSlotAsync(_currentLayer, idx, SlotTriggerKind.Click);
+        await TriggerVisibleSlotAsync(idx, SlotTriggerKind.Click);
     }
 
     private void OnShortcutTriggered(object? sender, ShortcutTriggeredEventArgs e)
@@ -4010,11 +4516,25 @@ public partial class MainWindow : Window
 
     private void RefreshUi()
     {
-        var layer = _config.Layers[_currentLayer];
-        int baseNo = _currentLayer * _slotVisuals.Count;
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        if (_searchLayerActive)
+        {
+            RebuildSearchResults();
+        }
+        RefreshVisibleSlotMappings();
+        int baseNo = _searchLayerActive ? 0 : _currentLayer * _slotVisuals.Count;
         for (int i = 0; i < _slotVisuals.Count; i++)
         {
-            var slot = layer.Slots[i];
+            if (!TryGetVisibleSlotModel(i, out var layerIndex, out var slotIndex, out var slot))
+            {
+                RenderEmptySlot(i);
+                continue;
+            }
+
             string title = string.IsNullOrWhiteSpace(slot.Title)
                 ? $"Slot {baseNo + i + 1}"
                 : slot.Title;
@@ -4026,6 +4546,11 @@ public partial class MainWindow : Window
         // Layer button highlight with stronger contrast
         UpdateLayerButtonVisuals();
         UpdateAllSlotMacroStates();
+        if (_keyboardNavigationActive)
+        {
+            NormalizeKeyboardSelectionIndex();
+            UpdateKeyboardSelectionVisual();
+        }
         UpdateShortcutRegistrations();
     }
 
@@ -4132,6 +4657,13 @@ public partial class MainWindow : Window
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         _shortcutService.Dispose();
         _macroService.Dispose();
+        if (_searchOverlayWindow != null)
+        {
+            _searchOverlayWindow.SearchTextChanged -= OnSearchOverlayTextChanged;
+            _searchOverlayWindow.CancelRequested -= OnSearchOverlayCancelRequested;
+            _searchOverlayWindow.Close();
+            _searchOverlayWindow = null;
+        }
     }
 
     private void ToggleWindowPlacementMode()

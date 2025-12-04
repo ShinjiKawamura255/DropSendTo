@@ -197,6 +197,15 @@ public class ConfigService
                     slot.ShortcutKey = slot.ShortcutKey.Trim();
                 }
 
+                if (slot.SearchKeywords == null)
+                {
+                    slot.SearchKeywords = string.Empty;
+                }
+                else
+                {
+                    slot.SearchKeywords = slot.SearchKeywords.Trim();
+                }
+
                 bool hasMacro = !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
                 bool hasCommand = !string.IsNullOrWhiteSpace(slot.Command);
 
@@ -561,6 +570,34 @@ public class ConfigService
             cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(-1);
             cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(-1);
             cfg.Version = 27;
+            changed = true;
+        }
+
+        if (cfg.Version < 28)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
+                {
+                    if (slot.SearchKeywords == null)
+                    {
+                        slot.SearchKeywords = string.Empty;
+                        changed = true;
+                    }
+                    else
+                    {
+                        var trimmed = slot.SearchKeywords.Trim();
+                        if (!string.Equals(trimmed, slot.SearchKeywords, StringComparison.Ordinal))
+                        {
+                            slot.SearchKeywords = trimmed;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            cfg.Version = 28;
             changed = true;
         }
 

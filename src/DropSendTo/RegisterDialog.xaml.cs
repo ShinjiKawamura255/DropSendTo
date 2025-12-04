@@ -57,6 +57,7 @@ public partial class RegisterDialog : Window
     public string MacroScript => ExecutionMode == SlotExecutionMode.Command
         ? string.Empty
         : MacroBox.Text;
+    public string SearchKeywords => SearchKeywordBox.Text.Trim();
     public string ShortcutChord { get; private set; } = string.Empty;
     public SlotExecutionMode ExecutionMode => CurrentMode;
     public event EventHandler<SlotSavedEventArgs>? SlotSaved;
@@ -216,6 +217,10 @@ public partial class RegisterDialog : Window
         {
             MacroBox.PreviewKeyDown += OnMacroBoxPreviewKeyDown;
         }
+        if (SearchKeywordBox != null)
+        {
+            SearchKeywordBox.Text = string.Empty;
+        }
         InitializeMacroInsertMenu();
         ApplyMinimizeOptions(SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
@@ -242,6 +247,10 @@ public partial class RegisterDialog : Window
                 ? slot.AccentColor
                 : SlotAccentColor.Default;
             ColorComboBox.SelectedValue = accent;
+        }
+        if (SearchKeywordBox != null)
+        {
+            SearchKeywordBox.Text = slot.SearchKeywords ?? string.Empty;
         }
         ApplyMinimizeOptions(slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
@@ -329,7 +338,7 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions()));
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions(), SearchKeywords));
         Close();
     }
 
@@ -950,7 +959,7 @@ private static string EscapeAccessKey(string text) => text.Replace("_", "__", St
 
 public sealed class SlotSavedEventArgs : EventArgs
 {
-    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor, SlotMinimizeOptions minimizeOptions)
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor, SlotMinimizeOptions minimizeOptions, string searchKeywords)
     {
         AppTitle = appTitle;
         CommandPath = commandPath;
@@ -960,6 +969,7 @@ public sealed class SlotSavedEventArgs : EventArgs
         ExecutionMode = executionMode;
         AccentColor = accentColor;
         MinimizeOptions = minimizeOptions;
+        SearchKeywords = searchKeywords;
     }
 
     public string AppTitle { get; }
@@ -970,6 +980,7 @@ public sealed class SlotSavedEventArgs : EventArgs
     public SlotExecutionMode ExecutionMode { get; }
     public SlotAccentColor AccentColor { get; }
     public SlotMinimizeOptions MinimizeOptions { get; }
+    public string SearchKeywords { get; }
 }
 
 public sealed record MacroSnippetEntry(string Group, string Header, string Content);

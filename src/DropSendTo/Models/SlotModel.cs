@@ -16,6 +16,7 @@ public class SlotModel
     public SlotExecutionMode ExecutionMode { get; set; } = SlotExecutionMode.Command;
     public SlotAccentColor AccentColor { get; set; } = SlotAccentColor.Default;
     public SlotMinimizeOptions MinimizeOptions { get; set; } = SlotMinimizeOptions.CreateDefault();
+    public string? SearchKeywords { get; set; } = string.Empty;
 }
 
 public enum SlotExecutionMode

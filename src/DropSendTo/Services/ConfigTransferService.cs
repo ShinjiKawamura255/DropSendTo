@@ -273,6 +273,7 @@ internal sealed class ConfigTransferService
         public string? KeyboardMacroScript { get; set; }
         public SlotExecutionMode ExecutionMode { get; set; }
         public SlotAccentColor AccentColor { get; set; }
+        public string? SearchKeywords { get; set; }
 
         public static ExportSlotSnapshot FromSlot(SlotModel slot)
         {
@@ -286,7 +287,8 @@ internal sealed class ConfigTransferService
                 ShortcutKey = slot.ShortcutKey,
                 KeyboardMacroScript = slot.KeyboardMacroScript,
                 ExecutionMode = slot.ExecutionMode,
-                AccentColor = slot.AccentColor
+                AccentColor = slot.AccentColor,
+                SearchKeywords = slot.SearchKeywords
             };
         }
 
@@ -302,7 +304,8 @@ internal sealed class ConfigTransferService
                 ShortcutKey = ShortcutKey ?? string.Empty,
                 KeyboardMacroScript = KeyboardMacroScript ?? string.Empty,
                 ExecutionMode = ExecutionMode,
-                AccentColor = AccentColor
+                AccentColor = AccentColor,
+                SearchKeywords = SearchKeywords ?? string.Empty
             };
         }
     }
