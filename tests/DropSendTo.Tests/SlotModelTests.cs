@@ -53,13 +53,16 @@ public class SlotModelTests
         slot.MinimizeOptions.EnableOnClick.Should().BeFalse();
         slot.MinimizeOptions.EnableOnShortcut.Should().BeFalse();
         slot.MinimizeOptions.EnableOnDrop.Should().BeFalse();
+        slot.MinimizeOptions.EnableOnKeyboard.Should().BeFalse();
 
         slot.MinimizeOptions.EnableOnClick = true;
         slot.MinimizeOptions.EnableOnShortcut = true;
+        slot.MinimizeOptions.EnableOnKeyboard = true;
         cfgSvc.Save(cfg);
 
         var cfg2 = cfgSvc.LoadOrCreate();
         cfg2.Layers[0].Slots[0].MinimizeOptions.EnableOnClick.Should().BeTrue();
         cfg2.Layers[0].Slots[0].MinimizeOptions.EnableOnShortcut.Should().BeTrue();
+        cfg2.Layers[0].Slots[0].MinimizeOptions.EnableOnKeyboard.Should().BeTrue();
     }
 }

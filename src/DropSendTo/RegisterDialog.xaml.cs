@@ -746,13 +746,15 @@ public partial class RegisterDialog : Window
         MinimizeOnClickCheckBox.IsChecked = opt.EnableOnClick;
         MinimizeOnShortcutCheckBox.IsChecked = opt.EnableOnShortcut;
         MinimizeOnDropCheckBox.IsChecked = opt.EnableOnDrop;
+        MinimizeOnKeyboardCheckBox.IsChecked = opt.EnableOnKeyboard;
     }
 
     private SlotMinimizeOptions BuildMinimizeOptions() => new()
     {
         EnableOnClick = MinimizeOnClickCheckBox.IsChecked == true,
         EnableOnShortcut = MinimizeOnShortcutCheckBox.IsChecked == true,
-        EnableOnDrop = MinimizeOnDropCheckBox.IsChecked == true
+        EnableOnDrop = MinimizeOnDropCheckBox.IsChecked == true,
+        EnableOnKeyboard = MinimizeOnKeyboardCheckBox.IsChecked == true
     };
 
     private static SlotColorOption CreateColorOption(SlotAccentColor color, string name, System.Windows.Media.Color background, System.Windows.Media.Color accent, System.Windows.Media.Color foreground) =>

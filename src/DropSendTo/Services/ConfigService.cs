@@ -601,6 +601,20 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 29)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                layer.Slots ??= new List<SlotModel>();
+                foreach (var slot in layer.Slots)
+                {
+                    slot.MinimizeOptions ??= SlotMinimizeOptions.CreateDefault();
+                }
+            }
+            cfg.Version = 29;
+            changed = true;
+        }
+
         return changed;
     }
 }

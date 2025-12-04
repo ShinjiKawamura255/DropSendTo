@@ -98,10 +98,11 @@
         <TextBlock Text="実行後に最小化" Grid.Row="7" Grid.Column="0" VerticalAlignment="Top" Margin="0,6,0,0"/>
         <StackPanel Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,2" Orientation="Vertical">
             <TextBlock Text="トリガー" Margin="0,0,0,4" Foreground="#DDDDDD" FontSize="11"/>
-            <UniformGrid Columns="3">
+            <UniformGrid Columns="4">
                 <CheckBox x:Name="MinimizeOnClickCheckBox" Content="クリック時" Margin="0,0,12,0"/>
                 <CheckBox x:Name="MinimizeOnShortcutCheckBox" Content="ショートカット時" Margin="0,0,12,0"/>
                 <CheckBox x:Name="MinimizeOnDropCheckBox" Content="ドロップ時" Margin="0,0,0,0"/>
+                <CheckBox x:Name="MinimizeOnKeyboardCheckBox" Content="キーボード操作時" Margin="0,0,0,0"/>
             </UniformGrid>
         </StackPanel>
 

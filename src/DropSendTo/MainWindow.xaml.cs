@@ -1876,7 +1876,7 @@ public partial class MainWindow : Window
                 {
                     int index = _keyboardSelectedSlotIndex;
                     DeactivateKeyboardNavigation();
-                    _ = TriggerVisibleSlotAsync(index, SlotTriggerKind.Shortcut);
+                    _ = TriggerVisibleSlotAsync(index, SlotTriggerKind.Keyboard);
                 }
                 return true;
             case NavigationCommand.Cancel:
@@ -2833,7 +2833,8 @@ public partial class MainWindow : Window
                 {
                     EnableOnClick = source.MinimizeOptions.EnableOnClick,
                     EnableOnShortcut = source.MinimizeOptions.EnableOnShortcut,
-                    EnableOnDrop = source.MinimizeOptions.EnableOnDrop
+                    EnableOnDrop = source.MinimizeOptions.EnableOnDrop,
+                    EnableOnKeyboard = source.MinimizeOptions.EnableOnKeyboard
                 },
             SearchKeywords = source.SearchKeywords
         };

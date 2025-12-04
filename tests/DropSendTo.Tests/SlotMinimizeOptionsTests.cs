@@ -14,6 +14,7 @@ public class SlotMinimizeOptionsTests
         opt.ShouldMinimizeAfter(SlotTriggerKind.Click).Should().BeFalse();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Shortcut).Should().BeFalse();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Drop).Should().BeFalse();
+        opt.ShouldMinimizeAfter(SlotTriggerKind.Keyboard).Should().BeFalse();
     }
 
     [Fact]
@@ -27,6 +28,7 @@ public class SlotMinimizeOptionsTests
         opt.ShouldMinimizeAfter(SlotTriggerKind.Click).Should().BeTrue();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Shortcut).Should().BeFalse();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Drop).Should().BeFalse();
+        opt.ShouldMinimizeAfter(SlotTriggerKind.Keyboard).Should().BeFalse();
     }
 
     [Fact]
@@ -35,11 +37,13 @@ public class SlotMinimizeOptionsTests
         var opt = new SlotMinimizeOptions
         {
             EnableOnShortcut = true,
-            EnableOnDrop = true
+            EnableOnDrop = true,
+            EnableOnKeyboard = true
         };
 
         opt.ShouldMinimizeAfter(SlotTriggerKind.Shortcut).Should().BeTrue();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Drop).Should().BeTrue();
+        opt.ShouldMinimizeAfter(SlotTriggerKind.Keyboard).Should().BeTrue();
         opt.ShouldMinimizeAfter(SlotTriggerKind.Click).Should().BeFalse();
     }
 }
