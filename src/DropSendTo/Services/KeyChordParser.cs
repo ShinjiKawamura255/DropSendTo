@@ -635,11 +635,26 @@ internal static class ShortcutSequenceParser
                 error = chordError ?? $"ショートカットの解析に失敗しました: \"{segment}\"";
                 return false;
             }
+            if (IsAltSpaceChord(chord))
+            {
+                error = "Alt+Space はスロットのショートカットとして使用できません。";
+                return false;
+            }
             chords.Add(chord);
         }
 
         var normalized = string.Join(" ", chords.Select(c => c.NormalizedString));
         sequence = new ShortcutSequence(chords, normalized);
         return true;
+    }
+
+    private static bool IsAltSpaceChord(KeyChord chord)
+    {
+        if (!chord.Modifiers.Contains(ModifierKind.Alt))
+        {
+            return false;
+        }
+
+        return string.Equals(chord.MainToken, "SPACE", StringComparison.OrdinalIgnoreCase);
     }
 }

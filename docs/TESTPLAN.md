@@ -40,6 +40,7 @@
 - TC-086 ShortcutSharedModifier: Prefix と同じ修飾キーを含むショートカット（例: Prefix `Ctrl+Q` → `Ctrl+X`）は修飾キーを押し直さなくても発火し、再押下でも動作する。
 - TC-088 MacroPrefixCommand: マクロスクリプトで `PREFIX ARM`（または SEND）を挟んだ後に `KEY` でショートカットが発動し、`PREFIX PASSTHROUGH` で前面アプリに送出される。
 - TC-089 PrefixActivate: Prefix 待機中に `Enter` を押すと DropSendTo ウィンドウが前面へ復帰してアクティブ化され、常時最前面設定が変化しない。
+- TC-099 PrefixSearch: Prefix 待機中に `Alt+Space` を押すとタスクトレイ格納中でも復帰し検索レイヤーが開いて検索入力へフォーカスすること、スロットのショートカット欄へ `Alt+Space` を含むキーを入力すると検証エラーで保存できないことを確認する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
@@ -69,6 +70,7 @@
  15) エクスプローラーでファイル/フォルダを複数コピーし、`ArgumentsTemplate` に `{clipboard_args}` を指定したスロットをショートカット起動して全行が引用付きで渡されること、`{clipboard_args:2}` 指定で直近 2 行のみが古い順に渡されること、および `{clipboard}` 指定で生文字列が渡されることを確認。
  16) `%AppData%/DropSendTo/logs` にテスト用ログを作成し、1MB 超でローテーションすることと、7 日より古いファイルが `CleanupOldLogs` 後に削除されることを確認（ファイルの最終更新日時を調整して検証）。
  17) マクロ付きスロットを起動（長めの WAIT を含める）し、その実行中に別スロットのマクロ起動を試みて警告が表示されること、同じ状態でコマンドのみスロットを起動すると即時でコマンドが実行されること、およびログに並列許可の記録が残ることを確認。
+ 18) Prefix 待機中に `Alt+Space` を押して DropSendTo が前面復帰し検索レイヤーが開いて検索入力へフォーカスされることを確認する。スロット編集ダイアログのショートカット欄に `Alt+Space` を入力した場合は検証エラーで保存できないことを併せて確認する。
 
 ## Environment & Data
 - OS: Windows 10 22H2+ / 11、.NET SDK 8.x。
@@ -88,8 +90,8 @@
 - FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
-- FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089
-- FR-024 → SP-010 → DES-002/005 → TC-035/085/086/088/089
+- FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089/099
+- FR-024 → SP-010 → DES-002/005 → TC-035/085/086/088/089/099
 - FR-025 → SP-004/010 → DES-002/004 → TC-025/087
 - FR-019 → SP-009 → DES-003/004 → TC-080/097
 - FR-026 → SP-001 → DES-002 → TC-098

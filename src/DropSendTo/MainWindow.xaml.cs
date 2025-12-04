@@ -819,6 +819,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixMacroCancelRequested += OnPrefixMacroCancelRequested;
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixPositionToggleRequested += OnPrefixPositionToggleRequested;
+            _shortcutService.PrefixSearchRequested += OnPrefixSearchRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
@@ -4481,6 +4482,20 @@ public partial class MainWindow : Window
         RefreshDragHoverIfMouseButtonDown();
     }
 
+    private void OnPrefixSearchRequested(object? sender, EventArgs e)
+    {
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
+        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        {
+            PositionWindowAtMouse();
+        }
+        BringWindowToForeground();
+        RearmDragDropTargets();
+        OpenSearchLayer();
+        RefreshDragHoverIfMouseButtonDown();
+    }
+
     private void OnPrefixMinimizeRequested(object? sender, EventArgs e)
     {
         HideLayerNameOverlayImmediate();
@@ -4863,6 +4878,7 @@ public partial class MainWindow : Window
         _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
         _shortcutService.PrefixNextLayerRequested -= OnPrefixNextLayerRequested;
         _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
+        _shortcutService.PrefixSearchRequested -= OnPrefixSearchRequested;
         _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
         _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;

@@ -26,4 +26,13 @@ public class ShortcutSequenceParserTests
         success.Should().BeFalse();
         error.Should().NotBeNull();
     }
+
+    [Fact]
+    public void TryParse_WithAltSpace_ShouldFail()
+    {
+        var success = ShortcutSequenceParser.TryParse("Alt+Space", out _, out var error);
+
+        success.Should().BeFalse();
+        error.Should().Contain("Alt+Space");
+    }
 }

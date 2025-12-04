@@ -144,6 +144,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixPositionToggleRequested;
     public event EventHandler? PrefixNextLayerRequested;
     public event EventHandler? PrefixPreviousLayerRequested;
+    public event EventHandler? PrefixSearchRequested;
     public event EventHandler? MouseGestureShowRequested;
     public event EventHandler? MouseGestureHideRequested;
 
@@ -517,6 +518,19 @@ internal sealed class ShortcutService : IDisposable
             return true;
         }
 
+        if (vk == VK_SPACE)
+        {
+            bool altFromModifiers = modifiers.Contains(VK_MENU);
+            bool altFromResidue = ContainsVirtualKey(prefixResidue, VK_MENU);
+            if ((altFromModifiers || altFromResidue) &&
+                !HasModifiersOtherThan(modifiers, altFromModifiers ? VK_MENU : (ushort)0) &&
+                !HasModifiersOtherThan(prefixResidue, altFromResidue ? VK_MENU : (ushort)0))
+            {
+                action = ShortcutAction.CreatePrefixSearch();
+                return true;
+            }
+        }
+
         if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
         {
             action = ShortcutAction.CreatePrefixCancelMacro();
@@ -872,6 +886,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixPreviousLayer:
                 _dispatcher.BeginInvoke(() => PrefixPreviousLayerRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixSearch:
+                _dispatcher.BeginInvoke(() => PrefixSearchRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -1431,6 +1448,9 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixPreviousLayer() =>
             new(ShortcutActionType.PrefixPreviousLayer, null, null);
+
+        public static ShortcutAction CreatePrefixSearch() =>
+            new(ShortcutActionType.PrefixSearch, null, null);
     }
 
     private enum ShortcutActionType
@@ -1443,7 +1463,8 @@ internal sealed class ShortcutService : IDisposable
         PrefixCancelMacro,
         PrefixTogglePosition,
         PrefixNextLayer,
-        PrefixPreviousLayer
+        PrefixPreviousLayer,
+        PrefixSearch
     }
 
     private enum UserNotificationState
@@ -1525,6 +1546,7 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_RWIN = 0x5C;
     private const ushort VK_RETURN = 0x0D;
     private const ushort VK_TAB = 0x09;
+    private const ushort VK_SPACE = 0x20;
     private const ushort VK_N = 0x4E;
     private const ushort VK_P = 0x50;
 
