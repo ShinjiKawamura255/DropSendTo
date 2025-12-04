@@ -41,6 +41,7 @@
 - TC-088 MacroPrefixCommand: マクロスクリプトで `PREFIX ARM`（または SEND）を挟んだ後に `KEY` でショートカットが発動し、`PREFIX PASSTHROUGH` で前面アプリに送出される。
 - TC-089 PrefixActivate: Prefix 待機中に `Enter` を押すと DropSendTo ウィンドウが前面へ復帰してアクティブ化され、常時最前面設定が変化しない。
 - TC-099 PrefixSearch: Prefix 待機中に `Alt+Space` を押すとタスクトレイ格納中でも復帰し検索レイヤーが開いて検索入力へフォーカスすること、スロットのショートカット欄へ `Alt+Space` を含むキーを入力すると検証エラーで保存できないことを確認する。
+- TC-100 PrefixSearchRestore: Prefix+Alt+Space で検索レイヤーを開いた状態から Esc（または Emacs ライク有効時の Ctrl+G）で閉じたとき、呼び出し直前がタスクトレイ格納なら再び最小化され、表示中にマウス追従などで移動した場合でも元の位置へ戻ることを確認する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
@@ -71,6 +72,7 @@
  16) `%AppData%/DropSendTo/logs` にテスト用ログを作成し、1MB 超でローテーションすることと、7 日より古いファイルが `CleanupOldLogs` 後に削除されることを確認（ファイルの最終更新日時を調整して検証）。
  17) マクロ付きスロットを起動（長めの WAIT を含める）し、その実行中に別スロットのマクロ起動を試みて警告が表示されること、同じ状態でコマンドのみスロットを起動すると即時でコマンドが実行されること、およびログに並列許可の記録が残ることを確認。
  18) Prefix 待機中に `Alt+Space` を押して DropSendTo が前面復帰し検索レイヤーが開いて検索入力へフォーカスされることを確認する。スロット編集ダイアログのショートカット欄に `Alt+Space` を入力した場合は検証エラーで保存できないことを併せて確認する。
+ 19) Prefix+Alt+Space で検索レイヤーを開いた後に Esc（または Emacs ライク有効時の Ctrl+G）で閉じ、呼び出し直前がタスクトレイ格納なら再最小化され、表示中に移動していた場合は元の位置へ戻ることを確認する。
 
 ## Environment & Data
 - OS: Windows 10 22H2+ / 11、.NET SDK 8.x。

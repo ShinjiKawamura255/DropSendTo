@@ -64,6 +64,7 @@ public partial class MainWindow : Window
     private SearchOverlayWindow? _searchOverlayWindow;
     private bool _searchLayerActive;
     private string _searchQuery = string.Empty;
+    private PrefixSearchRestoreContext? _prefixSearchRestoreContext;
     private readonly List<SearchResult> _searchResults = new();
     private readonly List<VisibleSlotMapping> _visibleSlotMappings = new();
     private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
@@ -1209,7 +1210,33 @@ public partial class MainWindow : Window
         _searchQuery = string.Empty;
         _searchResults.Clear();
         HideSearchOverlay();
+        _prefixSearchRestoreContext = null;
         RefreshUi();
+    }
+
+    private void CloseSearchLayerAndMaybeRestore()
+    {
+        var restoreContext = _prefixSearchRestoreContext;
+        CloseSearchLayer();
+        if (restoreContext != null)
+        {
+            RestoreWindowAfterPrefixSearch(restoreContext);
+        }
+    }
+
+    private void RestoreWindowAfterPrefixSearch(PrefixSearchRestoreContext restoreContext)
+    {
+        if (restoreContext.WasMinimized)
+        {
+            MinimizeWindowToTray();
+            return;
+        }
+
+        if (!double.IsNaN(restoreContext.Left) && !double.IsNaN(restoreContext.Top))
+        {
+            Left = restoreContext.Left;
+            Top = restoreContext.Top;
+        }
     }
 
     private void OnSearchOverlayTextChanged(object? sender, string text)
@@ -1221,7 +1248,7 @@ public partial class MainWindow : Window
 
     private void OnSearchOverlayCancelRequested(object? sender, EventArgs e)
     {
-        CloseSearchLayer();
+        CloseSearchLayerAndMaybeRestore();
     }
 
     private void OnSearchOverlaySlotNavigationRequested(object? sender, EventArgs e)
@@ -1741,13 +1768,13 @@ public partial class MainWindow : Window
 
         if (_searchLayerActive && modifiers == System.Windows.Input.ModifierKeys.None && key == System.Windows.Input.Key.Escape)
         {
-            CloseSearchLayer();
+            CloseSearchLayerAndMaybeRestore();
             return true;
         }
 
         if (_searchLayerActive && emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.G)
         {
-            CloseSearchLayer();
+            CloseSearchLayerAndMaybeRestore();
             return true;
         }
 
@@ -2513,6 +2540,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record SearchResult(int LayerIndex, int SlotIndex);
+    private sealed record PrefixSearchRestoreContext(bool WasMinimized, double Left, double Top);
     private readonly record struct VisibleSlotMapping(int LayerIndex, int SlotIndex)
     {
         public bool IsEmpty => LayerIndex < 0 || SlotIndex < 0;
@@ -4485,6 +4513,11 @@ public partial class MainWindow : Window
 
     private void OnPrefixSearchRequested(object? sender, EventArgs e)
     {
+        _prefixSearchRestoreContext = new PrefixSearchRestoreContext(
+            IsWindowHiddenForShow(),
+            Left,
+            Top);
+
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
