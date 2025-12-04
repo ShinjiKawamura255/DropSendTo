@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -1280,7 +1281,10 @@ public partial class MainWindow : Window
     {
         var title = slot.Title ?? string.Empty;
         var keywords = slot.SearchKeywords ?? string.Empty;
-        return (title + " " + keywords).ReplaceLineEndings(" ");
+        var baseText = (title + " " + keywords).ReplaceLineEndings(" ");
+        var normalized = NormalizeForSearch(baseText);
+        var romaji = ConvertKanaToRomaji(baseText);
+        return string.Join(" ", baseText, normalized, romaji);
     }
 
     private static bool MatchesAllTokens(string haystack, IReadOnlyList<string> tokens)
@@ -1335,6 +1339,135 @@ public partial class MainWindow : Window
             hIndex++;
         }
         return true;
+    }
+
+    private static string NormalizeForSearch(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var normalized = text.Normalize(NormalizationForm.FormKD);
+        var sb = new StringBuilder(normalized.Length);
+        foreach (var ch in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (category == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+            sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
+    }
+
+    private static string ConvertKanaToRomaji(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        var hira = ToHiragana(text.Normalize(NormalizationForm.FormKC));
+        var sb = new StringBuilder(hira.Length * 3);
+        bool sokuonPending = false;
+
+        for (int i = 0; i < hira.Length; i++)
+        {
+            char ch = hira[i];
+            if (ch == 'っ')
+            {
+                sokuonPending = true;
+                continue;
+            }
+
+            if (ch == 'ー')
+            {
+                if (sb.Length > 0)
+                {
+                    char last = sb[sb.Length - 1];
+                    if ("aeiou".Contains(last))
+                    {
+                        sb.Append(last);
+                    }
+                }
+                continue;
+            }
+
+            string? roma = TryGetDigraph(hira, i, out int consumed)
+                ?? TryGetSingleKanaRomaji(ch);
+
+            if (consumed > 0)
+            {
+                i += consumed;
+            }
+
+            if (string.IsNullOrEmpty(roma))
+            {
+                sokuonPending = false;
+                continue;
+            }
+
+            if (sokuonPending)
+            {
+                var first = roma[0];
+                if (char.IsLetter(first) && !"aeiou".Contains(char.ToLowerInvariant(first)))
+                {
+                    sb.Append(first);
+                }
+                sokuonPending = false;
+            }
+
+            sb.Append(roma);
+        }
+
+        return sb.ToString();
+    }
+
+    private static string ToHiragana(string text)
+    {
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (char ch in text)
+        {
+            if (ch >= '\u30A1' && ch <= '\u30F4')
+            {
+                sb.Append((char)(ch - 0x60));
+            }
+            else
+            {
+                sb.Append(ch);
+            }
+        }
+        return sb.ToString();
+    }
+
+    private static string? TryGetDigraph(string hira, int index, out int consumed)
+    {
+        consumed = 0;
+        if (index + 1 >= hira.Length)
+        {
+            return null;
+        }
+
+        char first = hira[index];
+        char second = hira[index + 1];
+        string key = new string(new[] { first, second });
+        if (DigraphRomaji.TryGetValue(key, out var roma))
+        {
+            consumed = 1;
+            return roma;
+        }
+        return null;
+    }
+
+    private static string? TryGetSingleKanaRomaji(char ch)
+    {
+        if (SingleKanaRomaji.TryGetValue(ch, out var roma))
+        {
+            return roma;
+        }
+        return null;
     }
 
     private void RefreshVisibleSlotMappings()
@@ -1431,6 +1564,65 @@ public partial class MainWindow : Window
         var overlay = EnsureSearchOverlay();
         overlay.FocusInput(selectAll);
     }
+
+    private static readonly Dictionary<string, string> DigraphRomaji = new(StringComparer.Ordinal)
+    {
+        ["きゃ"] = "kya",
+        ["きゅ"] = "kyu",
+        ["きょ"] = "kyo",
+        ["ぎゃ"] = "gya",
+        ["ぎゅ"] = "gyu",
+        ["ぎょ"] = "gyo",
+        ["しゃ"] = "sha",
+        ["しゅ"] = "shu",
+        ["しょ"] = "sho",
+        ["じゃ"] = "ja",
+        ["じゅ"] = "ju",
+        ["じょ"] = "jo",
+        ["ちゃ"] = "cha",
+        ["ちゅ"] = "chu",
+        ["ちょ"] = "cho",
+        ["にゃ"] = "nya",
+        ["にゅ"] = "nyu",
+        ["にょ"] = "nyo",
+        ["ひゃ"] = "hya",
+        ["ひゅ"] = "hyu",
+        ["ひょ"] = "hyo",
+        ["びゃ"] = "bya",
+        ["びゅ"] = "byu",
+        ["びょ"] = "byo",
+        ["ぴゃ"] = "pya",
+        ["ぴゅ"] = "pyu",
+        ["ぴょ"] = "pyo",
+        ["みゃ"] = "mya",
+        ["みゅ"] = "myu",
+        ["みょ"] = "myo",
+        ["りゃ"] = "rya",
+        ["りゅ"] = "ryu",
+        ["りょ"] = "ryo"
+    };
+
+    private static readonly Dictionary<char, string> SingleKanaRomaji = new()
+    {
+        ['あ'] = "a", ['い'] = "i", ['う'] = "u", ['え'] = "e", ['お'] = "o",
+        ['ぁ'] = "a", ['ぃ'] = "i", ['ぅ'] = "u", ['ぇ'] = "e", ['ぉ'] = "o",
+        ['か'] = "ka", ['き'] = "ki", ['く'] = "ku", ['け'] = "ke", ['こ'] = "ko",
+        ['さ'] = "sa", ['し'] = "shi", ['す'] = "su", ['せ'] = "se", ['そ'] = "so",
+        ['た'] = "ta", ['ち'] = "chi", ['つ'] = "tsu", ['て'] = "te", ['と'] = "to",
+        ['な'] = "na", ['に'] = "ni", ['ぬ'] = "nu", ['ね'] = "ne", ['の'] = "no",
+        ['は'] = "ha", ['ひ'] = "hi", ['ふ'] = "fu", ['へ'] = "he", ['ほ'] = "ho",
+        ['ま'] = "ma", ['み'] = "mi", ['む'] = "mu", ['め'] = "me", ['も'] = "mo",
+        ['や'] = "ya", ['ゆ'] = "yu", ['よ'] = "yo",
+        ['ら'] = "ra", ['り'] = "ri", ['る'] = "ru", ['れ'] = "re", ['ろ'] = "ro",
+        ['わ'] = "wa", ['を'] = "o", ['ん'] = "n",
+        ['が'] = "ga", ['ぎ'] = "gi", ['ぐ'] = "gu", ['げ'] = "ge", ['ご'] = "go",
+        ['ざ'] = "za", ['じ'] = "ji", ['ず'] = "zu", ['ぜ'] = "ze", ['ぞ'] = "zo",
+        ['だ'] = "da", ['ぢ'] = "ji", ['づ'] = "zu", ['で'] = "de", ['ど'] = "do",
+        ['ば'] = "ba", ['び'] = "bi", ['ぶ'] = "bu", ['べ'] = "be", ['ぼ'] = "bo",
+        ['ぱ'] = "pa", ['ぴ'] = "pi", ['ぷ'] = "pu", ['ぺ'] = "pe", ['ぽ'] = "po",
+        ['ゔ'] = "vu",
+        ['ー'] = string.Empty
+    };
 
 
     private void ActivateKeyboardNavigation()
