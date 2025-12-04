@@ -108,6 +108,9 @@ internal sealed class ShortcutService : IDisposable
     private bool _prefixArmed;
     private DateTime _prefixArmedAtUtc;
     private IReadOnlyList<ModifierKind> _prefixModifiers = Array.Empty<ModifierKind>();
+    private KeyChord? _searchHotkeyChord;
+    private string _searchHotkeyText = string.Empty;
+    private bool _searchHotkeyEnabled;
     private readonly Dictionary<ushort, int> _suppressedKeyUps = new();
     private readonly List<ShortcutSequence> _availableSequences = new();
     private readonly List<SequenceProgress> _sequenceCandidates = new();
@@ -147,6 +150,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixSearchRequested;
     public event EventHandler? MouseGestureShowRequested;
     public event EventHandler? MouseGestureHideRequested;
+    public event EventHandler? SearchHotkeyRequested;
 
     public string CurrentPrefixText => _prefixText;
     public KeyChord? CurrentPrefixChord
@@ -177,6 +181,7 @@ internal sealed class ShortcutService : IDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
         UpdatePrefix(prefixExpression, prefixDisabled);
+        UpdateSearchHotkey(_searchHotkeyText, _searchHotkeyEnabled);
         if (_hookHandle != IntPtr.Zero) return;
 
         _hookCallback = KeyboardHookProc;
@@ -234,6 +239,32 @@ internal sealed class ShortcutService : IDisposable
             _prefixText = chord.NormalizedString;
             _prefixModifiers = chord.Modifiers;
             ResetPrefixStateLocked();
+        }
+    }
+
+    public void UpdateSearchHotkey(string? hotkeyExpression, bool enabled)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        KeyChord? chord = null;
+        string text = hotkeyExpression?.Trim() ?? string.Empty;
+        if (enabled)
+        {
+            if (!KeyChordParser.TryParse(text, out chord!, out var error))
+            {
+                _logger.Warn($"Search hotkey validation failed ({error ?? "unknown error"}). Disabling search hotkey.");
+                enabled = false;
+            }
+            else
+            {
+                text = chord.NormalizedString;
+            }
+        }
+
+        lock (_stateLock)
+        {
+            _searchHotkeyChord = chord;
+            _searchHotkeyText = text;
+            _searchHotkeyEnabled = enabled && chord != null;
         }
     }
 
@@ -414,6 +445,16 @@ internal sealed class ShortcutService : IDisposable
             }
             suppress = false;
             return ShortcutAction.None;
+        }
+
+        if (!_prefixArmed && _searchHotkeyEnabled && _searchHotkeyChord != null)
+        {
+            if (vk == _searchHotkeyChord.MainKey && AreModifiersSatisfied(_searchHotkeyChord.Modifiers))
+            {
+                MarkKeyForSuppression(vk);
+                suppress = true;
+                return ShortcutAction.CreateSearchHotkey();
+            }
         }
         if (_prefixArmed && (now - _prefixArmedAtUtc).TotalMilliseconds > PrefixTimeoutMilliseconds)
         {
@@ -889,6 +930,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixSearch:
                 _dispatcher.BeginInvoke(() => PrefixSearchRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.SearchHotkey:
+                _dispatcher.BeginInvoke(() => SearchHotkeyRequested?.Invoke(this, EventArgs.Empty));
                 break;
         }
     }
@@ -1451,6 +1495,9 @@ internal sealed class ShortcutService : IDisposable
 
         public static ShortcutAction CreatePrefixSearch() =>
             new(ShortcutActionType.PrefixSearch, null, null);
+
+        public static ShortcutAction CreateSearchHotkey() =>
+            new(ShortcutActionType.SearchHotkey, null, null);
     }
 
     private enum ShortcutActionType
@@ -1464,7 +1511,8 @@ internal sealed class ShortcutService : IDisposable
         PrefixTogglePosition,
         PrefixNextLayer,
         PrefixPreviousLayer,
-        PrefixSearch
+        PrefixSearch,
+        SearchHotkey
     }
 
     private enum UserNotificationState

@@ -153,6 +153,8 @@ internal sealed class ConfigTransferService
         public int MouseGestureShowLayerWhenHidden { get; set; }
         public int PrefixShowLayerWhenVisible { get; set; }
         public int PrefixShowLayerWhenHidden { get; set; }
+        public bool SearchHotkeyEnabled { get; set; }
+        public string SearchHotkey { get; set; } = string.Empty;
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
@@ -187,6 +189,8 @@ internal sealed class ConfigTransferService
                 MouseGestureShowLayerWhenHidden = config.MouseGestureShowLayerWhenHidden,
                 PrefixShowLayerWhenVisible = config.PrefixShowLayerWhenVisible,
                 PrefixShowLayerWhenHidden = config.PrefixShowLayerWhenHidden,
+                SearchHotkeyEnabled = config.SearchHotkeyEnabled,
+                SearchHotkey = config.SearchHotkey ?? string.Empty,
                 PreferRemoteSessions = config.PreferRemoteSessions,
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
@@ -231,6 +235,8 @@ internal sealed class ConfigTransferService
                 MouseGestureShowLayerWhenHidden = MouseGestureShowLayerWhenHidden,
                 PrefixShowLayerWhenVisible = PrefixShowLayerWhenVisible,
                 PrefixShowLayerWhenHidden = PrefixShowLayerWhenHidden,
+                SearchHotkeyEnabled = SearchHotkeyEnabled,
+                SearchHotkey = SearchHotkey ?? string.Empty,
                 PreferRemoteSessions = PreferRemoteSessions,
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,

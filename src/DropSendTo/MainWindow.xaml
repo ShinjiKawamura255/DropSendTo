@@ -21,6 +21,7 @@
                 <MenuItem Header="Import Config..." Click="OnImportConfig"/>
             </MenuItem>
             <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
+            <MenuItem Header="検索ホットキー..." Click="OnConfigureSearchHotkey"/>
             <MenuItem Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
             <MenuItem Header="レイアウト / 表示">
                 <MenuItem x:Name="LayoutMenuItem"

@@ -824,11 +824,13 @@ public partial class MainWindow : Window
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
+            _shortcutService.SearchHotkeyRequested += OnSearchHotkeyRequested;
             _shortcutService.MouseGestureShowRequested += OnMouseGestureShowRequested;
             _shortcutService.MouseGestureHideRequested += OnMouseGestureHideRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
             _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
+            _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             _macroService.SetPrefixStateAccessors(
                 () => _shortcutService.CurrentPrefixChord,
                 () => _shortcutService.IsPrefixArmed,
@@ -1222,6 +1224,14 @@ public partial class MainWindow : Window
         {
             RestoreWindowAfterPrefixSearch(restoreContext);
         }
+    }
+
+    private void CapturePrefixSearchRestoreContext()
+    {
+        _prefixSearchRestoreContext = new PrefixSearchRestoreContext(
+            IsWindowHiddenForShow(),
+            Left,
+            Top);
     }
 
     private void RestoreWindowAfterPrefixSearch(PrefixSearchRestoreContext restoreContext)
@@ -3528,6 +3538,8 @@ public partial class MainWindow : Window
             _config = imported;
             _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
             Topmost = _config.AlwaysOnTop;
+            _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
+            _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             ApplySlotLayout();
             RestoreWindowPosition();
             Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
@@ -3591,6 +3603,29 @@ public partial class MainWindow : Window
 
             UpdateShortcutRegistrations();
         }
+    }
+
+    private void OnConfigureSearchHotkey(object sender, RoutedEventArgs e)
+    {
+        var dlg = new SearchHotkeyDialog(_config.SearchHotkey, _config.SearchHotkeyEnabled) { Owner = this };
+        WindowCascadeService.Arrange(dlg, this);
+        dlg.ShowDialog();
+        if (!dlg.IsConfirmed)
+        {
+            return;
+        }
+
+        bool enabled = dlg.IsHotkeyEnabled;
+        var hotkey = dlg.NormalizedHotkey;
+        if (_config.SearchHotkeyEnabled == enabled && string.Equals(_config.SearchHotkey, hotkey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _config.SearchHotkeyEnabled = enabled;
+        _config.SearchHotkey = hotkey;
+        _shortcutService.UpdateSearchHotkey(hotkey, enabled);
+        _configService.Save(_config);
     }
 
     private async void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
@@ -4513,11 +4548,22 @@ public partial class MainWindow : Window
 
     private void OnPrefixSearchRequested(object? sender, EventArgs e)
     {
-        _prefixSearchRestoreContext = new PrefixSearchRestoreContext(
-            IsWindowHiddenForShow(),
-            Left,
-            Top);
+        CapturePrefixSearchRestoreContext();
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
+        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        {
+            PositionWindowAtMouse();
+        }
+        BringWindowToForeground();
+        RearmDragDropTargets();
+        OpenSearchLayer();
+        RefreshDragHoverIfMouseButtonDown();
+    }
 
+    private void OnSearchHotkeyRequested(object? sender, EventArgs e)
+    {
+        CapturePrefixSearchRestoreContext();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
@@ -4912,6 +4958,7 @@ public partial class MainWindow : Window
         _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
         _shortcutService.PrefixNextLayerRequested -= OnPrefixNextLayerRequested;
         _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
+        _shortcutService.SearchHotkeyRequested -= OnSearchHotkeyRequested;
         _shortcutService.PrefixSearchRequested -= OnPrefixSearchRequested;
         _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
         _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;

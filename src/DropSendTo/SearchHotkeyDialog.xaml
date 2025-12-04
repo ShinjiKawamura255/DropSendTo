@@ -1,0 +1,57 @@
+<Window x:Class="DropSendTo.SearchHotkeyDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Search Hotkey" Height="280" Width="420" WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" WindowStyle="ToolWindow">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <CheckBox x:Name="EnableCheckBox"
+                  Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                  Content="検索用ホットキーを有効にする"
+                  Margin="0,0,0,8"
+                  Checked="OnEnableChanged"
+                  Unchecked="OnEnableChanged"/>
+
+        <TextBlock Text="ホットキー"
+                   Grid.Row="1" Grid.Column="0"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
+        <TextBox x:Name="HotkeyBox"
+                 Grid.Row="1" Grid.Column="1"
+                 Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                   Foreground="#CCCCCC" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
+                   Text="例: Alt+Space / Ctrl+Shift+F / Win+1（単一キーまたは修飾付き）。Prefix+Alt+Space でも検索レイヤーは呼び出せます。"/>
+
+        <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                Background="#1F8B0000" BorderBrush="#8B0000" BorderThickness="1" CornerRadius="6"
+                Padding="8" Margin="0,0,0,8">
+            <TextBlock TextWrapping="Wrap" Foreground="#FFCCCC">
+                Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。
+            </TextBlock>
+        </Border>
+
+        <TextBlock x:Name="ErrorBlock"
+                   Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                   Foreground="#FF6666" FontSize="12" Visibility="Collapsed" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal"
+                    Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                    HorizontalAlignment="Right">
+            <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
+            <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True" Click="OnCancel"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -164,6 +164,13 @@ public class ConfigService
             }
         }
 
+        cfg.SearchHotkey ??= string.Empty;
+        cfg.SearchHotkey = cfg.SearchHotkey.Trim();
+        if (cfg.SearchHotkeyEnabled && string.IsNullOrWhiteSpace(cfg.SearchHotkey))
+        {
+            cfg.SearchHotkeyEnabled = false;
+        }
+
         int requiredSlots = cfg.SlotRows * cfg.SlotColumns;
         foreach (var layer in cfg.Layers)
         {
@@ -612,6 +619,14 @@ public class ConfigService
                 }
             }
             cfg.Version = 29;
+            changed = true;
+        }
+
+        if (cfg.Version < 30)
+        {
+            cfg.SearchHotkeyEnabled = false;
+            cfg.SearchHotkey ??= string.Empty;
+            cfg.Version = 30;
             changed = true;
         }
 
