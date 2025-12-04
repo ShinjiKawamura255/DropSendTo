@@ -1329,7 +1329,12 @@ public partial class MainWindow : Window
             return true;
         }
 
-        return haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
+        if (haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+
+        return IsSubsequence(haystack, token);
     }
 
     private static bool IsSubsequence(string haystack, string token)
