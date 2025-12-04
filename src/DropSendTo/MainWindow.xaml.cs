@@ -1232,6 +1232,7 @@ public partial class MainWindow : Window
 
         BringWindowToForeground();
         ActivateKeyboardNavigation();
+        _keyboardSelectedSlotIndex = 0;
         NormalizeKeyboardSelectionIndex();
         UpdateKeyboardSelectionVisual();
     }
@@ -1328,12 +1329,7 @@ public partial class MainWindow : Window
             return true;
         }
 
-        if (haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return true;
-        }
-
-        return IsSubsequence(haystack, token);
+        return haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool IsSubsequence(string haystack, string token)
@@ -1680,7 +1676,7 @@ public partial class MainWindow : Window
         }
         if (_keyboardSelectedSlotIndex < 0)
         {
-            _keyboardSelectedSlotIndex = totalSlots - 1;
+            _keyboardSelectedSlotIndex = 0;
         }
     }
 
@@ -1806,6 +1802,7 @@ public partial class MainWindow : Window
             else
             {
                 ActivateKeyboardNavigation();
+                _keyboardSelectedSlotIndex = 0;
                 NormalizeKeyboardSelectionIndex();
                 UpdateKeyboardSelectionVisual();
             }
