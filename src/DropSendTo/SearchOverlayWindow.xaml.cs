@@ -1,8 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using InputKey = System.Windows.Input.Key;
-using InputModifiers = System.Windows.Input.ModifierKeys;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace DropSendTo;
@@ -11,7 +9,15 @@ public partial class SearchOverlayWindow : Window
 {
     public event EventHandler<string>? SearchTextChanged;
     public event EventHandler? CancelRequested;
-    public event EventHandler? SlotNavigationRequested;
+    public event EventHandler<SlotNavigationRequestedEventArgs>? SlotNavigationRequested;
+
+    public bool EnableEmacsNavigation { get; set; } = true;
+    public NavigationDirection NavigationDirectionToSlots { get; set; } = NavigationDirection.Down;
+
+    public bool IsInputFocused => SearchBox.IsKeyboardFocusWithin;
+    private bool _suppressNavigationUntilKeyUp;
+    private System.Windows.Input.Key _suppressedNavigationKey = System.Windows.Input.Key.None;
+    private System.Windows.Input.ModifierKeys _suppressedNavigationModifiers = System.Windows.Input.ModifierKeys.None;
 
     public SearchOverlayWindow()
     {
@@ -48,61 +54,105 @@ public partial class SearchOverlayWindow : Window
     private void OnSearchBoxKeyDown(object sender, KeyEventArgs e)
     {
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
-        bool ctrlOnly = modifiers == InputModifiers.Control;
+        bool ctrlOnly = modifiers == System.Windows.Input.ModifierKeys.Control;
+        bool preferLastSlot = NavigationDirectionToSlots == NavigationDirection.Up;
 
-        if (ctrlOnly && e.Key == InputKey.G)
+        if (_suppressNavigationUntilKeyUp &&
+            e.Key == _suppressedNavigationKey &&
+            modifiers == _suppressedNavigationModifiers)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrlOnly && e.Key == System.Windows.Input.Key.G)
         {
             CancelRequested?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
             return;
         }
 
-        if (e.Key == InputKey.Escape)
+        if (e.Key == System.Windows.Input.Key.Escape)
         {
             CancelRequested?.Invoke(this, EventArgs.Empty);
             e.Handled = true;
             return;
+        }
+
+        if (EnableEmacsNavigation && ctrlOnly)
+        {
+            switch (e.Key)
+            {
+                case System.Windows.Input.Key.N when NavigationDirectionToSlots == NavigationDirection.Down:
+                    RequestSlotNavigation(false);
+                    SuppressNavigationUntilKeyUp(e.Key, modifiers);
+                    e.Handled = true;
+                    return;
+                case System.Windows.Input.Key.P when NavigationDirectionToSlots == NavigationDirection.Up:
+                    RequestSlotNavigation(true);
+                    SuppressNavigationUntilKeyUp(e.Key, modifiers);
+                    e.Handled = true;
+                    return;
+            }
         }
 
         if (ctrlOnly)
         {
             switch (e.Key)
             {
-                case InputKey.F:
+                case System.Windows.Input.Key.F:
                     MoveCaret(1);
                     e.Handled = true;
                     return;
-                case InputKey.B:
+                case System.Windows.Input.Key.B:
                     MoveCaret(-1);
                     e.Handled = true;
                     return;
-                case InputKey.A:
+                case System.Windows.Input.Key.A:
                     MoveCaretTo(0);
                     e.Handled = true;
                     return;
-                case InputKey.E:
+                case System.Windows.Input.Key.E:
                     MoveCaretTo(SearchBox.Text?.Length ?? 0);
                     e.Handled = true;
                     return;
-                case InputKey.K:
+                case System.Windows.Input.Key.K:
                     KillLine();
                     e.Handled = true;
                     return;
-                case InputKey.D:
+                case System.Windows.Input.Key.D:
                     DeleteForward();
                     e.Handled = true;
                     return;
-                case InputKey.H:
+                case System.Windows.Input.Key.H:
                     DeleteBackward();
                     e.Handled = true;
                     return;
             }
         }
 
-        if (e.Key == InputKey.Enter || e.Key == InputKey.Tab)
+        if (e.Key == System.Windows.Input.Key.Enter || e.Key == System.Windows.Input.Key.Tab)
         {
-            SlotNavigationRequested?.Invoke(this, EventArgs.Empty);
+            RequestSlotNavigation(preferLastSlot);
             e.Handled = true;
+        }
+    }
+
+    private void RequestSlotNavigation(bool preferLastSlot)
+    {
+        SlotNavigationRequested?.Invoke(this, new SlotNavigationRequestedEventArgs(preferLastSlot));
+    }
+
+    private void OnSearchBoxKeyUp(object sender, KeyEventArgs e)
+    {
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        if (_suppressNavigationUntilKeyUp &&
+            e.Key == _suppressedNavigationKey &&
+            modifiers == _suppressedNavigationModifiers)
+        {
+            _suppressNavigationUntilKeyUp = false;
+            _suppressedNavigationKey = System.Windows.Input.Key.None;
+            _suppressedNavigationModifiers = System.Windows.Input.ModifierKeys.None;
         }
     }
 
@@ -153,4 +203,27 @@ public partial class SearchOverlayWindow : Window
         SearchBox.Text = text.Remove(caret - 1, 1);
         SearchBox.CaretIndex = caret - 1;
     }
+
+    public void SuppressNavigationUntilKeyUp(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
+    {
+        _suppressNavigationUntilKeyUp = true;
+        _suppressedNavigationKey = key;
+        _suppressedNavigationModifiers = modifiers;
+    }
+}
+
+public sealed class SlotNavigationRequestedEventArgs : EventArgs
+{
+    public SlotNavigationRequestedEventArgs(bool preferLastSlot)
+    {
+        PreferLastSlot = preferLastSlot;
+    }
+
+    public bool PreferLastSlot { get; }
+}
+
+public enum NavigationDirection
+{
+    Down = 0,
+    Up = 1
 }

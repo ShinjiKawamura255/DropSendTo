@@ -63,6 +63,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _layerNameOverlayCts;
     private SearchOverlayWindow? _searchOverlayWindow;
     private bool _searchLayerActive;
+    private bool _isSearchOverlayBelowMain;
     private string _searchQuery = string.Empty;
     private PrefixSearchRestoreContext? _prefixSearchRestoreContext;
     private readonly List<SearchResult> _searchResults = new();
@@ -1010,7 +1011,7 @@ public partial class MainWindow : Window
         return new Rect(Left, Top, width, height);
     }
 
-    private void PositionOverlayWindow(Window overlay)
+    private (double left, double top, bool placedBelow) CalculateOverlayPosition(Window overlay)
     {
         overlay.InvalidateMeasure();
         overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
@@ -1024,14 +1025,22 @@ public partial class MainWindow : Window
 
         double targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
         double targetTop = anchorRect.Top - overlay.Height - offset;
+        bool placedBelow = false;
         if (targetTop < bounds.Top)
         {
             targetTop = anchorRect.Bottom + offset;
+            placedBelow = true;
         }
 
         var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
-        overlay.Left = clampedLeft;
-        overlay.Top = clampedTop;
+        return (clampedLeft, clampedTop, placedBelow);
+    }
+
+    private void PositionOverlayWindow(Window overlay)
+    {
+        var (left, top, _) = CalculateOverlayPosition(overlay);
+        overlay.Left = left;
+        overlay.Top = top;
     }
 
     private LayerNameOverlayWindow EnsureLayerNameOverlay()
@@ -1163,7 +1172,18 @@ public partial class MainWindow : Window
             _searchOverlayWindow.CancelRequested += OnSearchOverlayCancelRequested;
             _searchOverlayWindow.SlotNavigationRequested += OnSearchOverlaySlotNavigationRequested;
         }
+        UpdateSearchOverlayNavigationModes();
         return _searchOverlayWindow;
+    }
+
+    private void UpdateSearchOverlayNavigationModes()
+    {
+        if (_searchOverlayWindow == null)
+        {
+            return;
+        }
+
+        _searchOverlayWindow.EnableEmacsNavigation = _config?.EnableEmacsNavigation ?? true;
     }
 
     private void PositionSearchOverlay()
@@ -1172,7 +1192,11 @@ public partial class MainWindow : Window
         {
             return;
         }
-        PositionOverlayWindow(_searchOverlayWindow);
+        var (left, top, placedBelow) = CalculateOverlayPosition(_searchOverlayWindow);
+        _searchOverlayWindow.Left = left;
+        _searchOverlayWindow.Top = top;
+        _isSearchOverlayBelowMain = placedBelow;
+        _searchOverlayWindow.NavigationDirectionToSlots = placedBelow ? NavigationDirection.Up : NavigationDirection.Down;
     }
 
     private void HideSearchOverlay()
@@ -1261,18 +1285,41 @@ public partial class MainWindow : Window
         CloseSearchLayerAndMaybeRestore();
     }
 
-    private void OnSearchOverlaySlotNavigationRequested(object? sender, EventArgs e)
+    private void OnSearchOverlaySlotNavigationRequested(object? sender, SlotNavigationRequestedEventArgs e)
     {
-        if (!_searchLayerActive)
+        if (!_searchLayerActive || !CanNavigateFromSearchToSlots())
         {
             return;
         }
 
         BringWindowToForeground();
         ActivateKeyboardNavigation();
-        _keyboardSelectedSlotIndex = 0;
+        int totalSlots = GetNavigableSlotCount();
+        if (totalSlots <= 0)
+        {
+            _keyboardSelectedSlotIndex = -1;
+        }
+        else if (e?.PreferLastSlot == true)
+        {
+            _keyboardSelectedSlotIndex = totalSlots - 1;
+        }
+        else
+        {
+            _keyboardSelectedSlotIndex = 0;
+        }
         NormalizeKeyboardSelectionIndex();
         UpdateKeyboardSelectionVisual();
+        Focus();
+        if (SlotsPanel != null)
+        {
+            Keyboard.Focus(SlotsPanel);
+        }
+        else
+        {
+            Keyboard.Focus(this);
+        }
+        Focus();
+        Keyboard.Focus(this);
     }
 
     private void RebuildSearchResults()
@@ -1832,6 +1879,7 @@ public partial class MainWindow : Window
         }
 
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
         NavigationCommand command = NavigationCommand.MoveUp;
         if (_searchLayerActive && key == System.Windows.Input.Key.Tab &&
             (System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None ||
@@ -1867,6 +1915,7 @@ public partial class MainWindow : Window
         {
             _metaPrefixPending = false;
         }
+
         if (!TryMapNavigationCommand(e, key, out command))
         {
             return false;
@@ -1881,6 +1930,26 @@ public partial class MainWindow : Window
         {
             OpenContextMenuFromKeyboard();
             return true;
+        }
+
+        if (_searchLayerActive && _keyboardNavigationActive &&
+            (command == NavigationCommand.MoveUp || command == NavigationCommand.MoveDown))
+        {
+            int columns = _config?.SlotColumns ?? 0;
+            int totalSlots = GetNavigableSlotCount();
+            if (columns > 0 && totalSlots > 0 && _keyboardSelectedSlotIndex >= 0)
+            {
+                bool atOverlayEdge = !_isSearchOverlayBelowMain
+                    ? command == NavigationCommand.MoveUp && _keyboardSelectedSlotIndex < columns
+                    : command == NavigationCommand.MoveDown && _keyboardSelectedSlotIndex >= Math.Max(totalSlots - columns, 0);
+                if (atOverlayEdge && ShouldReturnToSearch(key, modifiers))
+                {
+                    FocusSearchOverlayInput(selectAll: false);
+                    DeactivateKeyboardNavigation();
+                    _searchOverlayWindow?.SuppressNavigationUntilKeyUp(key, modifiers);
+                    return true;
+                }
+            }
         }
 
         if (!_keyboardNavigationActive)
@@ -2488,6 +2557,52 @@ public partial class MainWindow : Window
             or System.Windows.Input.Key.Down
             or System.Windows.Input.Key.Left
             or System.Windows.Input.Key.Right;
+    }
+
+    private bool ShouldReturnToSearch(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
+    {
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
+        if (_isSearchOverlayBelowMain)
+        {
+            if (modifiers == System.Windows.Input.ModifierKeys.None && key == System.Windows.Input.Key.Down)
+            {
+                return true;
+            }
+
+            if (emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.N)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            if (modifiers == System.Windows.Input.ModifierKeys.None && key == System.Windows.Input.Key.Up)
+            {
+                return true;
+            }
+
+            if (emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.P)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanNavigateFromSearchToSlots()
+    {
+        if (!_searchLayerActive)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            return false;
+        }
+
+        return _searchResults.Count > 0;
     }
 
     private void OnSlotContextMenu(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -3785,6 +3900,7 @@ public partial class MainWindow : Window
         bool enabled = item.IsChecked;
         if (_config.EnableEmacsNavigation == enabled) return;
         _config.EnableEmacsNavigation = enabled;
+        UpdateSearchOverlayNavigationModes();
         _configService.Save(_config);
     }
 
@@ -3794,6 +3910,7 @@ public partial class MainWindow : Window
         bool enabled = item.IsChecked;
         if (_config.EnableViNavigation == enabled) return;
         _config.EnableViNavigation = enabled;
+        UpdateSearchOverlayNavigationModes();
         _configService.Save(_config);
     }
 
@@ -4969,6 +5086,7 @@ public partial class MainWindow : Window
         {
             _searchOverlayWindow.SearchTextChanged -= OnSearchOverlayTextChanged;
             _searchOverlayWindow.CancelRequested -= OnSearchOverlayCancelRequested;
+            _searchOverlayWindow.SlotNavigationRequested -= OnSearchOverlaySlotNavigationRequested;
             _searchOverlayWindow.Close();
             _searchOverlayWindow = null;
         }

@@ -33,11 +33,12 @@
                      Padding="8,4"
                      Background="#222222"
                      Foreground="#FFFFFF"
-                     BorderBrush="#555555"
-                     BorderThickness="1"
-                     CaretBrush="#FFFFFF"
-                     TextChanged="OnSearchTextChanged"
-                     KeyDown="OnSearchBoxKeyDown"/>
+             BorderBrush="#555555"
+             BorderThickness="1"
+             CaretBrush="#FFFFFF"
+             TextChanged="OnSearchTextChanged"
+             KeyDown="OnSearchBoxKeyDown"
+             KeyUp="OnSearchBoxKeyUp"/>
         </StackPanel>
     </Border>
 </Window>
