@@ -20,12 +20,11 @@
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="デフォルトの最小化トリガー（新規スロットの初期値）" FontWeight="SemiBold" Margin="0,0,0,6"/>
                 <UniformGrid Columns="4" Rows="1" Margin="0,0,0,8">
-                    <CheckBox Content="Click" IsChecked="{Binding DefaultOnClick}"/>
-                    <CheckBox Content="Shortcut" IsChecked="{Binding DefaultOnShortcut}"/>
-                    <CheckBox Content="Drop" IsChecked="{Binding DefaultOnDrop}"/>
-                    <CheckBox Content="Keyboard" IsChecked="{Binding DefaultOnKeyboard}"/>
+                    <CheckBox Content="Click（スロットクリック実行後）" IsChecked="{Binding DefaultOnClick}"/>
+                    <CheckBox Content="Shortcut（ショートカット起動後）" IsChecked="{Binding DefaultOnShortcut}"/>
+                    <CheckBox Content="Drop（ファイルドロップ起動後）" IsChecked="{Binding DefaultOnDrop}"/>
+                    <CheckBox Content="Keyboard（検索レイヤー等のキーボード起動後）" IsChecked="{Binding DefaultOnKeyboard}"/>
                 </UniformGrid>
-                <TextBlock Text="凡例: Click=スロットクリック実行後 / Shortcut=ショートカット起動後 / Drop=ファイルドロップ起動後 / Keyboard=検索レイヤー等のキーボード起動後" FontSize="12" Opacity="0.8" TextWrapping="Wrap"/>
                 <TextBlock Text="スロットごとの最小化トリガーを一覧で編集できます。" FontSize="12" Opacity="0.8"/>
             </StackPanel>
 
