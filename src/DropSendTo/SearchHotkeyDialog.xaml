@@ -38,12 +38,17 @@
         <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
                 Background="#33FF3333" BorderBrush="#FFFF6666" BorderThickness="1.5" CornerRadius="6"
                 Padding="10" Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="⚠" Margin="0,0,6,0" Foreground="#FFFFFF" FontWeight="Bold"/>
-                <TextBlock TextWrapping="Wrap" Foreground="#FFFFFF">
-                    Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。
-                </TextBlock>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="⚠" Margin="0,0,6,0" Foreground="#FFFFFF" FontWeight="Bold" VerticalAlignment="Top"/>
+                <TextBlock Grid.Column="1"
+                           TextWrapping="Wrap"
+                           Foreground="#FFFFFF"
+                           Text="Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。"/>
+            </Grid>
         </Border>
 
         <TextBlock x:Name="ErrorBlock"
