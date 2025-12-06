@@ -32,4 +32,12 @@ public class SlotMinimizeOptions
             SlotTriggerKind.Keyboard => EnableOnKeyboard,
             _ => false
         };
+
+    public SlotMinimizeOptions Clone() => new()
+    {
+        EnableOnClick = EnableOnClick,
+        EnableOnShortcut = EnableOnShortcut,
+        EnableOnDrop = EnableOnDrop,
+        EnableOnKeyboard = EnableOnKeyboard
+    };
 }

@@ -153,6 +153,7 @@ internal sealed class ConfigTransferService
         public int MouseGestureShowLayerWhenHidden { get; set; }
         public int PrefixShowLayerWhenVisible { get; set; }
         public int PrefixShowLayerWhenHidden { get; set; }
+        public ExportMinimizeOptions? DefaultMinimizeOptions { get; set; }
         public bool SearchHotkeyEnabled { get; set; }
         public string SearchHotkey { get; set; } = string.Empty;
         public int SlotRows { get; set; }
@@ -189,6 +190,7 @@ internal sealed class ConfigTransferService
                 MouseGestureShowLayerWhenHidden = config.MouseGestureShowLayerWhenHidden,
                 PrefixShowLayerWhenVisible = config.PrefixShowLayerWhenVisible,
                 PrefixShowLayerWhenHidden = config.PrefixShowLayerWhenHidden,
+                DefaultMinimizeOptions = ExportMinimizeOptions.FromOptions(config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()),
                 SearchHotkeyEnabled = config.SearchHotkeyEnabled,
                 SearchHotkey = config.SearchHotkey ?? string.Empty,
                 PreferRemoteSessions = config.PreferRemoteSessions,
@@ -235,6 +237,7 @@ internal sealed class ConfigTransferService
                 MouseGestureShowLayerWhenHidden = MouseGestureShowLayerWhenHidden,
                 PrefixShowLayerWhenVisible = PrefixShowLayerWhenVisible,
                 PrefixShowLayerWhenHidden = PrefixShowLayerWhenHidden,
+                DefaultMinimizeOptions = DefaultMinimizeOptions?.ToOptions() ?? SlotMinimizeOptions.CreateDefault(),
                 SearchHotkeyEnabled = SearchHotkeyEnabled,
                 SearchHotkey = SearchHotkey ?? string.Empty,
                 PreferRemoteSessions = PreferRemoteSessions,
@@ -280,6 +283,7 @@ internal sealed class ConfigTransferService
         public SlotExecutionMode ExecutionMode { get; set; }
         public SlotAccentColor AccentColor { get; set; }
         public string? SearchKeywords { get; set; }
+        public ExportMinimizeOptions? MinimizeOptions { get; set; }
 
         public static ExportSlotSnapshot FromSlot(SlotModel slot)
         {
@@ -294,7 +298,8 @@ internal sealed class ConfigTransferService
                 KeyboardMacroScript = slot.KeyboardMacroScript,
                 ExecutionMode = slot.ExecutionMode,
                 AccentColor = slot.AccentColor,
-                SearchKeywords = slot.SearchKeywords
+                SearchKeywords = slot.SearchKeywords,
+                MinimizeOptions = ExportMinimizeOptions.FromOptions(slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault())
             };
         }
 
@@ -311,7 +316,39 @@ internal sealed class ConfigTransferService
                 KeyboardMacroScript = KeyboardMacroScript ?? string.Empty,
                 ExecutionMode = ExecutionMode,
                 AccentColor = AccentColor,
-                SearchKeywords = SearchKeywords ?? string.Empty
+                SearchKeywords = SearchKeywords ?? string.Empty,
+                MinimizeOptions = MinimizeOptions?.ToOptions() ?? SlotMinimizeOptions.CreateDefault()
+            };
+        }
+    }
+
+    private sealed class ExportMinimizeOptions
+    {
+        public bool EnableOnClick { get; set; }
+        public bool EnableOnShortcut { get; set; }
+        public bool EnableOnDrop { get; set; }
+        public bool EnableOnKeyboard { get; set; }
+
+        public static ExportMinimizeOptions FromOptions(SlotMinimizeOptions options)
+        {
+            options ??= SlotMinimizeOptions.CreateDefault();
+            return new ExportMinimizeOptions
+            {
+                EnableOnClick = options.EnableOnClick,
+                EnableOnShortcut = options.EnableOnShortcut,
+                EnableOnDrop = options.EnableOnDrop,
+                EnableOnKeyboard = options.EnableOnKeyboard
+            };
+        }
+
+        public SlotMinimizeOptions ToOptions()
+        {
+            return new SlotMinimizeOptions
+            {
+                EnableOnClick = EnableOnClick,
+                EnableOnShortcut = EnableOnShortcut,
+                EnableOnDrop = EnableOnDrop,
+                EnableOnKeyboard = EnableOnKeyboard
             };
         }
     }

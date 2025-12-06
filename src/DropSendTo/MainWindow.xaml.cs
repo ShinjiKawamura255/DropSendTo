@@ -2908,6 +2908,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if ((_config?.DefaultMinimizeOptions != null && IsSlotEmpty(slot)) || slot.MinimizeOptions == null)
+        {
+            slot.MinimizeOptions = (_config?.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()).Clone();
+        }
         var dlg = new RegisterDialog(slot)
         {
             Owner = this
@@ -4036,6 +4040,37 @@ public partial class MainWindow : Window
         PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
+    }
+
+    private void OnConfigureMinimizeTriggers(object sender, RoutedEventArgs e)
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        var defaultOptions = _config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
+        var dlg = new SlotMinimizeSettingsWindow(_config.Layers, defaultOptions) { Owner = this };
+        WindowCascadeService.Arrange(dlg, this);
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        _config.DefaultMinimizeOptions = dlg.GetDefaultOptions();
+        foreach (var update in dlg.GetSlotUpdates())
+        {
+            if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
+            var layer = _config.Layers[update.LayerIndex];
+            layer.Slots ??= new List<SlotModel>();
+            if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
+            var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
+            slot.MinimizeOptions = update.Options?.Clone() ?? SlotMinimizeOptions.CreateDefault();
+            layer.Slots[update.SlotIndex] = slot;
+        }
+
+        _configService.Save(_config);
+        RefreshUi();
     }
 
     private void OnShowShortcutList(object sender, RoutedEventArgs e)

@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 30;
+    public int Version { get; set; } = 31;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -32,6 +32,7 @@ public class AppConfig
     public int MouseGestureShowLayerWhenHidden { get; set; } = -1;
     public int PrefixShowLayerWhenVisible { get; set; } = -1;
     public int PrefixShowLayerWhenHidden { get; set; } = -1;
+    public SlotMinimizeOptions DefaultMinimizeOptions { get; set; } = SlotMinimizeOptions.CreateDefault();
     public bool SearchHotkeyEnabled { get; set; }
     public string SearchHotkey { get; set; } = string.Empty;
     public int SlotRows { get; set; } = 2;

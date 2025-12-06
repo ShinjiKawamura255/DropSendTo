@@ -77,6 +77,8 @@
                       Header="Prefix: リモートセッション優先 (RDP/Citrix)"
                       IsCheckable="True"
                       Click="OnToggleRemoteSessionPriority"/>
+            <MenuItem Header="最小化トリガー..."
+                      Click="OnConfigureMinimizeTriggers"/>
             <MenuItem Header="ショートカット一覧..."
                       Click="OnShowShortcutList"/>
             <Separator/>
