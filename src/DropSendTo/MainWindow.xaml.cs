@@ -277,6 +277,8 @@ public partial class MainWindow : Window
             }
             _layerHoverTimer.Stop();
         };
+
+        SystemEvents.SessionSwitch += OnSystemSessionSwitch;
     }
 
     private void InitializeNotifyIcon()
@@ -5080,6 +5082,7 @@ public partial class MainWindow : Window
         _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
         _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
+        SystemEvents.SessionSwitch -= OnSystemSessionSwitch;
         _shortcutService.Dispose();
         _macroService.Dispose();
         if (_searchOverlayWindow != null)
@@ -5090,6 +5093,35 @@ public partial class MainWindow : Window
             _searchOverlayWindow.Close();
             _searchOverlayWindow = null;
         }
+    }
+
+    private void OnSystemSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason != SessionSwitchReason.SessionLock)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                bool canceled = await _macroService.CancelAllRunningMacrosAsync(cts.Token).ConfigureAwait(true);
+                if (canceled)
+                {
+                    _logger.Info("Canceled running macros because session was locked.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore cancellation
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to cancel macros on session lock: {ex.Message}");
+            }
+        }), DispatcherPriority.Background);
     }
 
     private void ToggleWindowPlacementMode()
