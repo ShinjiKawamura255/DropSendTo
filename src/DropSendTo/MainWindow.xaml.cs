@@ -2908,9 +2908,15 @@ public partial class MainWindow : Window
         {
             return;
         }
-        if ((_config?.DefaultMinimizeOptions != null && IsSlotEmpty(slot)) || slot.MinimizeOptions == null)
+        if (_config == null)
         {
-            slot.MinimizeOptions = (_config?.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()).Clone();
+            _logger.Error("Config is not loaded; cannot edit slot.");
+            return;
+        }
+        var config = _config;
+        if ((config.DefaultMinimizeOptions != null && IsSlotEmpty(slot)) || slot.MinimizeOptions == null)
+        {
+            slot.MinimizeOptions = (config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()).Clone();
         }
         var dlg = new RegisterDialog(slot)
         {
@@ -2929,7 +2935,7 @@ public partial class MainWindow : Window
             slot.AccentColor = args.AccentColor;
             slot.MinimizeOptions = args.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
             slot.SearchKeywords = args.SearchKeywords;
-            _configService.Save(_config);
+            _configService.Save(config);
             RefreshUi();
         };
 
