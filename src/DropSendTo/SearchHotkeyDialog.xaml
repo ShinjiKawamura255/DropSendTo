@@ -36,11 +36,14 @@
                    Text="例: Alt+Space / Ctrl+Shift+F / Win+1（単一キーまたは修飾付き）。Prefix+Alt+Space でも検索レイヤーは呼び出せます。"/>
 
         <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
-                Background="#1F8B0000" BorderBrush="#8B0000" BorderThickness="1" CornerRadius="6"
-                Padding="8" Margin="0,0,0,8">
-            <TextBlock TextWrapping="Wrap" Foreground="#FFCCCC">
-                Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。
-            </TextBlock>
+                Background="#33FF3333" BorderBrush="#FFFF6666" BorderThickness="1.5" CornerRadius="6"
+                Padding="10" Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="⚠" Margin="0,0,6,0" Foreground="#FFFFFF" FontWeight="Bold"/>
+                <TextBlock TextWrapping="Wrap" Foreground="#FFFFFF">
+                    Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。
+                </TextBlock>
+            </StackPanel>
         </Border>
 
         <TextBlock x:Name="ErrorBlock"
