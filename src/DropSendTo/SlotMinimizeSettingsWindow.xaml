@@ -25,6 +25,7 @@
                     <CheckBox Content="Drop" IsChecked="{Binding DefaultOnDrop}"/>
                     <CheckBox Content="Keyboard" IsChecked="{Binding DefaultOnKeyboard}"/>
                 </UniformGrid>
+                <TextBlock Text="凡例: Click=スロットクリック実行後 / Shortcut=ショートカット起動後 / Drop=ファイルドロップ起動後 / Keyboard=検索レイヤー等のキーボード起動後" FontSize="12" Opacity="0.8" TextWrapping="Wrap"/>
                 <TextBlock Text="スロットごとの最小化トリガーを一覧で編集できます。" FontSize="12" Opacity="0.8"/>
             </StackPanel>
 
@@ -72,10 +73,34 @@
                     <DataGridTextColumn Header="Layer" Binding="{Binding LayerLabel}" IsReadOnly="True" Width="60"/>
                     <DataGridTextColumn Header="Slot" Binding="{Binding SlotLabel}" IsReadOnly="True" Width="60"/>
                     <DataGridTextColumn Header="Title" Binding="{Binding Title}" IsReadOnly="True" Width="*"/>
-                    <DataGridCheckBoxColumn Header="Click" Binding="{Binding EnableOnClick, Mode=TwoWay}" Width="90"/>
-                    <DataGridCheckBoxColumn Header="Shortcut" Binding="{Binding EnableOnShortcut, Mode=TwoWay}" Width="100"/>
-                    <DataGridCheckBoxColumn Header="Drop" Binding="{Binding EnableOnDrop, Mode=TwoWay}" Width="90"/>
-                    <DataGridCheckBoxColumn Header="Keyboard" Binding="{Binding EnableOnKeyboard, Mode=TwoWay}" Width="100"/>
+                    <DataGridTemplateColumn Header="Click" Width="90">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding EnableOnClick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Shortcut" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding EnableOnShortcut, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Drop" Width="90">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding EnableOnDrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Keyboard" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding EnableOnKeyboard, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>
