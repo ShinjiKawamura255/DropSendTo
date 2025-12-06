@@ -14,6 +14,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Progress bar output (e.g., Compress-Archive) can overwrite warnings in the console; suppress it to keep logs readable.
+$ProgressPreference = 'SilentlyContinue'
 
 function Invoke-Step($name, $script) {
     Write-Host "== $name =="
