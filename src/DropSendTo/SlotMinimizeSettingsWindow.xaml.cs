@@ -85,6 +85,10 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
             for (int slotIndex = 0; slotIndex < slots.Count; slotIndex++)
             {
                 var slot = slots[slotIndex] ?? new SlotModel();
+                if (IsSlotEmpty(slot))
+                {
+                    continue;
+                }
                 var options = slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
                 string title = string.IsNullOrWhiteSpace(slot.Title) ? $"Slot {slotIndex + 1}" : slot.Title.Trim();
                 rows.Add(new SlotMinimizeRow(layerIndex, slotIndex, $"L{layerIndex + 1}", $"S{slotIndex + 1}", title)
@@ -98,6 +102,19 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
         }
 
         return rows;
+    }
+
+    private static bool IsSlotEmpty(SlotModel slot)
+    {
+        if (slot == null) return true;
+        bool baseTemplate = string.Equals(slot.ArgumentsTemplate ?? string.Empty, "{args}", StringComparison.Ordinal);
+        return string.IsNullOrWhiteSpace(slot.Title) &&
+               string.IsNullOrWhiteSpace(slot.Command) &&
+               string.IsNullOrWhiteSpace(slot.KeyboardMacroScript) &&
+               string.IsNullOrWhiteSpace(slot.ShortcutKey) &&
+               baseTemplate &&
+               slot.ClickEnabled &&
+               string.IsNullOrWhiteSpace(slot.IconPath);
     }
 
     private void ApplyDefaultOptions(SlotMinimizeOptions options)
