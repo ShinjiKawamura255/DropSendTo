@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using DropSendTo.Services;
 
 namespace DropSendTo;
@@ -207,5 +208,34 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
     {
         public int X;
         public int Y;
+    }
+
+    private void OnTitleBarDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        if (IsInteractiveElement(e.OriginalSource)) return;
+        DragMove();
+    }
+
+    private void OnCloseClicked(object sender, RoutedEventArgs e)
+    {
+        IsConfirmed = false;
+        Close();
+    }
+
+    private static bool IsInteractiveElement(object source)
+    {
+        if (source is not DependencyObject d) return false;
+        while (d != null)
+        {
+            if (d is System.Windows.Controls.Primitives.ButtonBase
+                || d is System.Windows.Controls.Primitives.TextBoxBase
+                || d is System.Windows.Controls.PasswordBox)
+            {
+                return true;
+            }
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
     }
 }

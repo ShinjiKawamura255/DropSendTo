@@ -7,7 +7,7 @@
         Topmost="True"
         AllowsTransparency="True"
         Background="Transparent"
-        Foreground="#FFFFFFFF"
+        Foreground="{StaticResource Theme.PrimaryTextBrush}"
         WindowStyle="None"
         ResizeMode="NoResize"
         PreviewMouseWheel="OnMouseWheel"
@@ -93,40 +93,8 @@
             <MenuItem Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
-    <Border CornerRadius="12" Background="#CC000000" Padding="6">
+    <Border CornerRadius="12" Background="{StaticResource Theme.OverlayScrimBrush}" Padding="6">
     <Grid>
-        <Grid.Resources>
-            <Style TargetType="Button">
-                <Setter Property="Foreground" Value="#FFFFFF"/>
-                <Setter Property="Background" Value="#111111"/>
-                <Setter Property="BorderBrush" Value="#333333"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Padding" Value="4,2"/>
-                <Setter Property="SnapsToDevicePixels" Value="True"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="bd" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="#202020"/>
-                                    <Setter TargetName="bd" Property="BorderBrush" Value="#666666"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="#505050"/>
-                                    <Setter TargetName="bd" Property="BorderBrush" Value="#FFFFFF"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="bd" Property="Opacity" Value="0.5"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -138,8 +106,8 @@
                 Margin="0"
                 Padding="8,2"
                 CornerRadius="8"
-                Background="#33222222"
-                BorderBrush="#6600FF99"
+                Background="{StaticResource Theme.BadgeBackgroundBrush}"
+                BorderBrush="{StaticResource Theme.BadgeBorderBrush}"
                 BorderThickness="1"
                 Visibility="Collapsed"
                 Panel.ZIndex="10"
@@ -148,7 +116,7 @@
                        Text="PREFIX"
                        FontSize="12"
                        FontWeight="SemiBold"
-                       Foreground="#FFFFFF"/>
+                       Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
         </Border>
         <Border x:Name="EditModeIndicator"
                 Grid.Row="1"
@@ -157,8 +125,8 @@
                 Margin="0,4,0,0"
                 Padding="8,2"
                 CornerRadius="8"
-                Background="#33252200"
-                BorderBrush="#66FFCC66"
+                Background="{StaticResource Theme.EditBadgeBackgroundBrush}"
+                BorderBrush="{StaticResource Theme.EditBadgeBorderBrush}"
                 BorderThickness="1"
                 Visibility="Collapsed"
                 Panel.ZIndex="11"
@@ -167,7 +135,7 @@
                        Text="LAYOUT EDIT MODE"
                        FontSize="12"
                        FontWeight="SemiBold"
-                       Foreground="#FFE4FFCC"/>
+                       Foreground="{StaticResource Theme.EditBadgeTextBrush}"/>
         </Border>
         <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
         <DockPanel Grid.Row="0" LastChildFill="False" Background="Transparent" MouseLeftButtonDown="OnDragMoveArea">

@@ -15,8 +15,8 @@
         ShowActivated="False"
         UseLayoutRounding="True"
         SizeToContent="WidthAndHeight">
-    <Border Background="#CC111111"
-            BorderBrush="#333333"
+    <Border Background="{StaticResource Theme.OverlayBackgroundBrush}"
+            BorderBrush="{StaticResource Theme.BorderBrush}"
             BorderThickness="1"
             CornerRadius="10"
             Padding="12,8"
@@ -25,7 +25,7 @@
                    Text="Layer 1"
                    FontSize="12"
                    FontWeight="Medium"
-                   Foreground="#FFFFFF"
+                   Foreground="{StaticResource Theme.PrimaryTextBrush}"
                    TextTrimming="CharacterEllipsis"
                    TextWrapping="Wrap"
                    MaxWidth="240"/>

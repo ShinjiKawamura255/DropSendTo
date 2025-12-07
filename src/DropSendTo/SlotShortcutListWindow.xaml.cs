@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 using DropSendTo.Models;
 
 namespace DropSendTo;
@@ -31,5 +32,13 @@ internal partial class SlotShortcutListWindow : Window
     private void OnClose(object sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void OnTitleBarDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            DragMove();
+        }
     }
 }

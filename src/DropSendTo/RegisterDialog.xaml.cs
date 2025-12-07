@@ -352,10 +352,11 @@ public partial class RegisterDialog : Window
         var mode = CurrentMode;
         bool macroEnabled = mode != SlotExecutionMode.Command;
         bool commandEnabled = mode != SlotExecutionMode.MacroScript;
-        CommandBox.IsEnabled = commandEnabled;
-        ArgsBox.IsEnabled = commandEnabled;
-        CommandBrowseButton.IsEnabled = commandEnabled;
-        MacroBox.IsEnabled = macroEnabled;
+        ApplyEnabledState(CommandBox, commandEnabled);
+        ApplyEnabledState(ArgsBox, commandEnabled);
+        ApplyEnabledState(CommandBrowseButton, commandEnabled);
+        MacroBox.IsReadOnly = !macroEnabled;
+        ApplyEnabledState(MacroBox, macroEnabled);
 
         if (!macroEnabled && _recordingService.IsRecording)
         {
@@ -893,6 +894,83 @@ public partial class RegisterDialog : Window
         {
             MacroBox.ScrollToEnd();
         }
+    }
+
+    private void OnTitleBarDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        if (IsInteractiveElement(e.OriginalSource)) return;
+        DragMove();
+    }
+
+    private void OnCloseClicked(object sender, RoutedEventArgs e)
+    {
+        CloseSafely(false);
+    }
+
+    private void CloseSafely(bool? dialogResult)
+    {
+        try
+        {
+            DialogResult = dialogResult;
+        }
+        catch (InvalidOperationException)
+        {
+            Close();
+        }
+    }
+
+    private void ApplyEnabledState(System.Windows.Controls.Control control, bool enabled)
+    {
+        if (control == null) return;
+        control.IsEnabled = enabled;
+
+        var enabledText = (System.Windows.Media.Brush)FindResource("Theme.PrimaryTextBrush");
+        var disabledText = (System.Windows.Media.Brush)FindResource("Theme.SubtleTextBrush");
+        var enabledInputBg = (System.Windows.Media.Brush)FindResource("Theme.InputBackgroundBrush");
+        var disabledInputBg = (System.Windows.Media.Brush)FindResource("Theme.SurfaceAltBackgroundBrush");
+        var enabledBtnBg = (System.Windows.Media.Brush)FindResource("Theme.ControlBackgroundBrush");
+        var disabledBtnBg = (System.Windows.Media.Brush)FindResource("Theme.SurfaceAltBackgroundBrush");
+        var enabledBorder = (System.Windows.Media.Brush)FindResource("Theme.ControlBorderBrush");
+        var disabledBorder = (System.Windows.Media.Brush)FindResource("Theme.SubtleBorderBrush");
+
+        switch (control)
+        {
+            case System.Windows.Controls.Primitives.TextBoxBase tb:
+                tb.Background = enabled ? enabledInputBg : disabledInputBg;
+                tb.Foreground = enabled ? enabledText : disabledText;
+                tb.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                tb.Opacity = 1.0;
+                break;
+            case System.Windows.Controls.PasswordBox pw:
+                pw.Background = enabled ? enabledInputBg : disabledInputBg;
+                pw.Foreground = enabled ? enabledText : disabledText;
+                pw.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                pw.Opacity = 1.0;
+                break;
+            case System.Windows.Controls.Primitives.ButtonBase btn:
+                btn.Background = enabled ? enabledBtnBg : disabledBtnBg;
+                btn.Foreground = enabled ? enabledText : disabledText;
+                btn.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                btn.Opacity = 1.0;
+                break;
+        }
+    }
+
+    private static bool IsInteractiveElement(object source)
+    {
+        if (source is not DependencyObject d) return false;
+        while (d != null)
+        {
+            if (d is System.Windows.Controls.Primitives.ButtonBase
+                || d is System.Windows.Controls.Primitives.TextBoxBase
+                || d is System.Windows.Controls.PasswordBox)
+            {
+                return true;
+            }
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
     }
 
     private sealed class SlotColorOption

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 
 namespace DropSendTo;
 
@@ -13,5 +14,13 @@ public partial class MacroTipsWindow : Window
     {
         Close();
         e.Handled = true;
+    }
+
+    private void OnTitleBarDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+        {
+            DragMove();
+        }
     }
 }

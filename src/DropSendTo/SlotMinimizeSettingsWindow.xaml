@@ -1,6 +1,7 @@
 <Window x:Class="DropSendTo.SlotMinimizeSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Minimize Triggers"
         Height="520"
         Width="720"
@@ -8,108 +9,136 @@
         ResizeMode="CanResize"
         SizeToContent="Height"
         MinWidth="640"
-        Background="#FF111111"
-        Foreground="#FFFFFFFF">
-    <Border Padding="16" Background="#FF111111" BorderBrush="#FF333333" BorderThickness="1">
+        Background="{StaticResource Theme.WindowBackgroundBrush}"
+        Foreground="{StaticResource Theme.PrimaryTextBrush}">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    <Border Padding="0" Background="{StaticResource Theme.WindowBackgroundBrush}" BorderBrush="{StaticResource Theme.BorderBrush}" BorderThickness="1">
         <DockPanel LastChildFill="True">
-            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                <Button Content="Cancel" Width="96" Margin="4,0" Click="OnCancel"/>
-                <Button Content="Save" Width="120" Margin="4,0" IsDefault="True" Click="OnSave"/>
-            </StackPanel>
+            <Border DockPanel.Dock="Top" Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+                <DockPanel LastChildFill="False">
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                               Margin="12,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                    <Button Content="✕"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                            Width="32"
+                            Height="24"
+                            Margin="0,4,6,4"
+                            DockPanel.Dock="Right"
+                            Padding="0"
+                            Click="OnCloseClicked"/>
+                </DockPanel>
+            </Border>
+            <Border Padding="16" Background="{StaticResource Theme.WindowBackgroundBrush}">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                        <Button Content="Cancel" Width="96" Margin="4,0" Click="OnCancel"/>
+                        <Button Content="Save" Width="120" Margin="4,0" IsDefault="True" Click="OnSave"/>
+                    </StackPanel>
 
-            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="デフォルトの最小化トリガー（新規スロットの初期値）" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                <UniformGrid Columns="4" Rows="1" Margin="0,0,0,8">
-                    <CheckBox IsChecked="{Binding DefaultOnClick}" Foreground="#FFFFFFFF">
-                        <TextBlock Text="Click（スロットクリック実行後）" TextWrapping="Wrap" Foreground="#FFFFFFFF"/>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding DefaultOnShortcut}" Foreground="#FFFFFFFF">
-                        <TextBlock Text="Shortcut（ショートカット起動後）" TextWrapping="Wrap" Foreground="#FFFFFFFF"/>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding DefaultOnDrop}" Foreground="#FFFFFFFF">
-                        <TextBlock Text="Drop（ファイルドロップ起動後）" TextWrapping="Wrap" Foreground="#FFFFFFFF"/>
-                    </CheckBox>
-                    <CheckBox IsChecked="{Binding DefaultOnKeyboard}" Foreground="#FFFFFFFF">
-                        <TextBlock Text="Keyboard（検索レイヤー等のキーボード起動後）" TextWrapping="Wrap" Foreground="#FFFFFFFF"/>
-                    </CheckBox>
-                </UniformGrid>
-                <TextBlock Text="スロットごとの最小化トリガーを一覧で編集できます。" FontSize="12" Opacity="0.8"/>
-            </StackPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <TextBlock Text="デフォルトの最小化トリガー（新規スロットの初期値）" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <UniformGrid Columns="4" Rows="1" Margin="0,0,0,8">
+                            <CheckBox IsChecked="{Binding DefaultOnClick}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Click（スロットクリック実行後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            </CheckBox>
+                            <CheckBox IsChecked="{Binding DefaultOnShortcut}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Shortcut（ショートカット起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            </CheckBox>
+                            <CheckBox IsChecked="{Binding DefaultOnDrop}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Drop（ファイルドロップ起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            </CheckBox>
+                            <CheckBox IsChecked="{Binding DefaultOnKeyboard}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Keyboard（検索レイヤー等のキーボード起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            </CheckBox>
+                        </UniformGrid>
+                        <TextBlock Text="スロットごとの最小化トリガーを一覧で編集できます。" FontSize="12" Opacity="0.8"/>
+                    </StackPanel>
 
-            <DataGrid x:Name="SlotsGrid"
-                      ItemsSource="{Binding Rows}"
-                      AutoGenerateColumns="False"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      HeadersVisibility="Column"
-                      GridLinesVisibility="All"
-                      RowHeaderWidth="0"
-                      Background="#FF1A1A1A"
-                      BorderBrush="#FF333333"
-                      Foreground="#FFFFFFFF"
-                      HorizontalGridLinesBrush="#333333"
-                      VerticalGridLinesBrush="#333333"
-                      ColumnHeaderHeight="32"
-                      RowHeight="32"
-                      SelectionMode="Extended"
-                      AlternationCount="2"
-                      Margin="0,0,0,4">
-                <DataGrid.Resources>
-                    <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="#FF222222"/>
-                        <Setter Property="Foreground" Value="#FFFFFFFF"/>
-                        <Setter Property="BorderBrush" Value="#FF333333"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                    </Style>
-                    <Style TargetType="DataGridRow">
-                        <Setter Property="Background" Value="#FF161616"/>
-                        <Setter Property="SnapsToDevicePixels" Value="True"/>
-                        <Setter Property="BorderBrush" Value="#FF333333"/>
-                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#FF1F1F1F"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="#FF2E4C70"/>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.Resources>
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Layer" Binding="{Binding LayerLabel}" IsReadOnly="True" Width="60"/>
-                    <DataGridTextColumn Header="Slot" Binding="{Binding SlotLabel}" IsReadOnly="True" Width="60"/>
-                    <DataGridTextColumn Header="Title" Binding="{Binding Title}" IsReadOnly="True" Width="*"/>
-                    <DataGridTemplateColumn Header="Click" Width="90">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding EnableOnClick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Shortcut" Width="100">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding EnableOnShortcut, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Drop" Width="90">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding EnableOnDrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                    <DataGridTemplateColumn Header="Keyboard" Width="100">
-                        <DataGridTemplateColumn.CellTemplate>
-                            <DataTemplate>
-                                <CheckBox IsChecked="{Binding EnableOnKeyboard, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
-                            </DataTemplate>
-                        </DataGridTemplateColumn.CellTemplate>
-                    </DataGridTemplateColumn>
-                </DataGrid.Columns>
-            </DataGrid>
+                    <DataGrid x:Name="SlotsGrid"
+                              ItemsSource="{Binding Rows}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="All"
+                              RowHeaderWidth="0"
+                              Background="{StaticResource Theme.SurfaceBackgroundBrush}"
+                              BorderBrush="{StaticResource Theme.BorderBrush}"
+                              Foreground="{StaticResource Theme.PrimaryTextBrush}"
+                              HorizontalGridLinesBrush="{StaticResource Theme.BorderBrush}"
+                              VerticalGridLinesBrush="{StaticResource Theme.BorderBrush}"
+                              ColumnHeaderHeight="32"
+                              RowHeight="32"
+                              SelectionMode="Extended"
+                              AlternationCount="2"
+                              Margin="0,0,0,4">
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="{StaticResource Theme.DataGridHeaderBackgroundBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            </Style>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{StaticResource Theme.DataGridRowBackgroundBrush}"/>
+                                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource Theme.DataGridRowHoverBackgroundBrush}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Layer" Binding="{Binding LayerLabel}" IsReadOnly="True" Width="60"/>
+                            <DataGridTextColumn Header="Slot" Binding="{Binding SlotLabel}" IsReadOnly="True" Width="60"/>
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" IsReadOnly="True" Width="*"/>
+                            <DataGridTemplateColumn Header="Click" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnableOnClick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Shortcut" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnableOnShortcut, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Drop" Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnableOnDrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Keyboard" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding EnableOnKeyboard, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </Border>
         </DockPanel>
     </Border>
 </Window>

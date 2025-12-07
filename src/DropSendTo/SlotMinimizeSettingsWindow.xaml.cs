@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
 using DropSendTo.Models;
 
 namespace DropSendTo;
@@ -148,8 +150,37 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
         Close();
     }
 
+    private void OnTitleBarDrag(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        if (IsInteractiveElement(e.OriginalSource)) return;
+        DragMove();
+    }
+
+    private void OnCloseClicked(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
+        Close();
+    }
+
     private void OnPropertyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private static bool IsInteractiveElement(object source)
+    {
+        if (source is not DependencyObject d) return false;
+        while (d != null)
+        {
+            if (d is System.Windows.Controls.Primitives.ButtonBase
+                || d is System.Windows.Controls.Primitives.TextBoxBase
+                || d is System.Windows.Controls.PasswordBox)
+            {
+                return true;
+            }
+            d = VisualTreeHelper.GetParent(d);
+        }
+        return false;
+    }
 }
 
 public sealed class SlotMinimizeRow : INotifyPropertyChanged
