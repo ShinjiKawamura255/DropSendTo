@@ -102,6 +102,50 @@
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
+                            <Style x:Key="GridCheckBoxStyle" TargetType="CheckBox">
+                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="CheckBox">
+                                            <Border x:Name="Bd"
+                                                    Width="18"
+                                                    Height="18"
+                                                    Background="{StaticResource Theme.SurfaceAltBackgroundBrush}"
+                                                    BorderBrush="{StaticResource Theme.BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3">
+                                                <Path x:Name="Mark"
+                                                      Data="M 2 8 L 7 13 L 14 3"
+                                                      Stroke="{StaticResource Theme.PrimaryTextBrush}"
+                                                      StrokeThickness="2"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      Visibility="Collapsed"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                                                    <Setter TargetName="Mark" Property="Opacity" Value="0.5"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
                         </DataGrid.Resources>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Layer" Binding="{Binding LayerLabel}" IsReadOnly="True" Width="60"/>
@@ -110,28 +154,28 @@
                             <DataGridTemplateColumn Header="Click" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding EnableOnClick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                        <CheckBox Style="{StaticResource GridCheckBoxStyle}" IsChecked="{Binding EnableOnClick, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Shortcut" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding EnableOnShortcut, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                        <CheckBox Style="{StaticResource GridCheckBoxStyle}" IsChecked="{Binding EnableOnShortcut, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Drop" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding EnableOnDrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                        <CheckBox Style="{StaticResource GridCheckBoxStyle}" IsChecked="{Binding EnableOnDrop, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Keyboard" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <CheckBox IsChecked="{Binding EnableOnKeyboard, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center"/>
+                                        <CheckBox Style="{StaticResource GridCheckBoxStyle}" IsChecked="{Binding EnableOnKeyboard, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
