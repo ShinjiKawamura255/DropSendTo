@@ -153,12 +153,16 @@ public partial class SearchOverlayWindow : Window
     {
         int next = Math.Max(0, Math.Min(SearchBox.Text?.Length ?? 0, SearchBox.CaretIndex + delta));
         SearchBox.CaretIndex = next;
+        SearchBox.SelectionStart = next;
+        SearchBox.SelectionLength = 0;
     }
 
     private void MoveCaretTo(int index)
     {
         int next = Math.Max(0, Math.Min(SearchBox.Text?.Length ?? 0, index));
         SearchBox.CaretIndex = next;
+        SearchBox.SelectionStart = next;
+        SearchBox.SelectionLength = 0;
     }
 
     private void KillLine()
