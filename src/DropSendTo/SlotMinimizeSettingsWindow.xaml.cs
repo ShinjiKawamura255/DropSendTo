@@ -70,6 +70,7 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
         DataContext = this;
         Rows = BuildRows(layers);
         ApplyDefaultOptions(defaultOptions ?? SlotMinimizeOptions.CreateDefault());
+        Loaded += (_, _) => ClampToWorkAreaHeight();
     }
 
     private static List<SlotMinimizeRow> BuildRows(IReadOnlyList<Layer> layers)
@@ -161,6 +162,20 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
     {
         DialogResult = false;
         Close();
+    }
+
+    private void ClampToWorkAreaHeight()
+    {
+        var workAreaHeight = SystemParameters.WorkArea.Height;
+        if (workAreaHeight <= 0)
+        {
+            return;
+        }
+        MaxHeight = workAreaHeight;
+        if (ActualHeight > MaxHeight)
+        {
+            Height = MaxHeight;
+        }
     }
 
     private void OnPropertyChanged(string propertyName) =>
