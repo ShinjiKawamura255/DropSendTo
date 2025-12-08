@@ -77,9 +77,10 @@
                                 <ControlTemplate TargetType="ListViewItem">
                                     <Border x:Name="Bd"
                                             Background="{TemplateBinding Background}"
-                                            Padding="{TemplateBinding Padding}"
                                             SnapsToDevicePixels="True">
-                                        <ContentPresenter/>
+                                        <GridViewRowPresenter Margin="{TemplateBinding Padding}"
+                                                              Content="{TemplateBinding Content}"
+                                                              Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
