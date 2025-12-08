@@ -3935,6 +3935,16 @@ public partial class MainWindow : Window
         _configService.Save(_config);
     }
 
+    private void OnToggleHideEmptySlotNames(object sender, RoutedEventArgs e)
+    {
+        if (_config == null || HideEmptySlotNamesMenuItem == null) return;
+        bool hide = HideEmptySlotNamesMenuItem.IsChecked;
+        if (_config.HideEmptySlotNames == hide) return;
+        _config.HideEmptySlotNames = hide;
+        _configService.Save(_config);
+        RefreshUi();
+    }
+
     private void OnStartupAlwaysShow(object sender, RoutedEventArgs e)
     {
         if (StartupAlwaysShowMenuItem != null)
@@ -4041,6 +4051,10 @@ public partial class MainWindow : Window
         {
             StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
             StartupRestoreMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState;
+        }
+        if (HideEmptySlotNamesMenuItem != null)
+        {
+            HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;
         }
         UpdateMacroModeMenu(null);
         PopulateLayoutMenu(LayoutMenuItem);
@@ -5002,7 +5016,7 @@ public partial class MainWindow : Window
             }
 
             string title = string.IsNullOrWhiteSpace(slot.Title)
-                ? $"Slot {baseNo + i + 1}"
+                ? GetEmptySlotTitle(slot, baseNo + i)
                 : slot.Title;
             var visual = _slotVisuals[i];
             visual.Title.Text = title;
@@ -5018,6 +5032,16 @@ public partial class MainWindow : Window
             UpdateKeyboardSelectionVisual();
         }
         UpdateShortcutRegistrations();
+    }
+
+    private string GetEmptySlotTitle(SlotModel slot, int displayNumberZeroBased)
+    {
+        bool hideEmptyNames = _config?.HideEmptySlotNames ?? false;
+        if (hideEmptyNames && IsSlotEmpty(slot))
+        {
+            return string.Empty;
+        }
+        return $"Slot {displayNumberZeroBased + 1}";
     }
 
     private void UpdateShortcutRegistrations()

@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 31;
+    public int Version { get; set; } = 32;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -18,6 +18,7 @@ public class AppConfig
     public bool EnablePrefixLayerShortcuts { get; set; }
     public bool EnableEmacsNavigation { get; set; } = true;
     public bool EnableViNavigation { get; set; } = true;
+    public bool HideEmptySlotNames { get; set; }
     public MacroConcurrencyMode MacroConcurrencyMode { get; set; } = MacroConcurrencyMode.Exclusive;
     public bool EnableMouseGestures { get; set; } = true;
     public int MouseGestureClockwiseTurnsToShow { get; set; } = 3;

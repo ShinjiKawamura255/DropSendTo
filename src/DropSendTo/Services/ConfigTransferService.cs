@@ -141,6 +141,7 @@ internal sealed class ConfigTransferService
         public bool EnablePrefixLayerShortcuts { get; set; }
         public bool EnableEmacsNavigation { get; set; }
         public bool EnableViNavigation { get; set; }
+        public bool HideEmptySlotNames { get; set; }
         public bool EnableMouseGestures { get; set; }
         public int MouseGestureClockwiseTurnsToShow { get; set; }
         public int MouseGestureCounterClockwiseTurnsToHide { get; set; }
@@ -178,6 +179,7 @@ internal sealed class ConfigTransferService
                 EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
                 EnableEmacsNavigation = config.EnableEmacsNavigation,
                 EnableViNavigation = config.EnableViNavigation,
+                HideEmptySlotNames = config.HideEmptySlotNames,
                 EnableMouseGestures = config.EnableMouseGestures,
                 MouseGestureClockwiseTurnsToShow = config.MouseGestureClockwiseTurnsToShow,
                 MouseGestureCounterClockwiseTurnsToHide = config.MouseGestureCounterClockwiseTurnsToHide,
@@ -225,6 +227,7 @@ internal sealed class ConfigTransferService
                 EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
                 EnableEmacsNavigation = EnableEmacsNavigation,
                 EnableViNavigation = EnableViNavigation,
+                HideEmptySlotNames = HideEmptySlotNames,
                 EnableMouseGestures = EnableMouseGestures,
                 MouseGestureClockwiseTurnsToShow = MouseGestureClockwiseTurnsToShow,
                 MouseGestureCounterClockwiseTurnsToHide = MouseGestureCounterClockwiseTurnsToHide,

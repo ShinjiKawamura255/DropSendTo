@@ -30,6 +30,10 @@
                 <MenuItem x:Name="SlotSizeMenuItem"
                           Header="Slot Size"
                           SubmenuOpened="OnSlotSizeMenuOpened"/>
+                <MenuItem x:Name="HideEmptySlotNamesMenuItem"
+                          Header="未登録スロット名を非表示"
+                          IsCheckable="True"
+                          Click="OnToggleHideEmptySlotNames"/>
             </MenuItem>
             <MenuItem Header="起動時のウィンドウ">
                 <MenuItem x:Name="StartupAlwaysShowMenuItem"

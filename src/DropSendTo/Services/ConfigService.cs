@@ -645,6 +645,13 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 32)
+        {
+            cfg.HideEmptySlotNames = false;
+            cfg.Version = 32;
+            changed = true;
+        }
+
         return changed;
     }
 }
