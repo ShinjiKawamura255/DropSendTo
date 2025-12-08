@@ -34,6 +34,7 @@ public sealed class KeyboardMacroService : IDisposable
     private IntPtr _windowHandle;
     private IntPtr _lastExternalWindow;
     private static readonly AsyncLocal<MacroCursorContext?> CurrentMacroCursor = new();
+    private static readonly AsyncLocal<MouseHoldTracker?> _currentMouseTracker = new();
     private static int _useTestActiveWindowBounds;
     private static RECT _testActiveWindowRect;
     private IntPtr _winEventHook;
@@ -448,6 +449,8 @@ public sealed class KeyboardMacroService : IDisposable
 
         var buffer = new List<INPUT>(16);
         var keyTracker = new KeyHoldTracker();
+        var mouseTracker = new MouseHoldTracker();
+        _currentMouseTracker.Value = mouseTracker;
         var cursorScope = default(MacroCursorScope);
         bool prefixArmRequested = false;
         var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -474,6 +477,11 @@ public sealed class KeyboardMacroService : IDisposable
             else if (validateOnly)
             {
                 buffer.Clear();
+            }
+
+            if (mouseTracker.HasHeldButtons)
+            {
+                mouseTracker.ReleaseAll(buffer);
             }
 
             if (keyTracker.HasHeldKeys)
@@ -1206,6 +1214,7 @@ public sealed class KeyboardMacroService : IDisposable
         finally
         {
             cursorScope.Dispose();
+            _currentMouseTracker.Value = null;
         }
     }
 
@@ -3837,6 +3846,7 @@ public sealed class KeyboardMacroService : IDisposable
 
     private static bool TryHandleMouseCommand(string line, List<INPUT> buffer, out string? error)
     {
+        var mouseTracker = _currentMouseTracker.Value ?? new MouseHoldTracker();
         error = null;
         string command = line;
         string args = string.Empty;
@@ -3879,6 +3889,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSELEFTDOWN", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSELEFTDOWN", out error)) return false;
+            mouseTracker.TrackDown(MouseButton.Left);
             AppendMouseButton(buffer, MOUSEEVENTF_LEFTDOWN);
             return true;
         }
@@ -3886,6 +3897,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSELEFTUP", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSELEFTUP", out error)) return false;
+            mouseTracker.TrackUp(MouseButton.Left);
             AppendMouseButton(buffer, MOUSEEVENTF_LEFTUP);
             return true;
         }
@@ -3893,6 +3905,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSERIGHTDOWN", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSERIGHTDOWN", out error)) return false;
+            mouseTracker.TrackDown(MouseButton.Right);
             AppendMouseButton(buffer, MOUSEEVENTF_RIGHTDOWN);
             return true;
         }
@@ -3900,6 +3913,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSERIGHTUP", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSERIGHTUP", out error)) return false;
+            mouseTracker.TrackUp(MouseButton.Right);
             AppendMouseButton(buffer, MOUSEEVENTF_RIGHTUP);
             return true;
         }
@@ -3907,6 +3921,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSEMIDDLEDOWN", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSEMIDDLEDOWN", out error)) return false;
+            mouseTracker.TrackDown(MouseButton.Middle);
             AppendMouseButton(buffer, MOUSEEVENTF_MIDDLEDOWN);
             return true;
         }
@@ -3914,6 +3929,7 @@ public sealed class KeyboardMacroService : IDisposable
         if (command.Equals("MOUSEMIDDLEUP", StringComparison.OrdinalIgnoreCase))
         {
             if (!ValidateNoArguments(args, "MOUSEMIDDLEUP", out error)) return false;
+            mouseTracker.TrackUp(MouseButton.Middle);
             AppendMouseButton(buffer, MOUSEEVENTF_MIDDLEUP);
             return true;
         }
@@ -4546,6 +4562,73 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
             _order.Clear();
             _set.Clear();
         }
+    }
+
+    private sealed class MouseHoldTracker
+    {
+        private bool _left;
+        private bool _right;
+        private bool _middle;
+
+        public bool HasHeldButtons => _left || _right || _middle;
+
+        public void TrackDown(MouseButton button)
+        {
+            switch (button)
+            {
+                case MouseButton.Left:
+                    _left = true;
+                    break;
+                case MouseButton.Right:
+                    _right = true;
+                    break;
+                case MouseButton.Middle:
+                    _middle = true;
+                    break;
+            }
+        }
+
+        public void TrackUp(MouseButton button)
+        {
+            switch (button)
+            {
+                case MouseButton.Left:
+                    _left = false;
+                    break;
+                case MouseButton.Right:
+                    _right = false;
+                    break;
+                case MouseButton.Middle:
+                    _middle = false;
+                    break;
+            }
+        }
+
+        public void ReleaseAll(List<INPUT> buffer)
+        {
+            if (_left)
+            {
+                AppendMouseButton(buffer, MOUSEEVENTF_LEFTUP);
+                _left = false;
+            }
+            if (_right)
+            {
+                AppendMouseButton(buffer, MOUSEEVENTF_RIGHTUP);
+                _right = false;
+            }
+            if (_middle)
+            {
+                AppendMouseButton(buffer, MOUSEEVENTF_MIDDLEUP);
+                _middle = false;
+            }
+        }
+    }
+
+    private enum MouseButton
+    {
+        Left,
+        Right,
+        Middle
     }
 
     private sealed class RepeatFrame
