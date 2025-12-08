@@ -93,13 +93,6 @@ public partial class SearchOverlayWindow : Window
                     SuppressNavigationUntilKeyUp(e.Key, modifiers);
                     e.Handled = true;
                     return;
-            }
-        }
-
-        if (ctrlOnly)
-        {
-            switch (e.Key)
-            {
                 case System.Windows.Input.Key.F:
                     MoveCaret(1);
                     e.Handled = true;
