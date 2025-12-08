@@ -523,7 +523,7 @@
                                     <RepeatButton Style="{StaticResource ScrollBarLineButtonStyle}" Command="ScrollBar.PageDownCommand" />
                                 </Track.IncreaseRepeatButton>
                                 <Track.Thumb>
-                                    <Thumb Style="{StaticResource ScrollBarThumbStyle}" Height="30" />
+                                    <Thumb Style="{StaticResource ScrollBarThumbStyle}" />
                                 </Track.Thumb>
                             </Track>
                             <RepeatButton Style="{StaticResource ScrollBarLineButtonStyle}"
@@ -555,7 +555,7 @@
                                     <RepeatButton Style="{StaticResource ScrollBarLineButtonStyle}" Command="ScrollBar.PageRightCommand" />
                                 </Track.IncreaseRepeatButton>
                                 <Track.Thumb>
-                                    <Thumb Style="{StaticResource ScrollBarThumbStyle}" Width="30"/>
+                                    <Thumb Style="{StaticResource ScrollBarThumbStyle}"/>
                                 </Track.Thumb>
                             </Track>
                             <RepeatButton Style="{StaticResource ScrollBarLineButtonStyle}"
