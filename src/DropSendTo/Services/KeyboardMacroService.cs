@@ -2331,33 +2331,14 @@ public sealed class KeyboardMacroService : IDisposable
 
         if (index < payload.Length)
         {
-            var remaining = payload[index..].Trim();
-            if (remaining.Length == 0)
+            var remaining = TrimInlineComment(payload[index..]).Trim();
+            if (remaining.Length > 0)
             {
-                // nothing to do
-            }
-            else
-            {
-                var parts = remaining.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length >= 2 && parts[0].Equals("MAX", StringComparison.OrdinalIgnoreCase))
+                if (!TryParseReadFileMax(remaining, out maxBytes, out error))
                 {
-                    if (!int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out maxBytes) || maxBytes <= 0)
-                    {
-                        error = "READFILE の MAX は正の整数で指定してください。";
-                        return false;
-                    }
-                    if (maxBytes > MaxReadFileLimitBytes)
-                    {
-                        error = $"READFILE の MAX は {MaxReadFileLimitBytes} バイト以下で指定してください。";
-                        return false;
-                    }
-                    maxExplicit = true;
-                }
-                else
-                {
-                    error = "READFILE の引数の後ろに余分な記述があります。";
                     return false;
                 }
+                maxExplicit = true;
             }
         }
 
@@ -2418,6 +2399,50 @@ public sealed class KeyboardMacroService : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException or DecoderFallbackException)
         {
             error = $"READFILE の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseReadFileMax(string remaining, out int maxBytes, out string? error)
+    {
+        maxBytes = DefaultReadFileLimitBytes;
+        error = null;
+        if (!remaining.StartsWith("MAX", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "READFILE の引数の後ろに余分な記述があります。";
+            return false;
+        }
+
+        var rest = remaining[3..].TrimStart();
+        if (rest.Length == 0)
+        {
+            error = "READFILE の MAX にはバイト数を指定してください。";
+            return false;
+        }
+
+        if (rest.Length > 0 && (rest[0] == '=' || rest[0] == ':'))
+        {
+            rest = rest[1..].TrimStart();
+        }
+
+        int firstSpace = FindFirstWhitespace(rest);
+        string numberToken = firstSpace >= 0 ? rest[..firstSpace] : rest;
+        if (!int.TryParse(numberToken, NumberStyles.None, CultureInfo.InvariantCulture, out maxBytes) || maxBytes <= 0)
+        {
+            error = "READFILE の MAX は正の整数で指定してください。";
+            return false;
+        }
+        if (maxBytes > MaxReadFileLimitBytes)
+        {
+            error = $"READFILE の MAX は {MaxReadFileLimitBytes} バイト以下で指定してください。";
+            return false;
+        }
+
+        if (firstSpace >= 0 && !string.IsNullOrWhiteSpace(rest[firstSpace..]))
+        {
+            error = "READFILE の引数の後ろに余分な記述があります。";
             return false;
         }
 
