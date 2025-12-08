@@ -16,6 +16,9 @@ internal sealed class MacroRecordingService : IDisposable
     private IntPtr _keyboardHookHandle;
     private IntPtr _mouseHookHandle;
     private IntPtr _ownerWindowHandle;
+    private bool _mouseLeftDown;
+    private bool _mouseRightDown;
+    private bool _mouseMiddleDown;
     private bool _disposed;
     private volatile bool _isRecording;
     private bool _suppressNextLeftButtonDown;
@@ -45,6 +48,9 @@ internal sealed class MacroRecordingService : IDisposable
             _recordedEvents.Clear();
             _activeRecordedKeys.Clear();
             _lastRelativePosition = null;
+            _mouseLeftDown = false;
+            _mouseRightDown = false;
+            _mouseMiddleDown = false;
             _suppressNextLeftButtonDown = false;
             _suppressNextLeftButtonUp = false;
 
@@ -86,6 +92,7 @@ internal sealed class MacroRecordingService : IDisposable
             CleanupHooks();
             _lastRelativePosition = null;
             _ownerWindowHandle = IntPtr.Zero;
+            AppendPendingMouseUps();
             _isRecording = false;
             _suppressNextLeftButtonDown = false;
             _suppressNextLeftButtonUp = false;
@@ -236,23 +243,29 @@ internal sealed class MacroRecordingService : IDisposable
         {
             case WM_LBUTTONDOWN:
                 RecordMouseMove(foreground, data.pt);
+                SetMouseState(MouseButton.Left, true);
                 AddLine("MOUSELEFTDOWN");
                 break;
             case WM_LBUTTONUP:
+                SetMouseState(MouseButton.Left, false);
                 AddLine("MOUSELEFTUP");
                 break;
             case WM_RBUTTONDOWN:
                 RecordMouseMove(foreground, data.pt);
+                SetMouseState(MouseButton.Right, true);
                 AddLine("MOUSERIGHTDOWN");
                 break;
             case WM_RBUTTONUP:
+                SetMouseState(MouseButton.Right, false);
                 AddLine("MOUSERIGHTUP");
                 break;
             case WM_MBUTTONDOWN:
                 RecordMouseMove(foreground, data.pt);
+                SetMouseState(MouseButton.Middle, true);
                 AddLine("MOUSEMIDDLEDOWN");
                 break;
             case WM_MBUTTONUP:
+                SetMouseState(MouseButton.Middle, false);
                 AddLine("MOUSEMIDDLEUP");
                 break;
             case WM_MOUSEWHEEL:
@@ -313,6 +326,28 @@ internal sealed class MacroRecordingService : IDisposable
             _recordedEvents.Add(MacroRecordingEvent.Raw(line));
         }
         LineRecorded?.Invoke(this, line);
+    }
+
+    private void AppendPendingMouseUps()
+    {
+        lock (_syncRoot)
+        {
+            if (_mouseLeftDown)
+            {
+                _recordedEvents.Add(MacroRecordingEvent.Raw("MOUSELEFTUP"));
+                _mouseLeftDown = false;
+            }
+            if (_mouseRightDown)
+            {
+                _recordedEvents.Add(MacroRecordingEvent.Raw("MOUSERIGHTUP"));
+                _mouseRightDown = false;
+            }
+            if (_mouseMiddleDown)
+            {
+                _recordedEvents.Add(MacroRecordingEvent.Raw("MOUSEMIDDLEUP"));
+                _mouseMiddleDown = false;
+            }
+        }
     }
 
     private void CleanupHooks()
@@ -493,6 +528,32 @@ internal sealed class MacroRecordingService : IDisposable
             flag = false;
             return true;
         }
+    }
+
+    private void SetMouseState(MouseButton button, bool isDown)
+    {
+        lock (_syncRoot)
+        {
+            switch (button)
+            {
+                case MouseButton.Left:
+                    _mouseLeftDown = isDown;
+                    break;
+                case MouseButton.Right:
+                    _mouseRightDown = isDown;
+                    break;
+                case MouseButton.Middle:
+                    _mouseMiddleDown = isDown;
+                    break;
+            }
+        }
+    }
+
+    private enum MouseButton
+    {
+        Left,
+        Right,
+        Middle
     }
 }
 
