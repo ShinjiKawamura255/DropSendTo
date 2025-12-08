@@ -51,6 +51,22 @@ public partial class SearchOverlayWindow : Window
         SearchTextChanged?.Invoke(this, SearchBox.Text);
     }
 
+    private void OnSearchBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!EnableEmacsNavigation)
+        {
+            return;
+        }
+
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        bool ctrlOnly = modifiers == System.Windows.Input.ModifierKeys.Control;
+        if (ctrlOnly && e.Key == System.Windows.Input.Key.A)
+        {
+            MoveCaretTo(0);
+            e.Handled = true;
+        }
+    }
+
     private void OnSearchBoxKeyDown(object sender, KeyEventArgs e)
     {
         var modifiers = System.Windows.Input.Keyboard.Modifiers;

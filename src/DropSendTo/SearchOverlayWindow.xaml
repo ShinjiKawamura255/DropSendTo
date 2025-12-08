@@ -37,6 +37,7 @@
              BorderThickness="1"
              CaretBrush="{StaticResource Theme.PrimaryTextBrush}"
              TextChanged="OnSearchTextChanged"
+             PreviewKeyDown="OnSearchBoxPreviewKeyDown"
              KeyDown="OnSearchBoxKeyDown"
              KeyUp="OnSearchBoxKeyUp"/>
         </StackPanel>
