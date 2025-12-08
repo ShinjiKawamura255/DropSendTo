@@ -35,6 +35,28 @@
                 <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
             </Style>
 
+            <Style TargetType="ToolTip">
+                <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <Style TargetType="Button">
                 <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
                 <Setter Property="Background" Value="{StaticResource Theme.ControlBackgroundBrush}"/>
