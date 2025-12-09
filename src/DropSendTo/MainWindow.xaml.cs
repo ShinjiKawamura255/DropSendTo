@@ -1744,6 +1744,30 @@ public partial class MainWindow : Window
         UpdateKeyboardSelectionVisual();
     }
 
+    // Avoid letting held navigation modifiers (e.g., Ctrl+M) leak into macro execution.
+    private void ReleaseKeyboardNavigationModifiers()
+    {
+        Span<ushort> modifierKeys = stackalloc ushort[]
+        {
+            NativeMethods.VK_LCONTROL,
+            NativeMethods.VK_RCONTROL,
+            NativeMethods.VK_LMENU,
+            NativeMethods.VK_RMENU,
+            NativeMethods.VK_LSHIFT,
+            NativeMethods.VK_RSHIFT,
+            NativeMethods.VK_LWIN,
+            NativeMethods.VK_RWIN
+        };
+
+        foreach (var vk in modifierKeys)
+        {
+            if (NativeMethods.IsKeyPressed(vk))
+            {
+                NativeMethods.SendKeyUp(vk);
+            }
+        }
+    }
+
     private int GetNavigableSlotCount()
     {
         if (_searchLayerActive)
@@ -1982,6 +2006,7 @@ public partial class MainWindow : Window
             case NavigationCommand.Confirm:
                 if (_keyboardSelectedSlotIndex >= 0)
                 {
+                    ReleaseKeyboardNavigationModifiers();
                     int index = _keyboardSelectedSlotIndex;
                     DeactivateKeyboardNavigation();
                     _ = TriggerVisibleSlotAsync(index, SlotTriggerKind.Keyboard);
@@ -5270,8 +5295,19 @@ public partial class MainWindow : Window
         internal const int VK_MBUTTON = 0x04;
         internal const int VK_XBUTTON1 = 0x05;
         internal const int VK_XBUTTON2 = 0x06;
+        internal const ushort VK_LSHIFT = 0xA0;
+        internal const ushort VK_RSHIFT = 0xA1;
+        internal const ushort VK_LCONTROL = 0xA2;
+        internal const ushort VK_RCONTROL = 0xA3;
+        internal const ushort VK_LMENU = 0xA4;
+        internal const ushort VK_RMENU = 0xA5;
+        internal const ushort VK_LWIN = 0x5B;
+        internal const ushort VK_RWIN = 0x5C;
         private const int MOUSEEVENTF_MOVE = 0x0001;
         private const int INPUT_MOUSE = 0;
+        private const int INPUT_KEYBOARD = 1;
+        private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
 
         [DllImport("user32.dll")]
         internal static extern bool IsIconic(IntPtr hWnd);
@@ -5335,7 +5371,14 @@ public partial class MainWindow : Window
         internal struct INPUT
         {
             public int type;
-            public MOUSEINPUT mi;
+            public InputUnion Data;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        internal struct InputUnion
+        {
+            [FieldOffset(0)] public MOUSEINPUT mi;
+            [FieldOffset(0)] public KEYBDINPUT ki;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -5344,6 +5387,16 @@ public partial class MainWindow : Window
             public int dx;
             public int dy;
             public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
             public uint dwFlags;
             public uint time;
             public IntPtr dwExtraInfo;
@@ -5358,17 +5411,49 @@ public partial class MainWindow : Window
             var input = new INPUT
             {
                 type = INPUT_MOUSE,
-                mi = new MOUSEINPUT
+                Data = new InputUnion
                 {
-                    dx = dx,
-                    dy = dy,
-                    mouseData = 0,
-                    dwFlags = MOUSEEVENTF_MOVE,
-                    time = 0,
-                    dwExtraInfo = IntPtr.Zero
+                    mi = new MOUSEINPUT
+                    {
+                        dx = dx,
+                        dy = dy,
+                        mouseData = 0,
+                        dwFlags = MOUSEEVENTF_MOVE,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
                 }
             };
             return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
         }
+
+        internal static bool SendKeyUp(ushort virtualKey)
+        {
+            uint flags = KEYEVENTF_KEYUP;
+            if (IsExtendedKey(virtualKey))
+            {
+                flags |= KEYEVENTF_EXTENDEDKEY;
+            }
+
+            var input = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                Data = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = virtualKey,
+                        wScan = 0,
+                        dwFlags = flags,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                }
+            };
+            return SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>()) == 1;
+        }
+
+        private static bool IsExtendedKey(ushort virtualKey) =>
+            virtualKey is VK_RMENU or VK_RCONTROL;
     }
 }
