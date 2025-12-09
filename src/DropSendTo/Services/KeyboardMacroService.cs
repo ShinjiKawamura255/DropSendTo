@@ -573,7 +573,26 @@ public sealed class KeyboardMacroService : IDisposable
                 if (!TryFocusTarget(target, out string? focusError))
                 {
                     var message = focusError ?? "ターゲットのフォーカス取得に失敗しました。";
-                    _logger.Warn($"Failed to focus previous window; continuing without focus: {message}");
+                    _logger.Warn($"Failed to focus previous window; attempting fallback to current foreground: {message}");
+
+                    var foreground = GetForegroundWindow();
+                    if (foreground != IntPtr.Zero && foreground != _windowHandle && IsWindow(foreground))
+                    {
+                        target = foreground;
+                        if (TryFocusTarget(target, out var fallbackError))
+                        {
+                            _logger.Info("Fallback focus succeeded on current foreground window.");
+                        }
+                        else
+                        {
+                            var fallbackMessage = fallbackError ?? "SetForegroundWindow に失敗しました。";
+                            _logger.Warn($"Fallback focus to current foreground window failed; continuing without focus: {fallbackMessage}");
+                        }
+                    }
+                    else
+                    {
+                        _logger.Warn("No valid foreground window found for fallback focus; continuing without focus.");
+                    }
                 }
             }
 
