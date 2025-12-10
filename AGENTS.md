@@ -45,6 +45,7 @@
 - マクロ処理: `src/DropSendTo/Services/KeyboardMacroService.cs`。検索トークンは `RunMacroInternal`, `TryHandleMouseCommand`, `TryParseInt64OrWindowToken`。座標予約語の解決は `TryResolveWindowCoordinatePoint`/`*_ComponentToken`。`MacroRecordingService` → `MacroRecordingOptimizer` で録画イベントを `KEY/KEYDOWN/KEYUP` に最適化。
 - クリップボード/引数展開: `ClipboardHistoryService` が `WM_CLIPBOARDUPDATE` を購読し、直近 20 個の履歴を `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}` 向けに保持。`LauncherService` + `ArgumentTemplateExpander` がドロップ/CLI パスと履歴を合成して `ProcessStartInfo` を生成し、失敗時はメッセージ文字列を返す。
 - 設定 I/O/移行: `ConfigService` が JSON 読み書き、`.bak` バックアップ、バージョンアップマイグレーションを担当。`ConfigTransferService` は AES-GCM + PBKDF2（200k iterations）で暗号化したエクスポート payload を扱い、`PasswordPromptDialog` から渡されるパスワードで復号後に `AppConfig` へマッピングする。
+- Config 項目を追加/変更したら、`ConfigTransferService` の Export/Import スナップショットと `tests/DropSendTo.Tests/ConfigTransferServiceTests.cs` を必ず更新し、バックアップ/エクスポートで設定が欠落しないようにする。
 - レイヤー/ショートカット: `LayerManager` が 0〜3 のレイヤーインデックスを巡回し、`ShortcutService` が Prefix armed 状態と Prefix+Ctrl+N/P（任意設定）をディスパッチ。Prefix+Enter 後は矢印キー選択を `MainWindow` に送出して `_slotVisuals` を更新する。
 - ウィンドウ配置: `ScreenBoundsResolver` がマルチモニターの DPI を考慮した `ScreenBounds` を求め、`WindowPlacementService.Clamp` が可視領域へ収める。座標に NaN/Infinity が来た場合も安全にデフォルトへ戻す。
 - 代表テスト:
