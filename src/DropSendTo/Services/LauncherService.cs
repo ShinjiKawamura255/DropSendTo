@@ -29,20 +29,54 @@ public class LauncherService
             }
 
             var isDirectory = Directory.Exists(slot.Command);
-            var startInfo = new ProcessStartInfo
+            Process? p = null;
+
+            if (isDirectory)
             {
-                FileName = slot.Command,
-                UseShellExecute = true,
-                WorkingDirectory = isDirectory
-                    ? slot.Command
-                    : Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
-                Arguments = string.Empty
-            };
-            var arguments = argumentOverride ?? BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
-            var appliedArguments = isDirectory ? string.Empty : arguments;
-            startInfo.Arguments = appliedArguments;
-            _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{appliedArguments}\" (paths={paths.Length}).");
-            var p = Process.Start(startInfo);
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = slot.Command,
+                    UseShellExecute = true,
+                    WorkingDirectory = slot.Command,
+                    Arguments = string.Empty
+                };
+                _logger.Info($"Launching directory \"{startInfo.FileName}\" for slot \"{slotTitle}\".");
+                try
+                {
+                    p = Process.Start(startInfo);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"Primary directory launch failed, will fallback to explorer.exe: {ex.Message}");
+                }
+
+                if (p == null)
+                {
+                    var explorerInfo = new ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        UseShellExecute = true,
+                        Arguments = $"\"{slot.Command}\""
+                    };
+                    _logger.Info($"Falling back to explorer.exe for directory \"{slot.Command}\".");
+                    p = Process.Start(explorerInfo);
+                }
+            }
+            else
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = slot.Command,
+                    UseShellExecute = true,
+                    WorkingDirectory = Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
+                    Arguments = string.Empty
+                };
+                var arguments = argumentOverride ?? BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
+                startInfo.Arguments = arguments;
+                _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{arguments}\" (paths={paths.Length}).");
+                p = Process.Start(startInfo);
+            }
+
             if (p != null)
             {
                 int pid = 0;
