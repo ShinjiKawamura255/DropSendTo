@@ -60,6 +60,7 @@ public partial class MainWindow : Window
     private bool _isMinimizedToTray;
     private bool _suppressFixedCapture;
     private bool _suppressFixedCaptureDuringSearch;
+    private bool _applySearchPlacementForCurrentSearch;
     private readonly DispatcherTimer _positionSaveTimer;
     private bool _pendingPositionSave;
     private bool _blockLocationSave;
@@ -227,6 +228,7 @@ public partial class MainWindow : Window
         _searchPlacementMode = Enum.IsDefined(typeof(SearchOverlayPlacementMode), (int)_config.SearchPlacementMode)
             ? _config.SearchPlacementMode
             : SearchOverlayPlacementMode.Fixed;
+        _applySearchPlacementForCurrentSearch = false;
         _positionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _positionSaveTimer.Tick += OnPositionSaveTick;
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
@@ -1078,62 +1080,6 @@ public partial class MainWindow : Window
         overlay.Top = top;
     }
 
-    private (double left, double top, bool placedBelow) CalculateSearchOverlayPosition(Window overlay)
-    {
-        overlay.InvalidateMeasure();
-        overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
-        overlay.Width = overlay.DesiredSize.Width;
-        overlay.Height = overlay.DesiredSize.Height;
-        overlay.UpdateLayout();
-
-        var placement = _searchPlacementMode;
-        var anchorRect = GetWindowRect();
-        ScreenBounds bounds;
-        double targetLeft;
-        double targetTop;
-
-        try
-        {
-            switch (placement)
-            {
-                case SearchOverlayPlacementMode.MouseFollow:
-                    var cursor = Forms.Control.MousePosition;
-                    bounds = ScreenBoundsResolver.ForPoint(cursor.X, cursor.Y);
-                    targetLeft = cursor.X - overlay.Width / 2;
-                    targetTop = cursor.Y - overlay.Height / 2;
-                    break;
-                case SearchOverlayPlacementMode.CursorScreenCenter:
-                    var cursorCenter = Forms.Control.MousePosition;
-                    bounds = ScreenBoundsResolver.ForPoint(cursorCenter.X, cursorCenter.Y);
-                    targetLeft = bounds.Left + (bounds.Width - overlay.Width) / 2;
-                    targetTop = bounds.Top + (bounds.Height - overlay.Height) / 2;
-                    break;
-                case SearchOverlayPlacementMode.Fixed:
-                default:
-                    bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
-                    targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
-                    targetTop = anchorRect.Top - overlay.Height - 10;
-                    break;
-            }
-        }
-        catch
-        {
-            bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
-            targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
-            targetTop = anchorRect.Top - overlay.Height - 10;
-        }
-
-        bool placedBelow = targetTop < bounds.Top;
-        if (placedBelow)
-        {
-            targetTop = anchorRect.Bottom + 10;
-        }
-
-        var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
-        placedBelow = clampedTop >= anchorRect.Bottom;
-        return (clampedLeft, clampedTop, placedBelow);
-    }
-
     private LayerNameOverlayWindow EnsureLayerNameOverlay()
     {
         if (_layerNameOverlayWindow == null)
@@ -1283,7 +1229,7 @@ public partial class MainWindow : Window
         {
             return;
         }
-        var (left, top, placedBelow) = CalculateSearchOverlayPosition(_searchOverlayWindow);
+        var (left, top, placedBelow) = CalculateOverlayPosition(_searchOverlayWindow);
         _searchOverlayWindow.Left = left;
         _searchOverlayWindow.Top = top;
         _isSearchOverlayBelowMain = placedBelow;
@@ -1305,7 +1251,10 @@ public partial class MainWindow : Window
 
         _searchLayerActive = true;
         SetSlotLayoutEditMode(false);
-        PositionWindowForSearchOverlayAnchor();
+        if (_applySearchPlacementForCurrentSearch)
+        {
+            PositionWindowForSearchOverlayAnchor();
+        }
         var overlay = EnsureSearchOverlay();
         overlay.Topmost = this.Topmost;
         overlay.Query = _searchQuery;
@@ -1327,6 +1276,7 @@ public partial class MainWindow : Window
 
         _searchLayerActive = false;
         _suppressFixedCaptureDuringSearch = false;
+        _applySearchPlacementForCurrentSearch = false;
         _searchQuery = string.Empty;
         _searchResults.Clear();
         HideSearchOverlay();
@@ -1960,6 +1910,7 @@ public partial class MainWindow : Window
             modifiers == System.Windows.Input.ModifierKeys.None &&
             (key == System.Windows.Input.Key.Oem2 || key == System.Windows.Input.Key.OemQuestion || key == System.Windows.Input.Key.Divide))
         {
+            _applySearchPlacementForCurrentSearch = false;
             OpenSearchLayer();
             return true;
         }
@@ -1968,6 +1919,7 @@ public partial class MainWindow : Window
         {
             if (key == System.Windows.Input.Key.S)
             {
+                _applySearchPlacementForCurrentSearch = false;
                 OpenSearchLayer();
                 return true;
             }
@@ -1980,6 +1932,7 @@ public partial class MainWindow : Window
 
         if (modifiers == System.Windows.Input.ModifierKeys.Control && key == System.Windows.Input.Key.F)
         {
+            _applySearchPlacementForCurrentSearch = false;
             OpenSearchLayer();
             return true;
         }
@@ -5115,6 +5068,7 @@ public partial class MainWindow : Window
     {
         CapturePrefixSearchRestoreContext();
         _suppressFixedCaptureDuringSearch = true;
+        _applySearchPlacementForCurrentSearch = true;
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         ApplySearchPlacement();
@@ -5164,6 +5118,7 @@ public partial class MainWindow : Window
     {
         CapturePrefixSearchRestoreContext();
         _suppressFixedCaptureDuringSearch = true;
+        _applySearchPlacementForCurrentSearch = true;
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         ApplySearchPlacement();
