@@ -138,6 +138,19 @@
   ENDFOREACH
   ```
 
+- **拡張子で実行アプリを切り替える（COMMAND_APP）**  
+  画像ならビューアー、それ以外は元のコマンドを使う例です。`RESET` で差し替えを解除します。  
+  ```
+  SET Ext {{drop_path}}
+  REPLACE_REGEX Ext ".*\\." "" IGNORECASE
+  IF {{Ext}} CONTAINS "png"
+      COMMAND_APP "C:\Apps\ImageViewer.exe"
+  ELSE
+      COMMAND_APP RESET
+  ENDIF
+  COMMAND
+  ```
+
 - **前面アプリの入力欄へクリップボードを貼り付け、改行で区切る**  
   ```
   PREFIX ARM
