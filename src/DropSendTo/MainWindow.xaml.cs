@@ -3107,7 +3107,7 @@ public partial class MainWindow : Window
 
         if (HasAnyRunningSlot())
         {
-            WpfMessageBox.Show("マクロ実行中はレイアウトを編集できません。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("マクロ実行中はスロット編集モードに切り替えられません。", "Slot Setup Mode", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -3435,7 +3435,7 @@ public partial class MainWindow : Window
 
         if (!IsSlotEmpty(slot))
         {
-            WpfMessageBox.Show("空きスロットにドロップしてください。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("空きスロットにドロップしてください。", "Slot Setup Mode", MessageBoxButton.OK, MessageBoxImage.Information);
             return true;
         }
 
@@ -3621,13 +3621,13 @@ public partial class MainWindow : Window
 
         if (isEnabled && _searchLayerActive)
         {
-            WpfMessageBox.Show("検索レイヤー表示中はレイアウト編集モードに切り替えられません。検索を閉じてから再度お試しください。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("検索レイヤー表示中はスロット編集モードに切り替えられません。検索を閉じてから再度お試しください。", "Slot Setup Mode", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         if (isEnabled && HasAnyRunningSlot())
         {
-            WpfMessageBox.Show("マクロ実行中はレイアウト編集モードに切り替えられません。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            WpfMessageBox.Show("マクロ実行中はスロット編集モードに切り替えられません。", "Slot Setup Mode", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -3649,7 +3649,7 @@ public partial class MainWindow : Window
         if (EditModeToggleButton != null)
         {
             EditModeToggleButton.Content = isEnabled ? "✕" : "✎";
-            EditModeToggleButton.ToolTip = isEnabled ? "Exit Slot Layout Edit Mode" : "Slot Layout Edit Mode";
+            EditModeToggleButton.ToolTip = isEnabled ? "Exit Slot Setup Mode" : "Slot Setup Mode";
         }
     }
 
@@ -3666,7 +3666,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        EditModeIndicatorText.Text = "LAYOUT EDIT MODE";
+        EditModeIndicatorText.Text = "SLOT SETUP MODE";
     }
 
     private void UpdateSlotPanelEditModePadding()
