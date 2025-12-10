@@ -22,7 +22,10 @@
             </MenuItem>
             <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
             <MenuItem Header="検索ホットキー..." Click="OnConfigureSearchHotkey"/>
-            <MenuItem Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
+            <MenuItem Header="レイヤー設定">
+                <MenuItem Header="レイヤー数..." Click="OnConfigureLayerCount"/>
+                <MenuItem Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
+            </MenuItem>
             <MenuItem Header="レイアウト / 表示">
                 <MenuItem x:Name="LayoutMenuItem"
                           Header="Slot Layout..."
@@ -72,12 +75,8 @@
             <MenuItem Header="マウスジェスチャ (表示/最小化)..."
                       Click="OnConfigureMouseGestures"/>
             <MenuItem Header="表示挙動">
-                <MenuItem Header="レイヤー固定..."
+                <MenuItem Header="表示時のレイヤー切替..."
                           Click="OnConfigureShowLayerPreferences"/>
-                <Separator/>
-                <MenuItem Header="レイヤー数..."
-                          Click="OnConfigureLayerCount"/>
-                <Separator/>
                 <MenuItem Header="表示位置 (検索)">
                     <MenuItem x:Name="SearchPlacementFixedMenuItem"
                               Header="固定位置"
