@@ -81,9 +81,6 @@ public partial class MainWindow : Window
         MouseGesture,
         Prefix
     }
-    private static readonly (int rows, int columns)[] SlotLayoutOptions =
-        BuildSlotLayoutOptions();
-
     private static readonly (SlotSize size, string header)[] SlotSizeOptions =
     {
         (SlotSize.Large, "Large"),
@@ -151,18 +148,6 @@ public partial class MainWindow : Window
         OverlayStatus: true,
         SlotMargin: 2);
 
-    private static (int rows, int columns)[] BuildSlotLayoutOptions()
-    {
-        var options = new List<(int rows, int columns)>();
-        for (int rows = MinSlotRows; rows <= MaxSlotRows; rows++)
-        {
-            for (int columns = MinSlotColumns; columns <= MaxSlotColumns; columns++)
-            {
-                options.Add((rows, columns));
-            }
-        }
-        return options.ToArray();
-    }
     static MainWindow()
     {
         PrefixArmedBackgroundBrush = CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x82, 0x4C));
@@ -3528,41 +3513,32 @@ public partial class MainWindow : Window
         };
     }
 
-    private void OnLayoutMenuOpened(object sender, RoutedEventArgs e)
+    private void OnConfigureSlotLayout(object sender, RoutedEventArgs e)
     {
-        if (sender is not MenuItem menuItem) return;
-        PopulateLayoutMenu(menuItem);
-    }
+        var dialog = new SlotLayoutDialog(_config.SlotRows, _config.SlotColumns)
+        {
+            Owner = this
+        };
+        WindowCascadeService.Arrange(dialog, this);
+        var result = dialog.ShowDialog();
+        if (result != true)
+        {
+            return;
+        }
 
-    private void OnLayoutOptionSelected(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item || item.Tag is not ValueTuple<int, int> layout) return;
-        if (_config.SlotRows == layout.Item1 && _config.SlotColumns == layout.Item2) return;
+        int rows = Math.Clamp(dialog.Rows, MinSlotRows, MaxSlotRows);
+        int columns = Math.Clamp(dialog.Columns, MinSlotColumns, MaxSlotColumns);
+        if (rows == _config.SlotRows && columns == _config.SlotColumns)
+        {
+            return;
+        }
 
-        _config.SlotRows = layout.Item1;
-        _config.SlotColumns = layout.Item2;
+        _config.SlotRows = rows;
+        _config.SlotColumns = columns;
         ApplySlotLayout();
         RefreshUi();
         ClampWindowWithinBounds();
         _configService.Save(_config);
-    }
-
-    private void PopulateLayoutMenu(MenuItem menuItem)
-    {
-        if (menuItem == null) return;
-        menuItem.Items.Clear();
-        foreach (var option in SlotLayoutOptions)
-        {
-            var item = new MenuItem
-            {
-                Header = $"{option.rows}x{option.columns}",
-                IsCheckable = true,
-                IsChecked = option.rows == _config.SlotRows && option.columns == _config.SlotColumns,
-                Tag = option
-            };
-            item.Click += OnLayoutOptionSelected;
-            menuItem.Items.Add(item);
-        }
     }
 
     private void OnSlotSizeMenuOpened(object sender, RoutedEventArgs e)
@@ -4211,7 +4187,6 @@ public partial class MainWindow : Window
             HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;
         }
         UpdateMacroModeMenu(null);
-        PopulateLayoutMenu(LayoutMenuItem);
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
     }

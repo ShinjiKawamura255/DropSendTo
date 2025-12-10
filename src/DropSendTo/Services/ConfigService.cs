@@ -93,7 +93,7 @@ public class ConfigService
     private const int MinSlotRows = 2;
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
-    private const int MaxSlotColumns = 4;
+    private const int MaxSlotColumns = 8;
     private const int MinGestureTurns = 1;
     private const int MaxGestureTurns = 50;
     private const int MinGestureRadius = 0;

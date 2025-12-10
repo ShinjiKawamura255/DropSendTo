@@ -45,6 +45,27 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void LoadOrCreate_Should_Clamp_Rows_And_Columns_To_Max()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var cfgDir = Path.Combine(temp, "DropSendTo");
+        Directory.CreateDirectory(cfgDir);
+        var cfg = new AppConfig
+        {
+            SlotRows = 10,
+            SlotColumns = 10,
+            Layers = new() { new Layer(), new Layer(), new Layer(), new Layer() }
+        };
+        File.WriteAllText(Path.Combine(cfgDir, "config.json"), JsonSerializer.Serialize(cfg));
+
+        var svc = new ConfigService(temp);
+        var loaded = svc.LoadOrCreate();
+
+        loaded.SlotRows.Should().Be(8);
+        loaded.SlotColumns.Should().Be(8);
+    }
+
+    [Fact]
     public void Save_Should_Persist_AlwaysOnTop_Flag()
     {
         var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
@@ -236,7 +257,7 @@ public class ConfigServiceTests
         var migratedSmall = smallService.LoadOrCreate();
         migratedSmall.SlotSize.Should().Be(SlotSize.Medium);
         migratedSmall.SlotRows.Should().Be(8);
-        migratedSmall.SlotColumns.Should().Be(4);
+        migratedSmall.SlotColumns.Should().Be(5);
 
         var largeDir = Path.Combine(tempRoot, "large");
         var legacyLarge = new AppConfig
