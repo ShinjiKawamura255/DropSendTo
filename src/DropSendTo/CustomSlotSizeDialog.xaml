@@ -1,0 +1,94 @@
+<Window x:Class="DropSendTo.CustomSlotSizeDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        Title="Custom Slot Size"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="{StaticResource Theme.WindowBackgroundBrush}"
+        Height="340"
+        Width="420"
+        WindowStartupLocation="CenterOwner">
+    <Border Padding="12" Background="{StaticResource Theme.WindowBackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" LastChildFill="False">
+                <TextBlock Text="Custom Slot Size"
+                           FontWeight="SemiBold"
+                           FontSize="14"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Button Content="✕"
+                        Width="28"
+                        Height="24"
+                        DockPanel.Dock="Right"
+                        Padding="0"
+                        Margin="0,0,0,0"
+                        Click="OnClose"/>
+            </DockPanel>
+
+            <StackPanel Grid.Row="1" Margin="0,12,0,12" VerticalAlignment="Top">
+                <TextBlock x:Name="ErrorBlock"
+                           Foreground="{StaticResource Theme.AlertTextBrush}"
+                           Visibility="Collapsed"
+                           Margin="0,0,0,8"
+                           TextWrapping="Wrap"/>
+
+                <UniformGrid Columns="2" Rows="3" Margin="0,0,0,8">
+                    <StackPanel Margin="0,0,8,8">
+                        <TextBlock Text="スロット高さ (px)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="SlotHeightBox" />
+                        <TextBlock Text="24〜120。フォントと余白に合わせて自動調整されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Margin="8,0,0,8">
+                        <TextBlock Text="タイトルフォントサイズ" Margin="0,0,0,2"/>
+                        <TextBox x:Name="TitleFontBox" />
+                        <TextBlock Text="8〜18。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,8,8">
+                        <TextBlock Text="ステータスフォントサイズ" Margin="0,0,0,2"/>
+                        <TextBox x:Name="StatusFontBox" />
+                        <TextBlock Text="8〜16。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" />
+                    </StackPanel>
+                    <StackPanel Margin="8,0,0,8">
+                        <TextBlock Text="スロット間隔 (px)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="SlotMarginBox" />
+                        <TextBlock Text="0〜12。左右・上下に同じ余白を適用します。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="縦方向ステップ (px)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="RowStepBox" />
+                        <TextBlock Text="追加行の高さ増分。最低でもスロット高さ+余白以上。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Margin="8,0,0,0">
+                        <TextBlock Text="横方向ステップ (px)" Margin="0,0,0,2"/>
+                        <TextBox x:Name="ColumnStepBox" />
+                        <TextBlock Text="Small と同等幅を基準に 50〜120 で調整。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </UniformGrid>
+            </StackPanel>
+
+            <StackPanel Grid.Row="2"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="OK"
+                        Width="90"
+                        Height="32"
+                        Margin="6,0"
+                        IsDefault="True"
+                        Click="OnOk"/>
+                <Button Content="Cancel"
+                        Width="90"
+                        Height="32"
+                        Margin="6,0"
+                        IsCancel="True"
+                        Click="OnClose"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

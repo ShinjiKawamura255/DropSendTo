@@ -123,6 +123,7 @@ public class ConfigService
         {
             cfg.SlotSize = SlotSize.Medium;
         }
+        cfg.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(cfg.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault());
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
         if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
         {
@@ -649,6 +650,13 @@ public class ConfigService
         {
             cfg.HideEmptySlotNames = false;
             cfg.Version = 32;
+            changed = true;
+        }
+
+        if (cfg.Version < 33)
+        {
+            cfg.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(cfg.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault());
+            cfg.Version = 33;
             changed = true;
         }
 

@@ -28,7 +28,7 @@
 - TC-050 Layer: ボタン/ホイールの循環切替、ドラッグホバー 0.8s で自動切替、ハイライト更新。
 - TC-060 WindowPos: 再起動で位置復元し、画面外に移動しても可視範囲へ補正される。
 - TC-065 LayoutMenu: Slot Layout メニューで 2〜8 行×2〜4 列の候補を選択でき、即時 UI が再構成され、再起動後も構成が保持される。
-- TC-066 SlotSize: Slot Size メニューで Small/Medium/Large を切り替えるとウィンドウ寸法とスロット表示が即時更新され、タイトル行数が 1/2/3 行に制限される。Small 時はステータスを同一行にオーバーレイ表示し、設定を保存・再起動しても保持される。
+- TC-066 SlotSize: Slot Size メニューで Small/Medium/Large/Custom を切り替えるとウィンドウ寸法とスロット表示が即時更新される。Small/Medium/Large ではタイトル行数が 1/2/3 行に制限され、Small 時はステータスを同一行にオーバーレイ表示。Custom では高さ/フォント/余白/行列ステップを指定して保存し、再起動しても保持されることを確認する。
 - TC-068 PrefixLayerShortcut: コンテキストメニューの「Prefix: Ctrl+N/P でレイヤー切替」を有効化すると、Prefix armed 中に `Ctrl+N`/`Ctrl+P` でレイヤーを前後へ循環でき、無効化すると通常のキー入力として OS に透過する。設定は保存・再起動後も復元される。
 - TC-069 PrefixArrowSelect: Prefix+Enter でウィンドウを前面に復帰した後、矢印キーでスロットが順次選択され Enter で実行されること、矢印を押すまで選択枠が表示されず、Esc/マウス操作でキーボード選択モードが解除されることを確認する。
 - TC-074 KeyboardModeToggle: コンテキストメニュー「キーボード操作」で Emacs/vi トグルを ON/OFF すると即時反映され、設定が保存・復元されることを確認する。ON 時は各モードのキー（Emacs: Ctrl+F/B/N/P/A/E/M/J, Alt+X, Ctrl+[→X / vi: h/j/k/l, :）がウィンドウアクティブ時のみ動作し、OFF 時は矢印キー+Enter/Esc のみが有効になる。トグルは Enter/Ctrl+J/Ctrl+M でも切り替えられメニューが閉じることを確認する。

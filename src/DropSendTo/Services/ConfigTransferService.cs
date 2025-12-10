@@ -160,6 +160,7 @@ internal sealed class ConfigTransferService
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
+        public CustomSlotSizeOptions? CustomSlotSize { get; set; }
         public bool PreferRemoteSessions { get; set; } = true;
         public List<ExportLayerSnapshot> Layers { get; set; } = new();
 
@@ -199,6 +200,7 @@ internal sealed class ConfigTransferService
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
                 SlotSize = config.SlotSize,
+                CustomSlotSize = config.CustomSlotSize?.Clone(),
                 Layers = config.Layers.Select(ExportLayerSnapshot.FromLayer).ToList()
             };
         }
@@ -247,6 +249,7 @@ internal sealed class ConfigTransferService
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,
                 SlotSize = SlotSize,
+                CustomSlotSize = CustomSlotSize?.Clone() ?? CustomSlotSizeOptions.CreateDefault(),
                 Layers = normalizedLayers
             };
         }

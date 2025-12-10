@@ -39,6 +39,8 @@ public class ConfigServiceTests
         cfg.EnableMouseGestures.Should().BeTrue();
         cfg.MouseGestureClockwiseTurnsToShow.Should().Be(3);
         cfg.MouseGestureCounterClockwiseTurnsToHide.Should().Be(2);
+        cfg.CustomSlotSize.Should().NotBeNull();
+        cfg.CustomSlotSize.SlotHeight.Should().BeGreaterThan(0);
         cfg.Version.Should().Be(CurrentConfigVersion);
     }
 

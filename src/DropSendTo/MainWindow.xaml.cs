@@ -88,7 +88,8 @@ public partial class MainWindow : Window
     {
         (SlotSize.Large, "Large"),
         (SlotSize.Medium, "Medium"),
-        (SlotSize.Small, "Small")
+        (SlotSize.Small, "Small"),
+        (SlotSize.Custom, "Custom...")
     };
     private const double LayoutEditIndicatorTopSpacing = 4;
     private const double LayoutEditIndicatorBottomSpacing = 6;
@@ -105,7 +106,8 @@ public partial class MainWindow : Window
         TextWrapping TitleWrapping,
         TextTrimming TitleTrimming,
         int TitleVisibleLines,
-        bool OverlayStatus);
+        bool OverlayStatus,
+        double SlotMargin);
 
     private static readonly SlotSizeMetrics LargeSlotMetrics = new(
         BaseWidth: 240,
@@ -118,7 +120,8 @@ public partial class MainWindow : Window
         TitleWrapping: TextWrapping.Wrap,
         TitleTrimming: TextTrimming.CharacterEllipsis,
         TitleVisibleLines: 3,
-        OverlayStatus: false);
+        OverlayStatus: false,
+        SlotMargin: 2);
 
     private static readonly SlotSizeMetrics MediumSlotMetrics = new(
         BaseWidth: 218,
@@ -131,7 +134,8 @@ public partial class MainWindow : Window
         TitleWrapping: TextWrapping.Wrap,
         TitleTrimming: TextTrimming.CharacterEllipsis,
         TitleVisibleLines: 2,
-        OverlayStatus: false);
+        OverlayStatus: false,
+        SlotMargin: 2);
 
     private static readonly SlotSizeMetrics SmallSlotMetrics = new(
         BaseWidth: 234,
@@ -144,7 +148,8 @@ public partial class MainWindow : Window
         TitleWrapping: TextWrapping.NoWrap,
         TitleTrimming: TextTrimming.CharacterEllipsis,
         TitleVisibleLines: 1,
-        OverlayStatus: true);
+        OverlayStatus: true,
+        SlotMargin: 2);
 
     private static (int rows, int columns)[] BuildSlotLayoutOptions()
     {
@@ -657,8 +662,33 @@ public partial class MainWindow : Window
         {
             SlotSize.Small => SmallSlotMetrics,
             SlotSize.Medium => MediumSlotMetrics,
+            SlotSize.Custom when _config?.CustomSlotSize != null => BuildCustomSlotSizeMetrics(_config.CustomSlotSize),
             _ => LargeSlotMetrics
         };
+    }
+
+    private SlotSizeMetrics BuildCustomSlotSizeMetrics(CustomSlotSizeOptions options)
+    {
+        var slotHeight = options.SlotHeight;
+        var titleFont = options.TitleFontSize;
+        var statusFont = options.StatusFontSize;
+        var overlayStatus = slotHeight < 40;
+        var titleLines = slotHeight >= 60 ? 2 : 1;
+        var wrapping = overlayStatus ? TextWrapping.NoWrap : TextWrapping.Wrap;
+        var baseHeight = SmallSlotMetrics.BaseHeight - SmallSlotMetrics.SlotHeight + slotHeight;
+        return new SlotSizeMetrics(
+            BaseWidth: SmallSlotMetrics.BaseWidth,
+            BaseHeight: baseHeight,
+            ColumnStep: options.ColumnStep,
+            RowStep: options.RowStep,
+            SlotHeight: slotHeight,
+            TitleFontSize: titleFont,
+            StatusFontSize: statusFont,
+            TitleWrapping: wrapping,
+            TitleTrimming: TextTrimming.CharacterEllipsis,
+            TitleVisibleLines: titleLines,
+            OverlayStatus: overlayStatus,
+            SlotMargin: options.SlotMargin);
     }
 
     private static void EnsureLayerSlotCapacity(Layer layer, int requiredSlots)
@@ -675,7 +705,7 @@ public partial class MainWindow : Window
         var metrics = GetSlotSizeMetrics();
         var border = new Border
         {
-            Margin = new Thickness(2),
+            Margin = new Thickness(metrics.SlotMargin),
             BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
@@ -3544,7 +3574,23 @@ public partial class MainWindow : Window
     private void OnSlotSizeOptionSelected(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item || item.Tag is not SlotSize size) return;
-        if (_config.SlotSize == size) return;
+        if (_config.SlotSize == size && size != SlotSize.Custom) return;
+
+        if (size == SlotSize.Custom)
+        {
+            var dialog = new CustomSlotSizeDialog(_config.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault())
+            {
+                Owner = this
+            };
+            WindowCascadeService.Arrange(dialog, this);
+            var result = dialog.ShowDialog();
+            if (result != true)
+            {
+                return;
+            }
+
+            _config.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(dialog.ResultOptions?.Clone() ?? CustomSlotSizeOptions.CreateDefault());
+        }
 
         _config.SlotSize = size;
         ApplySlotLayout();

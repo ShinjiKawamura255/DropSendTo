@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 32;
+    public int Version { get; set; } = 33;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -39,6 +39,7 @@ public class AppConfig
     public int SlotRows { get; set; } = 2;
     public int SlotColumns { get; set; } = 2;
     public SlotSize SlotSize { get; set; } = SlotSize.Medium;
+    public CustomSlotSizeOptions CustomSlotSize { get; set; } = CustomSlotSizeOptions.CreateDefault();
     public bool PreferRemoteSessions { get; set; } = true;
     public List<Layer> Layers { get; set; } = new()
     {
@@ -71,6 +72,36 @@ public enum WindowPlacementMode
 {
     Fixed = 0,
     MouseFollow = 1
+}
+
+public sealed class CustomSlotSizeOptions
+{
+    public double SlotHeight { get; set; }
+    public double TitleFontSize { get; set; }
+    public double StatusFontSize { get; set; }
+    public double RowStep { get; set; }
+    public double ColumnStep { get; set; }
+    public double SlotMargin { get; set; }
+
+    public static CustomSlotSizeOptions CreateDefault() => new()
+    {
+        SlotHeight = 32,
+        TitleFontSize = 10,
+        StatusFontSize = 9,
+        RowStep = 36,
+        ColumnStep = 70,
+        SlotMargin = 2
+    };
+
+    public CustomSlotSizeOptions Clone() => new()
+    {
+        SlotHeight = SlotHeight,
+        TitleFontSize = TitleFontSize,
+        StatusFontSize = StatusFontSize,
+        RowStep = RowStep,
+        ColumnStep = ColumnStep,
+        SlotMargin = SlotMargin
+    };
 }
 
 public enum MacroConcurrencyMode
