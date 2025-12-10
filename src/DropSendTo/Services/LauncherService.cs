@@ -47,18 +47,13 @@ public class LauncherService
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn($"Primary directory launch failed, will fallback to explorer.exe: {ex.Message}");
-                }
-
-                if (p == null)
-                {
                     var explorerInfo = new ProcessStartInfo
                     {
                         FileName = "explorer.exe",
                         UseShellExecute = true,
                         Arguments = $"\"{slot.Command}\""
                     };
-                    _logger.Info($"Falling back to explorer.exe for directory \"{slot.Command}\".");
+                    _logger.Warn($"Primary directory launch failed, falling back to explorer.exe: {ex.Message}");
                     p = Process.Start(explorerInfo);
                 }
             }
@@ -77,31 +72,25 @@ public class LauncherService
                 p = Process.Start(startInfo);
             }
 
-            if (p != null)
+            int pid = 0;
+            try
             {
-                int pid = 0;
-                try
-                {
-                    pid = p.Id;
-                }
-                catch
-                {
-                    pid = 0;
-                }
-
-                if (pid > 0)
-                {
-                    _logger.Info($"Launch succeeded (pid={pid}).");
-                }
-                else
-                {
-                    _logger.Info("Launch succeeded (pid unavailable).");
-                }
-                return LaunchResult.Ok();
+                pid = p?.Id ?? 0;
+            }
+            catch
+            {
+                pid = 0;
             }
 
-            _logger.Warn("Process.Start returned null.");
-            return LaunchResult.Fail("Failed to start process.");
+            if (pid > 0)
+            {
+                _logger.Info($"Launch succeeded (pid={pid}).");
+            }
+            else
+            {
+                _logger.Info("Launch succeeded (pid unavailable).");
+            }
+            return LaunchResult.Ok();
         }
         catch (Exception ex)
         {
