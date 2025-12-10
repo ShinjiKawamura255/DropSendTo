@@ -71,32 +71,35 @@
             </MenuItem>
             <MenuItem Header="マウスジェスチャ (表示/最小化)..."
                       Click="OnConfigureMouseGestures"/>
-            <MenuItem Header="表示時のレイヤー固定..."
-                      Click="OnConfigureShowLayerPreferences"/>
-            <MenuItem Header="表示位置 (キーボード)">
-                <MenuItem x:Name="KeyboardPlacementFixedMenuItem"
-                          Header="固定位置"
-                          IsCheckable="True"
-                          Click="OnKeyboardPlacementFixed"/>
-                <MenuItem x:Name="KeyboardPlacementFollowMouseMenuItem"
-                          Header="マウスフォロー"
-                          IsCheckable="True"
-                          Click="OnKeyboardPlacementMouseFollow"/>
-            </MenuItem>
-            <MenuItem Header="表示位置 (マウスジェスチャ)">
-                <MenuItem x:Name="MousePlacementFollowKeyboardMenuItem"
-                          Header="キーボード設定に追従"
-                          IsCheckable="True"
-                          Click="OnMousePlacementFollowKeyboard"/>
+            <MenuItem Header="表示挙動">
+                <MenuItem Header="レイヤー固定..."
+                          Click="OnConfigureShowLayerPreferences"/>
                 <Separator/>
-                <MenuItem x:Name="MousePlacementFixedMenuItem"
-                          Header="固定位置"
-                          IsCheckable="True"
-                          Click="OnMousePlacementFixed"/>
-                <MenuItem x:Name="MousePlacementFollowMouseMenuItem"
-                          Header="マウスフォロー"
-                          IsCheckable="True"
-                          Click="OnMousePlacementMouseFollow"/>
+                <MenuItem Header="表示位置 (キーボード)">
+                    <MenuItem x:Name="KeyboardPlacementFixedMenuItem"
+                              Header="固定位置"
+                              IsCheckable="True"
+                              Click="OnKeyboardPlacementFixed"/>
+                    <MenuItem x:Name="KeyboardPlacementFollowMouseMenuItem"
+                              Header="マウスフォロー"
+                              IsCheckable="True"
+                              Click="OnKeyboardPlacementMouseFollow"/>
+                </MenuItem>
+                <MenuItem Header="表示位置 (マウスジェスチャ)">
+                    <MenuItem x:Name="MousePlacementFollowKeyboardMenuItem"
+                              Header="キーボード設定に追従"
+                              IsCheckable="True"
+                              Click="OnMousePlacementFollowKeyboard"/>
+                    <Separator/>
+                    <MenuItem x:Name="MousePlacementFixedMenuItem"
+                              Header="固定位置"
+                              IsCheckable="True"
+                              Click="OnMousePlacementFixed"/>
+                    <MenuItem x:Name="MousePlacementFollowMouseMenuItem"
+                              Header="マウスフォロー"
+                              IsCheckable="True"
+                              Click="OnMousePlacementMouseFollow"/>
+                </MenuItem>
             </MenuItem>
             <MenuItem x:Name="PrefixLayerShortcutMenuItem"
                       Header="Prefix: Ctrl+N/P でレイヤー切替"

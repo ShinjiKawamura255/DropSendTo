@@ -4252,12 +4252,12 @@ public partial class MainWindow : Window
         }
         if (MousePlacementFixedMenuItem != null)
         {
-            MousePlacementFixedMenuItem.IsEnabled = !followKeyboard;
+            MousePlacementFixedMenuItem.IsEnabled = true;
             MousePlacementFixedMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.Fixed;
         }
         if (MousePlacementFollowMouseMenuItem != null)
         {
-            MousePlacementFollowMouseMenuItem.IsEnabled = !followKeyboard;
+            MousePlacementFollowMouseMenuItem.IsEnabled = true;
             MousePlacementFollowMouseMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.MouseFollow;
         }
     }
