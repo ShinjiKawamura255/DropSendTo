@@ -1348,7 +1348,8 @@ public partial class MainWindow : Window
         _prefixSearchRestoreContext = new PrefixSearchRestoreContext(
             IsWindowHiddenForShow(),
             Left,
-            Top);
+            Top,
+            _suppressFixedCapture);
     }
 
     private void RestoreWindowAfterPrefixSearch(PrefixSearchRestoreContext restoreContext)
@@ -1364,6 +1365,8 @@ public partial class MainWindow : Window
             Left = restoreContext.Left;
             Top = restoreContext.Top;
         }
+
+        _suppressFixedCapture = restoreContext.PreviousSuppressFixedCapture;
     }
 
     private void OnSearchOverlayTextChanged(object? sender, string text)
@@ -2783,7 +2786,7 @@ public partial class MainWindow : Window
     }
 
     private sealed record SearchResult(int LayerIndex, int SlotIndex);
-    private sealed record PrefixSearchRestoreContext(bool WasMinimized, double Left, double Top);
+    private sealed record PrefixSearchRestoreContext(bool WasMinimized, double Left, double Top, bool PreviousSuppressFixedCapture);
     private readonly record struct VisibleSlotMapping(int LayerIndex, int SlotIndex)
     {
         public bool IsEmpty => LayerIndex < 0 || SlotIndex < 0;
@@ -5113,21 +5116,47 @@ public partial class MainWindow : Window
         _suppressFixedCaptureDuringSearch = true;
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
-        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
-        if (placement == WindowPlacementMode.MouseFollow)
-        {
-            PositionWindowAtMouse();
-        }
-        else
-        {
-            _suppressFixedCapture = false;
-            PositionWindowAtFixedLocation();
-        }
+        ApplySearchPlacement();
         BringWindowToForeground();
         RearmDragDropTargets();
         OpenSearchLayer();
         RefreshDragHoverIfMouseButtonDown();
+    }
+
+    private void ApplySearchPlacement()
+    {
+        try
+        {
+            switch (_searchPlacementMode)
+            {
+                case SearchOverlayPlacementMode.MouseFollow:
+                    _suppressFixedCapture = true;
+                    PositionWindowAtMouse();
+                    break;
+                case SearchOverlayPlacementMode.CursorScreenCenter:
+                    _suppressFixedCapture = true;
+                    PositionWindowAtCursorScreenCenter();
+                    break;
+                case SearchOverlayPlacementMode.Fixed:
+                default:
+                    var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
+                    _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+                    if (placement == WindowPlacementMode.MouseFollow)
+                    {
+                        PositionWindowAtMouse();
+                    }
+                    else
+                    {
+                        _suppressFixedCapture = false;
+                        PositionWindowAtFixedLocation();
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to apply search placement: {ex.Message}");
+        }
     }
 
     private void OnSearchHotkeyRequested(object? sender, EventArgs e)
@@ -5136,17 +5165,7 @@ public partial class MainWindow : Window
         _suppressFixedCaptureDuringSearch = true;
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
-        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
-        if (placement == WindowPlacementMode.MouseFollow)
-        {
-            PositionWindowAtMouse();
-        }
-        else
-        {
-            _suppressFixedCapture = false;
-            PositionWindowAtFixedLocation();
-        }
+        ApplySearchPlacement();
         BringWindowToForeground();
         RearmDragDropTargets();
         OpenSearchLayer();
@@ -5741,6 +5760,25 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.Warn($"Failed to position window at mouse: {ex.Message}");
+        }
+    }
+
+    private void PositionWindowAtCursorScreenCenter()
+    {
+        try
+        {
+            var cursor = Forms.Control.MousePosition;
+            var bounds = ScreenBoundsResolver.ForPoint(cursor.X, cursor.Y);
+            var rect = GetWindowRect(this.Left, this.Top);
+            double newLeft = bounds.Left + (bounds.Width - rect.Width) / 2.0;
+            double newTop = bounds.Top + (bounds.Height - rect.Height) / 2.0;
+            var (left, top) = _placement.Clamp(newLeft, newTop, bounds, rect.Width, rect.Height);
+            Left = left;
+            Top = top;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to position window at screen center: {ex.Message}");
         }
     }
 
