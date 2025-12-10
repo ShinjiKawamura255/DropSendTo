@@ -85,7 +85,7 @@
 
         <CheckBox x:Name="RequireCtrlCheckBox"
                   Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
-                  Content="Ctrl を押しながらのときだけ有効にする"
+                  Content="Ctrl を押しながらのときだけ表示（時計回り）を発動する（最小化は Ctrl 不要）"
                   Margin="0,0,0,6"/>
 
         <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,6">
@@ -128,7 +128,7 @@
                    Foreground="{StaticResource Theme.MutedTextBrush}"
                    FontSize="12"
                    Margin="0,0,0,10"
-                   Text="マウスを連続して円を描くように動かすと、指定した回数で DropSendTo を表示 / 最小化します。"
+                   Text="マウスを連続して円を描くように動かすと、指定した回数で DropSendTo を表示 / 最小化します。Ctrl 必須をオンにしても最小化（反時計回り）は Ctrl なしで実行できます。"
                    />
 
         <TextBlock x:Name="ErrorBlock"
