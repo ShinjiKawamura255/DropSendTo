@@ -194,7 +194,9 @@ public partial class MainWindow : Window
     private int _currentLayer = 0; // 0..3
     private readonly Stack<SlotRunContext> _slotRunStack = new();
     private SlotRunContext? _currentSlotRun;
-    private WindowPlacementMode _windowPlacementMode;
+    private WindowPlacementMode _keyboardPlacementMode;
+    private WindowPlacementMode _mousePlacementMode;
+    private bool _mousePlacementFollowsKeyboard;
     private bool _isSlotLayoutEditMode;
     private System.Windows.Point? _slotDragStartPoint;
     private bool _isSlotLayoutDragInProgress;
@@ -213,7 +215,9 @@ public partial class MainWindow : Window
         _configService = new ConfigService();
         _launcher = new LauncherService();
         _config = _configService.LoadOrCreate();
-        _windowPlacementMode = _config.WindowPlacementMode;
+        _keyboardPlacementMode = _config.KeyboardPlacementMode;
+        _mousePlacementMode = _config.MousePlacementMode;
+        _mousePlacementFollowsKeyboard = _config.MousePlacementFollowsKeyboard;
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
@@ -238,7 +242,7 @@ public partial class MainWindow : Window
         UpdateTrayMenuState();
         this.Closing += (_, _) =>
         {
-            if (_windowPlacementMode == WindowPlacementMode.Fixed)
+            if (_keyboardPlacementMode == WindowPlacementMode.Fixed)
             {
                 CaptureFixedWindowPosition(clampBeforeStoring: true);
             }
@@ -4036,6 +4040,44 @@ public partial class MainWindow : Window
         _configService.Save(_config);
     }
 
+    private void OnKeyboardPlacementFixed(object sender, RoutedEventArgs e)
+    {
+        SetPlacementMode(WindowPlacementMode.Fixed, ShowLayerTrigger.Prefix, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
+    private void OnKeyboardPlacementMouseFollow(object sender, RoutedEventArgs e)
+    {
+        SetPlacementMode(WindowPlacementMode.MouseFollow, ShowLayerTrigger.Prefix, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
+    private void OnMousePlacementFollowKeyboard(object sender, RoutedEventArgs e)
+    {
+        _mousePlacementFollowsKeyboard = true;
+        _config.MousePlacementFollowsKeyboard = true;
+        _mousePlacementMode = _keyboardPlacementMode;
+        _config.MousePlacementMode = _mousePlacementMode;
+        _configService.Save(_config);
+        UpdatePlacementMenuState();
+    }
+
+    private void OnMousePlacementFixed(object sender, RoutedEventArgs e)
+    {
+        _mousePlacementFollowsKeyboard = false;
+        _config.MousePlacementFollowsKeyboard = false;
+        SetPlacementMode(WindowPlacementMode.Fixed, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
+    private void OnMousePlacementMouseFollow(object sender, RoutedEventArgs e)
+    {
+        _mousePlacementFollowsKeyboard = false;
+        _config.MousePlacementFollowsKeyboard = false;
+        SetPlacementMode(WindowPlacementMode.MouseFollow, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
     private void OnToggleEmacsNavigation(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item) return;
@@ -4187,8 +4229,37 @@ public partial class MainWindow : Window
             HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;
         }
         UpdateMacroModeMenu(null);
+        UpdatePlacementMenuState();
         PopulateSlotSizeMenu(SlotSizeMenuItem);
         UpdateTrayMenuState();
+    }
+
+    private void UpdatePlacementMenuState()
+    {
+        if (KeyboardPlacementFixedMenuItem != null)
+        {
+            KeyboardPlacementFixedMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.Fixed;
+        }
+        if (KeyboardPlacementFollowMouseMenuItem != null)
+        {
+            KeyboardPlacementFollowMouseMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.MouseFollow;
+        }
+
+        bool followKeyboard = _mousePlacementFollowsKeyboard;
+        if (MousePlacementFollowKeyboardMenuItem != null)
+        {
+            MousePlacementFollowKeyboardMenuItem.IsChecked = followKeyboard;
+        }
+        if (MousePlacementFixedMenuItem != null)
+        {
+            MousePlacementFixedMenuItem.IsEnabled = !followKeyboard;
+            MousePlacementFixedMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.Fixed;
+        }
+        if (MousePlacementFollowMouseMenuItem != null)
+        {
+            MousePlacementFollowMouseMenuItem.IsEnabled = !followKeyboard;
+            MousePlacementFollowMouseMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.MouseFollow;
+        }
     }
 
     private void OnConfigureMinimizeTriggers(object sender, RoutedEventArgs e)
@@ -4834,7 +4905,7 @@ public partial class MainWindow : Window
     {
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
         }
@@ -4850,7 +4921,7 @@ public partial class MainWindow : Window
         CapturePrefixSearchRestoreContext();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
         }
@@ -4865,7 +4936,7 @@ public partial class MainWindow : Window
         CapturePrefixSearchRestoreContext();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
         }
@@ -4891,7 +4962,7 @@ public partial class MainWindow : Window
         {
             PositionWindowNearCursorForDragGesture();
         }
-        else if (_windowPlacementMode == WindowPlacementMode.MouseFollow)
+        else if (GetPlacementMode(ShowLayerTrigger.MouseGesture) == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
         }
@@ -4931,7 +5002,7 @@ public partial class MainWindow : Window
 
     private void OnPrefixPositionToggleRequested(object? sender, EventArgs e)
     {
-        ToggleWindowPlacementMode();
+        TogglePlacementMode(ShowLayerTrigger.Prefix);
     }
 
     // When the window is summoned during a drag, force a minimal cursor move so WPF delivers DragEnter/DragOver immediately.
@@ -5314,40 +5385,98 @@ public partial class MainWindow : Window
         }), DispatcherPriority.Background);
     }
 
-    private void ToggleWindowPlacementMode()
+    private void TogglePlacementMode(ShowLayerTrigger trigger)
     {
-        var next = _windowPlacementMode == WindowPlacementMode.Fixed
-            ? WindowPlacementMode.MouseFollow
-            : WindowPlacementMode.Fixed;
-        SetWindowPlacementMode(next, initiatedByToggle: true);
+        var current = GetPlacementMode(trigger);
+        var next = current == WindowPlacementMode.Fixed ? WindowPlacementMode.MouseFollow : WindowPlacementMode.Fixed;
+        SetPlacementMode(next, trigger, initiatedByToggle: true);
     }
 
-    private void SetWindowPlacementMode(WindowPlacementMode mode, bool initiatedByToggle)
+    private WindowPlacementMode GetPlacementMode(ShowLayerTrigger trigger)
     {
-        if (_windowPlacementMode == mode)
+        return trigger switch
         {
-            if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
-            {
-                PositionWindowAtMouse();
-            }
-            return;
-        }
+            ShowLayerTrigger.MouseGesture when _mousePlacementFollowsKeyboard => _keyboardPlacementMode,
+            ShowLayerTrigger.MouseGesture => _mousePlacementMode,
+            _ => _keyboardPlacementMode
+        };
+    }
 
-        if (mode == WindowPlacementMode.MouseFollow)
+    private void SetPlacementMode(WindowPlacementMode mode, ShowLayerTrigger trigger, bool initiatedByToggle)
+    {
+        if (trigger == ShowLayerTrigger.Prefix)
         {
-            CaptureFixedWindowPosition(clampBeforeStoring: true);
-            _windowPlacementMode = mode;
-            _config.WindowPlacementMode = mode;
-            if (initiatedByToggle)
+            if (_keyboardPlacementMode == mode)
             {
-                PositionWindowAtMouse();
+                if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
+                {
+                    PositionWindowAtMouse();
+                }
+            }
+            else
+            {
+                if (mode == WindowPlacementMode.MouseFollow)
+                {
+                    CaptureFixedWindowPosition(clampBeforeStoring: true);
+                    _keyboardPlacementMode = mode;
+                    _config.WindowPlacementMode = mode;
+                    _config.KeyboardPlacementMode = mode;
+                    if (initiatedByToggle)
+                    {
+                        PositionWindowAtMouse();
+                    }
+                }
+                else
+                {
+                    _keyboardPlacementMode = mode;
+                    _config.WindowPlacementMode = mode;
+                    _config.KeyboardPlacementMode = mode;
+                    RestoreWindowPosition();
+                }
+            }
+
+            if (_mousePlacementFollowsKeyboard)
+            {
+                _mousePlacementMode = _keyboardPlacementMode;
+                _config.MousePlacementMode = _mousePlacementMode;
+                _config.MousePlacementFollowsKeyboard = true;
             }
         }
         else
         {
-            _windowPlacementMode = mode;
-            _config.WindowPlacementMode = mode;
-            RestoreWindowPosition();
+            if (_mousePlacementFollowsKeyboard)
+            {
+                _mousePlacementMode = _keyboardPlacementMode;
+                _config.MousePlacementMode = _mousePlacementMode;
+                _config.MousePlacementFollowsKeyboard = true;
+                return;
+            }
+
+            if (_mousePlacementMode == mode)
+            {
+                if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
+                {
+                    PositionWindowAtMouse();
+                }
+                return;
+            }
+
+            if (mode == WindowPlacementMode.MouseFollow)
+            {
+                CaptureFixedWindowPosition(clampBeforeStoring: true);
+                _mousePlacementMode = mode;
+                _config.MousePlacementMode = mode;
+                if (initiatedByToggle)
+                {
+                    PositionWindowAtMouse();
+                }
+            }
+            else
+            {
+                _mousePlacementMode = mode;
+                _config.MousePlacementMode = mode;
+                RestoreWindowPosition();
+            }
         }
 
         _configService.Save(_config);
@@ -5355,11 +5484,6 @@ public partial class MainWindow : Window
 
     private void CaptureFixedWindowPosition(bool clampBeforeStoring)
     {
-        if (_windowPlacementMode != WindowPlacementMode.Fixed)
-        {
-            return;
-        }
-
         if (clampBeforeStoring)
         {
             ClampWindowWithinBounds();

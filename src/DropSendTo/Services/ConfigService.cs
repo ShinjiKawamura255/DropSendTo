@@ -137,6 +137,14 @@ public class ConfigService
         {
             cfg.WindowPlacementMode = WindowPlacementMode.Fixed;
         }
+        if (!Enum.IsDefined(typeof(WindowPlacementMode), cfg.KeyboardPlacementMode))
+        {
+            cfg.KeyboardPlacementMode = WindowPlacementMode.Fixed;
+        }
+        if (!Enum.IsDefined(typeof(WindowPlacementMode), cfg.MousePlacementMode))
+        {
+            cfg.MousePlacementMode = WindowPlacementMode.Fixed;
+        }
         if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
         {
             cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
@@ -657,6 +665,15 @@ public class ConfigService
         {
             cfg.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(cfg.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault());
             cfg.Version = 33;
+            changed = true;
+        }
+
+        if (cfg.Version < 34)
+        {
+            cfg.KeyboardPlacementMode = cfg.WindowPlacementMode;
+            cfg.MousePlacementMode = cfg.WindowPlacementMode;
+            cfg.MousePlacementFollowsKeyboard = true;
+            cfg.Version = 34;
             changed = true;
         }
 

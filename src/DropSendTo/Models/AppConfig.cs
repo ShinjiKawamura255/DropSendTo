@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 33;
+    public int Version { get; set; } = 34;
     public int CurrentLayer { get; set; } = 0; // 0..3
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -13,6 +13,9 @@ public class AppConfig
     public StartupWindowBehavior StartupBehavior { get; set; } = StartupWindowBehavior.AlwaysShow;
     public WindowVisibilityState LastWindowVisibility { get; set; } = WindowVisibilityState.Visible;
     public WindowPlacementMode WindowPlacementMode { get; set; } = WindowPlacementMode.Fixed;
+    public WindowPlacementMode KeyboardPlacementMode { get; set; } = WindowPlacementMode.Fixed;
+    public WindowPlacementMode MousePlacementMode { get; set; } = WindowPlacementMode.Fixed;
+    public bool MousePlacementFollowsKeyboard { get; set; } = true;
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
     public bool EnablePrefixLayerShortcuts { get; set; }

@@ -160,6 +160,9 @@ internal sealed class ConfigTransferService
         public int SlotRows { get; set; }
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
+        public WindowPlacementMode KeyboardPlacementMode { get; set; }
+        public WindowPlacementMode MousePlacementMode { get; set; }
+        public bool MousePlacementFollowsKeyboard { get; set; }
         public CustomSlotSizeOptions? CustomSlotSize { get; set; }
         public bool PreferRemoteSessions { get; set; } = true;
         public List<ExportLayerSnapshot> Layers { get; set; } = new();
@@ -200,6 +203,9 @@ internal sealed class ConfigTransferService
                 SlotRows = config.SlotRows,
                 SlotColumns = config.SlotColumns,
                 SlotSize = config.SlotSize,
+                KeyboardPlacementMode = config.KeyboardPlacementMode,
+                MousePlacementMode = config.MousePlacementMode,
+                MousePlacementFollowsKeyboard = config.MousePlacementFollowsKeyboard,
                 CustomSlotSize = config.CustomSlotSize?.Clone(),
                 Layers = config.Layers.Select(ExportLayerSnapshot.FromLayer).ToList()
             };
@@ -249,6 +255,9 @@ internal sealed class ConfigTransferService
                 SlotRows = SlotRows,
                 SlotColumns = SlotColumns,
                 SlotSize = SlotSize,
+                KeyboardPlacementMode = KeyboardPlacementMode,
+                MousePlacementMode = MousePlacementMode,
+                MousePlacementFollowsKeyboard = MousePlacementFollowsKeyboard,
                 CustomSlotSize = CustomSlotSize?.Clone() ?? CustomSlotSizeOptions.CreateDefault(),
                 Layers = normalizedLayers
             };
