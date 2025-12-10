@@ -58,6 +58,7 @@ public partial class MainWindow : Window
     private DrawingIcon? _notifyIconDefault;
     private DrawingIcon? _notifyIconActive;
     private bool _isMinimizedToTray;
+    private bool _suppressFixedCapture;
     private bool _minimizeOnLoaded;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
@@ -4905,9 +4906,15 @@ public partial class MainWindow : Window
     {
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
+        var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
+        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
+        }
+        else
+        {
+            _suppressFixedCapture = false;
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4921,9 +4928,15 @@ public partial class MainWindow : Window
         CapturePrefixSearchRestoreContext();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
+        var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
+        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
+        }
+        else
+        {
+            _suppressFixedCapture = false;
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4936,9 +4949,15 @@ public partial class MainWindow : Window
         CapturePrefixSearchRestoreContext();
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
-        if (GetPlacementMode(ShowLayerTrigger.Prefix) == WindowPlacementMode.MouseFollow)
+        var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
+        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
+        }
+        else
+        {
+            _suppressFixedCapture = false;
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4962,9 +4981,19 @@ public partial class MainWindow : Window
         {
             PositionWindowNearCursorForDragGesture();
         }
-        else if (GetPlacementMode(ShowLayerTrigger.MouseGesture) == WindowPlacementMode.MouseFollow)
+        var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
+        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        if (isDrag)
+        {
+            // already positioned above
+        }
+        else if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
+        }
+        else
+        {
+            _suppressFixedCapture = false;
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -5415,24 +5444,25 @@ public partial class MainWindow : Window
             }
             else
             {
-                if (mode == WindowPlacementMode.MouseFollow)
-                {
-                    CaptureFixedWindowPosition(clampBeforeStoring: true);
-                    _keyboardPlacementMode = mode;
-                    _config.WindowPlacementMode = mode;
-                    _config.KeyboardPlacementMode = mode;
+        if (mode == WindowPlacementMode.MouseFollow)
+        {
+            CaptureFixedWindowPosition(clampBeforeStoring: true);
+            _keyboardPlacementMode = mode;
+            _config.WindowPlacementMode = mode;
+            _config.KeyboardPlacementMode = mode;
                     if (initiatedByToggle)
                     {
                         PositionWindowAtMouse();
                     }
                 }
-                else
-                {
-                    _keyboardPlacementMode = mode;
-                    _config.WindowPlacementMode = mode;
-                    _config.KeyboardPlacementMode = mode;
-                    RestoreWindowPosition();
-                }
+        else
+        {
+            _keyboardPlacementMode = mode;
+            _config.WindowPlacementMode = mode;
+            _config.KeyboardPlacementMode = mode;
+            RestoreWindowPosition();
+            _suppressFixedCapture = false;
+        }
             }
 
             if (_mousePlacementFollowsKeyboard)
@@ -5476,6 +5506,7 @@ public partial class MainWindow : Window
                 _mousePlacementMode = mode;
                 _config.MousePlacementMode = mode;
                 RestoreWindowPosition();
+                _suppressFixedCapture = false;
             }
         }
 
@@ -5484,6 +5515,11 @@ public partial class MainWindow : Window
 
     private void CaptureFixedWindowPosition(bool clampBeforeStoring)
     {
+        if (_suppressFixedCapture)
+        {
+            return;
+        }
+
         if (clampBeforeStoring)
         {
             ClampWindowWithinBounds();
