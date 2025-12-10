@@ -62,6 +62,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _positionSaveTimer;
     private bool _pendingPositionSave;
     private WindowPlacementMode _lastShowPlacementMode = WindowPlacementMode.Fixed;
+    private bool _blockLocationSave;
     private bool _minimizeOnLoaded;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
@@ -4897,6 +4898,12 @@ public partial class MainWindow : Window
 
     private void OnWindowLocationChanged(object? sender, EventArgs e)
     {
+        if (_blockLocationSave)
+        {
+            _blockLocationSave = false;
+            return;
+        }
+
         if (_config == null || _isMinimizedToTray || _suppressFixedCapture)
         {
             return;
@@ -5508,6 +5515,7 @@ public partial class MainWindow : Window
                     _config.KeyboardPlacementMode = mode;
                     if (initiatedByToggle)
                     {
+                        _blockLocationSave = true;
                         PositionWindowAtMouse();
                     }
                 }
@@ -5516,7 +5524,11 @@ public partial class MainWindow : Window
                     _keyboardPlacementMode = mode;
                     _config.WindowPlacementMode = mode;
                     _config.KeyboardPlacementMode = mode;
-                    RestoreWindowPosition();
+                    if (initiatedByToggle)
+                    {
+                        _blockLocationSave = true;
+                        RestoreWindowPosition();
+                    }
                     _suppressFixedCapture = false;
                 }
             }
@@ -5553,6 +5565,7 @@ public partial class MainWindow : Window
                 _config.MousePlacementMode = mode;
                 if (initiatedByToggle)
                 {
+                    _blockLocationSave = true;
                     PositionWindowAtMouse();
                 }
             }
@@ -5560,7 +5573,11 @@ public partial class MainWindow : Window
             {
                 _mousePlacementMode = mode;
                 _config.MousePlacementMode = mode;
-                RestoreWindowPosition();
+                if (initiatedByToggle)
+                {
+                    _blockLocationSave = true;
+                    RestoreWindowPosition();
+                }
                 _suppressFixedCapture = false;
             }
         }
