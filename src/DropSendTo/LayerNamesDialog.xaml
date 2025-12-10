@@ -2,7 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="レイヤー名を編集" Height="420" Width="360"
+        Title="レイヤー名を編集"
+        Width="360"
+        SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None"
         Background="{StaticResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
@@ -40,10 +42,11 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <ScrollViewer Grid.Row="0"
+            <ScrollViewer x:Name="LayerScroll"
+                          Grid.Row="0"
                           Margin="0,0,0,8"
                           VerticalScrollBarVisibility="Auto"
-                          MaxHeight="260">
+                          MaxHeight="500">
                 <ItemsControl x:Name="LayerItems">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

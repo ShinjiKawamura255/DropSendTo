@@ -2298,7 +2298,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        targetLayer = Math.Clamp(targetLayer, 0, totalLayers - 1);
+        if (targetLayer < 0 || targetLayer >= totalLayers)
+        {
+            return false;
+        }
         if (targetLayer == _currentLayer)
         {
             return true;

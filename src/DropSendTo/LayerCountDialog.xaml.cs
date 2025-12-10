@@ -29,7 +29,7 @@ public partial class LayerCountDialog : Window, IConfirmableDialog
         _choices.Clear();
         for (int value = min; value <= max; value++)
         {
-            _choices.Add(new LayerCountChoice(value, $"Layer {value}"));
+            _choices.Add(new LayerCountChoice(value, value.ToString()));
         }
     }
 
