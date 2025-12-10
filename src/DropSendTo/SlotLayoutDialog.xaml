@@ -41,14 +41,14 @@
                 <UniformGrid Columns="2" Rows="1" Margin="0,0,0,8">
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="行 (2〜8)" Margin="0,0,0,2"/>
-                        <TextBox x:Name="RowsBox"/>
+                        <ComboBox x:Name="RowsBox" IsEditable="False"/>
                     </StackPanel>
                     <StackPanel Margin="8,0,0,0">
                         <TextBlock Text="列 (2〜8)" Margin="0,0,0,2"/>
-                        <TextBox x:Name="ColumnsBox"/>
+                        <ComboBox x:Name="ColumnsBox" IsEditable="False"/>
                     </StackPanel>
                 </UniformGrid>
-                <TextBlock Text="2〜8 の範囲で行と列を指定してください。変更後は即時反映され、全レイヤーのスロット容量が拡張されます。"
+                <TextBlock Text="プルダウンから 2〜8 の行と列を選択してください。変更後は即時反映され、全レイヤーのスロット容量が拡張されます。"
                            FontSize="11"
                            Foreground="{StaticResource Theme.SubtleTextBrush}"
                            TextWrapping="Wrap"/>

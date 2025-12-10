@@ -13,22 +13,33 @@ internal partial class SlotLayoutDialog : Window
         InitializeComponent();
         Rows = currentRows;
         Columns = currentColumns;
-        RowsBox.Text = currentRows.ToString(CultureInfo.CurrentCulture);
-        ColumnsBox.Text = currentColumns.ToString(CultureInfo.CurrentCulture);
+        PopulateCombos(currentRows, currentColumns);
+    }
+
+    private void PopulateCombos(int currentRows, int currentColumns)
+    {
+        for (int i = 2; i <= 8; i++)
+        {
+            RowsBox.Items.Add(i);
+            ColumnsBox.Items.Add(i);
+        }
+
+        RowsBox.SelectedItem = ClampSelection(currentRows);
+        ColumnsBox.SelectedItem = ClampSelection(currentColumns);
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
         ErrorBlock.Visibility = Visibility.Collapsed;
-        if (!TryParse(RowsBox.Text, out var rows) || rows is < 2 or > 8)
+        if (RowsBox.SelectedItem is not int rows)
         {
-            ShowError("行は 2 〜 8 の範囲で入力してください。");
+            ShowError("行を選択してください (2〜8)。");
             return;
         }
 
-        if (!TryParse(ColumnsBox.Text, out var cols) || cols is < 2 or > 8)
+        if (ColumnsBox.SelectedItem is not int cols)
         {
-            ShowError("列は 2 〜 8 の範囲で入力してください。");
+            ShowError("列を選択してください (2〜8)。");
             return;
         }
 
@@ -50,8 +61,5 @@ internal partial class SlotLayoutDialog : Window
         ErrorBlock.Visibility = Visibility.Visible;
     }
 
-    private static bool TryParse(string? text, out int value)
-    {
-        return int.TryParse(text, NumberStyles.Integer, CultureInfo.CurrentCulture, out value);
-    }
+    private static int ClampSelection(int value) => Math.Clamp(value, 2, 8);
 }
