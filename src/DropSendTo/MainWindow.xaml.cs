@@ -427,6 +427,8 @@ public partial class MainWindow : Window
         {
             if (e.Button == Forms.MouseButtons.Left)
             {
+                _suppressFixedCapture = false;
+                PositionWindowAtFixedLocation();
                 BringWindowToForeground();
             }
             else if (e.Button == Forms.MouseButtons.Right)
