@@ -75,7 +75,7 @@ public partial class MainWindow : Window
     private const int MinSlotRows = 2;
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
-    private const int MaxSlotColumns = 4;
+    private const int MaxSlotColumns = 8;
     private enum ShowLayerTrigger
     {
         MouseGesture,
