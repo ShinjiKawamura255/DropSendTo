@@ -1305,6 +1305,7 @@ public partial class MainWindow : Window
 
         _searchLayerActive = true;
         SetSlotLayoutEditMode(false);
+        PositionWindowForSearchOverlayAnchor();
         var overlay = EnsureSearchOverlay();
         overlay.Topmost = this.Topmost;
         overlay.Query = _searchQuery;
@@ -5779,6 +5780,42 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _logger.Warn($"Failed to position window at screen center: {ex.Message}");
+        }
+    }
+
+    private void PositionWindowForSearchOverlayAnchor()
+    {
+        try
+        {
+            switch (_searchPlacementMode)
+            {
+                case SearchOverlayPlacementMode.MouseFollow:
+                    _suppressFixedCapture = true;
+                    PositionWindowAtMouse();
+                    break;
+                case SearchOverlayPlacementMode.CursorScreenCenter:
+                    _suppressFixedCapture = true;
+                    PositionWindowAtCursorScreenCenter();
+                    break;
+                case SearchOverlayPlacementMode.Fixed:
+                default:
+                    var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
+                    _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+                    if (placement == WindowPlacementMode.MouseFollow)
+                    {
+                        PositionWindowAtMouse();
+                    }
+                    else
+                    {
+                        _suppressFixedCapture = false;
+                        PositionWindowAtFixedLocation();
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to position window for search anchor: {ex.Message}");
         }
     }
 
