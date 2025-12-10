@@ -59,6 +59,9 @@ public partial class MainWindow : Window
     private DrawingIcon? _notifyIconActive;
     private bool _isMinimizedToTray;
     private bool _suppressFixedCapture;
+    private readonly DispatcherTimer _positionSaveTimer;
+    private bool _pendingPositionSave;
+    private WindowPlacementMode _lastShowPlacementMode = WindowPlacementMode.Fixed;
     private bool _minimizeOnLoaded;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
@@ -219,6 +222,9 @@ public partial class MainWindow : Window
         _keyboardPlacementMode = _config.KeyboardPlacementMode;
         _mousePlacementMode = _config.MousePlacementMode;
         _mousePlacementFollowsKeyboard = _config.MousePlacementFollowsKeyboard;
+        _lastShowPlacementMode = WindowPlacementMode.Fixed;
+        _positionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        _positionSaveTimer.Tick += OnPositionSaveTick;
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
@@ -241,6 +247,7 @@ public partial class MainWindow : Window
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
         UpdateTrayMenuState();
+        LocationChanged += OnWindowLocationChanged;
         this.Closing += (_, _) =>
         {
             if (_keyboardPlacementMode == WindowPlacementMode.Fixed)
@@ -4888,6 +4895,35 @@ public partial class MainWindow : Window
         Top = top;
     }
 
+    private void OnWindowLocationChanged(object? sender, EventArgs e)
+    {
+        if (_config == null || _isMinimizedToTray || _suppressFixedCapture)
+        {
+            return;
+        }
+
+        if (_lastShowPlacementMode != WindowPlacementMode.Fixed)
+        {
+            return;
+        }
+
+        _config.WindowLeft = this.Left;
+        _config.WindowTop = this.Top;
+        _pendingPositionSave = true;
+        _positionSaveTimer.Stop();
+        _positionSaveTimer.Start();
+    }
+
+    private void OnPositionSaveTick(object? sender, EventArgs e)
+    {
+        _positionSaveTimer.Stop();
+        if (_pendingPositionSave && _config != null)
+        {
+            _pendingPositionSave = false;
+            _configService.Save(_config);
+        }
+    }
+
     private void ApplyShowLayerPreference(ShowLayerTrigger trigger, bool fromHidden)
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
@@ -4921,6 +4957,7 @@ public partial class MainWindow : Window
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
         _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        _lastShowPlacementMode = placement;
         if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
@@ -4944,6 +4981,7 @@ public partial class MainWindow : Window
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
         _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        _lastShowPlacementMode = placement;
         if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
@@ -4966,6 +5004,7 @@ public partial class MainWindow : Window
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
         _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        _lastShowPlacementMode = placement;
         if (placement == WindowPlacementMode.MouseFollow)
         {
             PositionWindowAtMouse();
@@ -4999,6 +5038,7 @@ public partial class MainWindow : Window
         }
         var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
         _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        _lastShowPlacementMode = placement;
         if (isDrag)
         {
             // already positioned above
