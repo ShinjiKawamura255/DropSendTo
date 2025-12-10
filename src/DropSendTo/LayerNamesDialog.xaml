@@ -35,41 +35,41 @@
             </DockPanel>
         </Border>
         <Grid Margin="14" Grid.Row="1">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <ItemsControl x:Name="LayerItems"
+                          Grid.Row="0"
+                          Margin="0,0,0,8">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Label}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="24"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-        <TextBlock Text="Layer 1" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="Layer1Box" Grid.Row="0" Grid.Column="1" Margin="0,0,0,6" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,6"
+                       Text="空欄のままでも構いません（未登録の場合はレイヤー名を表示しません）。"
+                       Foreground="{StaticResource Theme.MutedTextBrush}" FontSize="12" TextWrapping="Wrap"/>
 
-        <TextBlock Text="Layer 2" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="Layer2Box" Grid.Row="1" Grid.Column="1" Margin="0,0,0,6" />
-
-        <TextBlock Text="Layer 3" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="Layer3Box" Grid.Row="2" Grid.Column="1" Margin="0,0,0,6" />
-
-        <TextBlock Text="Layer 4" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="Layer4Box" Grid.Row="3" Grid.Column="1" Margin="0,0,0,6" />
-
-        <TextBlock Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,4"
-                   Text="空欄のままでも構いません（未登録の場合はレイヤー名を表示しません）。"
-                   Foreground="{StaticResource Theme.MutedTextBrush}" FontSize="12" TextWrapping="Wrap"/>
-
-        <StackPanel Orientation="Horizontal" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
-                    HorizontalAlignment="Right">
-            <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
-            <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True" Click="OnCancel"/>
-        </StackPanel>
+            <StackPanel Orientation="Horizontal" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                        HorizontalAlignment="Right">
+                <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
+                <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True" Click="OnCancel"/>
+            </StackPanel>
         </Grid>
     </Grid>
 </Window>

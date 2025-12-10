@@ -2328,6 +2328,22 @@ public partial class MainWindow : Window
             case System.Windows.Input.Key.NumPad4:
                 layerIndex = 3;
                 return true;
+            case System.Windows.Input.Key.D5:
+            case System.Windows.Input.Key.NumPad5:
+                layerIndex = 4;
+                return true;
+            case System.Windows.Input.Key.D6:
+            case System.Windows.Input.Key.NumPad6:
+                layerIndex = 5;
+                return true;
+            case System.Windows.Input.Key.D7:
+            case System.Windows.Input.Key.NumPad7:
+                layerIndex = 6;
+                return true;
+            case System.Windows.Input.Key.D8:
+            case System.Windows.Input.Key.NumPad8:
+                layerIndex = 7;
+                return true;
             default:
                 layerIndex = -1;
                 return false;
