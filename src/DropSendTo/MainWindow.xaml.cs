@@ -5501,25 +5501,24 @@ public partial class MainWindow : Window
             }
             else
             {
-        if (mode == WindowPlacementMode.MouseFollow)
-        {
-            CaptureFixedWindowPosition(clampBeforeStoring: true);
-            _keyboardPlacementMode = mode;
-            _config.WindowPlacementMode = mode;
-            _config.KeyboardPlacementMode = mode;
+                if (mode == WindowPlacementMode.MouseFollow)
+                {
+                    _keyboardPlacementMode = mode;
+                    _config.WindowPlacementMode = mode;
+                    _config.KeyboardPlacementMode = mode;
                     if (initiatedByToggle)
                     {
                         PositionWindowAtMouse();
                     }
                 }
-        else
-        {
-            _keyboardPlacementMode = mode;
-            _config.WindowPlacementMode = mode;
-            _config.KeyboardPlacementMode = mode;
-            RestoreWindowPosition();
-            _suppressFixedCapture = false;
-        }
+                else
+                {
+                    _keyboardPlacementMode = mode;
+                    _config.WindowPlacementMode = mode;
+                    _config.KeyboardPlacementMode = mode;
+                    RestoreWindowPosition();
+                    _suppressFixedCapture = false;
+                }
             }
 
             if (_mousePlacementFollowsKeyboard)
@@ -5550,7 +5549,6 @@ public partial class MainWindow : Window
 
             if (mode == WindowPlacementMode.MouseFollow)
             {
-                CaptureFixedWindowPosition(clampBeforeStoring: true);
                 _mousePlacementMode = mode;
                 _config.MousePlacementMode = mode;
                 if (initiatedByToggle)
