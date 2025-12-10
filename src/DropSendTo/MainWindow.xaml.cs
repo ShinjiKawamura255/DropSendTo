@@ -3334,9 +3334,8 @@ public partial class MainWindow : Window
             {
                 return;
             }
-            if (_isSlotLayoutEditMode)
+            if (_isSlotLayoutEditMode && TryRegisterSlotFromEditModeDrop(sender, e))
             {
-                e.Handled = true;
                 return;
             }
             if (!e.Data.GetDataPresent(WpfDataFormats.FileDrop)) return;
@@ -3365,6 +3364,90 @@ public partial class MainWindow : Window
         {
             WpfMessageBox.Show(ex.Message, "Drop Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private bool TryHandleEditModeDropPreview(FrameworkElement target, DragEventArgs e)
+    {
+        if (!_isSlotLayoutEditMode || _config == null)
+        {
+            return false;
+        }
+
+        if (!TryGetVisibleSlotModel(GetSlotIndex(target), out _, out _, out var slot))
+        {
+            return false;
+        }
+
+        var paths = e.Data.GetData(WpfDataFormats.FileDrop) as string[];
+        var text = TryGetDropText(e.Data);
+        bool canRegister = IsSlotEmpty(slot) && SlotDropRegistrationHelper.TryCreate(paths, text, out _);
+        e.Handled = true;
+        e.Effects = canRegister ? WpfDragDropEffects.Copy : WpfDragDropEffects.None;
+        return true;
+    }
+
+    private bool TryRegisterSlotFromEditModeDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+        if (_config == null)
+        {
+            return true;
+        }
+
+        if (sender is not FrameworkElement fe)
+        {
+            return true;
+        }
+
+        int idx = GetSlotIndex(fe);
+        if (!TryGetVisibleSlotModel(idx, out var layerIndex, out var slotIndex, out var slot))
+        {
+            return true;
+        }
+
+        if (!IsSlotEmpty(slot))
+        {
+            WpfMessageBox.Show("空きスロットにドロップしてください。", "Slot Layout Edit Mode", MessageBoxButton.OK, MessageBoxImage.Information);
+            return true;
+        }
+
+        var paths = e.Data.GetData(WpfDataFormats.FileDrop) as string[];
+        var text = TryGetDropText(e.Data);
+        if (!SlotDropRegistrationHelper.TryCreate(paths, text, out var registration))
+        {
+            return true;
+        }
+
+        slot.Title = registration.Title;
+        slot.Command = registration.Command;
+        slot.ArgumentsTemplate = registration.ArgumentsTemplate;
+        slot.ExecutionMode = registration.ExecutionMode;
+        slot.KeyboardMacroScript = string.Empty;
+        slot.ShortcutKey = string.Empty;
+        slot.ClickEnabled = true;
+        slot.MinimizeOptions ??= (_config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()).Clone();
+        slot.SearchKeywords = slot.SearchKeywords ?? string.Empty;
+        slot.IconPath = slot.IconPath ?? string.Empty;
+
+        _configService.Save(_config);
+        _logger.Info($"Registered slot via edit-mode drop (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slot.Title}\", command=\"{slot.Command}\").");
+        RefreshUi();
+        return true;
+    }
+
+    private static string? TryGetDropText(System.Windows.IDataObject data)
+    {
+        if (data.GetDataPresent(WpfDataFormats.UnicodeText))
+        {
+            return data.GetData(WpfDataFormats.UnicodeText) as string;
+        }
+
+        if (data.GetDataPresent(WpfDataFormats.Text))
+        {
+            return data.GetData(WpfDataFormats.Text) as string;
+        }
+
+        return null;
     }
 
     private void OnOpenMenu(object sender, RoutedEventArgs e)
@@ -4373,10 +4456,8 @@ public partial class MainWindow : Window
             UpdateSlotLayoutPreview(_currentLayer, GetSlotIndex(b));
             return;
         }
-        if (_isSlotLayoutEditMode)
+        if (TryHandleEditModeDropPreview(b, e))
         {
-            e.Handled = true;
-            e.Effects = WpfDragDropEffects.None;
             return;
         }
         int idx = GetSlotIndex(b);
@@ -4413,10 +4494,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_isSlotLayoutEditMode)
+        if (sender is FrameworkElement fe && TryHandleEditModeDropPreview(fe, e))
         {
-            e.Handled = true;
-            e.Effects = WpfDragDropEffects.None;
             return;
         }
 

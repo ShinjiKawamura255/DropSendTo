@@ -28,16 +28,20 @@ public class LauncherService
                 slotTitle = "(untitled)";
             }
 
+            var isDirectory = Directory.Exists(slot.Command);
             var startInfo = new ProcessStartInfo
             {
                 FileName = slot.Command,
                 UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
+                WorkingDirectory = isDirectory
+                    ? slot.Command
+                    : Path.GetDirectoryName(slot.Command) ?? Environment.CurrentDirectory,
                 Arguments = string.Empty
             };
             var arguments = argumentOverride ?? BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
-            startInfo.Arguments = arguments;
-            _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{arguments}\" (paths={paths.Length}).");
+            var appliedArguments = isDirectory ? string.Empty : arguments;
+            startInfo.Arguments = appliedArguments;
+            _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{appliedArguments}\" (paths={paths.Length}).");
             var p = Process.Start(startInfo);
             if (p != null)
             {
