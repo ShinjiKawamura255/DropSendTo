@@ -106,6 +106,7 @@
 | `RETURN ["メッセージ"]` | マクロを即終了（メッセージは任意でログ/結果に残る） | `RETURN "条件を満たさないため中止"` |
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
 | `PROMPT <変数> "メッセージ" [DEFAULT "初期値"]` | 入力ダイアログを表示し OK で値を変数へ格納（キャンセルで失敗） | `PROMPT Name "名前を入力" DEFAULT "unknown"` |
+| `COMMAND_APP <パス>` | Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す） | `COMMAND_APP "C:\tools\img.exe"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |

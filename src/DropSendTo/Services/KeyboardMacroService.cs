@@ -149,10 +149,11 @@ public sealed class KeyboardMacroService : IDisposable
             lockTaken = true;
             session.MarkLockHeld();
             MacroExecutionContext? context = mode == SlotExecutionMode.MacroScriptExtended
-                ? new MacroExecutionContext(mode, _ => LaunchResult.Ok(), "(Validation)", string.Empty)
+                ? new MacroExecutionContext(mode, (_, _) => LaunchResult.Ok(), "(Validation)", string.Empty)
                 : null;
 
-            var result = RunMacroInternal(script, context, CancellationToken.None, session, validateOnly: true);
+            string? commandOverridePath = null;
+            var result = RunMacroInternal(script, context, CancellationToken.None, session, validateOnly: true, ref commandOverridePath);
             if (!result.Success)
             {
                 error = string.IsNullOrWhiteSpace(result.Message)
@@ -382,11 +383,12 @@ public sealed class KeyboardMacroService : IDisposable
             session = new MacroExecutionSession(_macroLock);
             session.MarkLockHeld();
             SetMacroRunning(linkedCts, session);
+            string? commandOverridePath = null;
             MacroExecutionResult result;
             try
             {
                 _logger.Info($"Macro execution started (length={scriptToRun.Length} chars).");
-                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token, session, validateOnly: false), linkedCts.Token).ConfigureAwait(false);
+                result = await Task.Run(() => RunMacroInternal(scriptToRun, context, linkedCts.Token, session, validateOnly: false, ref commandOverridePath), linkedCts.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -439,7 +441,7 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session, bool validateOnly)
+    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session, bool validateOnly, ref string? commandOverridePath)
     {
         ThrowIfPausedOrCanceled(session, cancellationToken);
         IntPtr target = ResolveTargetWindow();
@@ -1113,6 +1115,56 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "COMMAND_APP"))
+                {
+                    if (context?.SlotMode != SlotExecutionMode.MacroScriptExtended)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "COMMAND_APP コマンドは Macro Script 拡張モードでのみ使用できます。")));
+                    }
+
+                    var payload = line.Length > 11 ? line[11..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (string.IsNullOrWhiteSpace(payload))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "COMMAND_APP にはコマンドパスを指定してください。")));
+                    }
+
+                    var trimmed = payload.Trim();
+                    if (trimmed.Equals("RESET", StringComparison.OrdinalIgnoreCase) ||
+                        trimmed.Equals("CLEAR", StringComparison.OrdinalIgnoreCase))
+                    {
+                        commandOverridePath = null;
+                        continue;
+                    }
+
+                    int idx = 0;
+                    if (!TryParsePathOperand(payload, ref idx, "COMMAND_APP", "コマンドパス", out var rawPath, out var pathError))
+                    {
+                        var message = pathError ?? "COMMAND_APP のパス指定が不正です。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (idx < payload.Length && !string.IsNullOrWhiteSpace(payload[idx..]))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "COMMAND_APP の引数の後ろに余分な記述があります。")));
+                    }
+
+                    if (!TryExpandVariables(rawPath, variables, out var expandedPath, out var commandAppExpandError, specialResolver))
+                    {
+                        var message = commandAppExpandError ?? "COMMAND_APP のパス展開に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    var normalizedPath = TrimPathQuotes(expandedPath);
+                    if (string.IsNullOrWhiteSpace(normalizedPath))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "COMMAND_APP のパスは空にできません。")));
+                    }
+
+                    commandOverridePath = normalizedPath;
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "COMMAND"))
                 {
                     if (context?.SlotMode != SlotExecutionMode.MacroScriptExtended)
@@ -1146,7 +1198,10 @@ public sealed class KeyboardMacroService : IDisposable
                     LaunchResult launchResult;
                     try
                     {
-                        launchResult = context.CommandInvoker?.Invoke(overrideArguments) ?? LaunchResult.Fail("COMMAND invoker is not available。");
+                        var effectiveCommandPath = string.IsNullOrWhiteSpace(commandOverridePath)
+                            ? context.CommandPath
+                            : commandOverridePath;
+                        launchResult = context.CommandInvoker?.Invoke(overrideArguments, effectiveCommandPath) ?? LaunchResult.Fail("COMMAND invoker is not available。");
                     }
                     catch (Exception ex)
                     {
@@ -1170,9 +1225,13 @@ public sealed class KeyboardMacroService : IDisposable
                     var overrideInfo = overrideArguments == null
                         ? "template arguments used"
                         : $"override length={overrideArguments.Length}";
-                    var commandPath = string.IsNullOrWhiteSpace(context.CommandPath)
-                        ? "(unspecified)"
-                        : context.CommandPath;
+                    var commandPath = string.IsNullOrWhiteSpace(commandOverridePath)
+                        ? context.CommandPath
+                        : commandOverridePath;
+                    if (string.IsNullOrWhiteSpace(commandPath))
+                    {
+                        commandPath = "(unspecified)";
+                    }
                     _logger.Info($"Slot command invoked via macro (slot=\"{slotLabel}\", command=\"{commandPath}\", {overrideInfo}).");
                     continue;
                 }

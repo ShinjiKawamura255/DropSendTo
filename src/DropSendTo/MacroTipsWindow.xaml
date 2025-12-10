@@ -84,6 +84,7 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RENAME &lt;元パス&gt; &lt;新しいパス&gt; : ファイル/フォルダをリネーム（パスは変数展開とクォートに対応）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RESOLVE_LINK &lt;変数&gt; &lt;パス&gt; : .lnk / シンボリックリンクの実体パスを取得して変数に格納（リンクでなければ元パスを格納）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="READFILE &lt;変数&gt; &lt;パス&gt; [MAX &lt;バイト&gt;] : ファイル内容を変数に読み込み（既定 4096 バイトまで / それ以上は MAX 指定が必要）" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND_APP &lt;パス&gt; : Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RETURN [&quot;メッセージ&quot;] : マクロを即終了（オプションのメッセージはログ/結果用）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="プレースホルダー {{名前}}   : 任意のコマンドで値を展開 (例: TEXT Hello {{UserName}})" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ドロップ引数 {{drop_args}} / {{drop_count}} : Macro Script 拡張でパスをドロップした時の引数/件数を参照 (例: COMMAND {{drop_args}})" TextWrapping="NoWrap"/>

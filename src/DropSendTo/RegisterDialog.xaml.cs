@@ -148,7 +148,8 @@ public partial class RegisterDialog : Window
         new MacroSnippetGroup("COMMAND 命令", new[]
         {
             new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
-            new MacroSnippet("COMMAND [引数指定]", "COMMAND {{drop_args}}")
+            new MacroSnippet("COMMAND [引数指定]", "COMMAND {{drop_args}}"),
+            new MacroSnippet("COMMAND_APP <パス>", "COMMAND_APP \"C:\\\\apps\\\\custom.exe\"")
         }),
         new MacroSnippetGroup("マウス操作", new[]
         {

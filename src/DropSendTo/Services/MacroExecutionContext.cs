@@ -12,6 +12,21 @@ public sealed class MacroExecutionContext
         string slotTitle,
         string? commandPath,
         IReadOnlyList<string>? droppedPaths = null)
+        : this(
+            slotMode,
+            commandInvoker == null ? null : (args, _) => commandInvoker(args),
+            slotTitle,
+            commandPath,
+            droppedPaths)
+    {
+    }
+
+    public MacroExecutionContext(
+        SlotExecutionMode slotMode,
+        Func<string?, string?, LaunchResult>? commandInvoker,
+        string slotTitle,
+        string? commandPath,
+        IReadOnlyList<string>? droppedPaths = null)
     {
         SlotMode = slotMode;
         CommandInvoker = commandInvoker;
@@ -21,7 +36,7 @@ public sealed class MacroExecutionContext
     }
 
     public SlotExecutionMode SlotMode { get; }
-    public Func<string?, LaunchResult>? CommandInvoker { get; }
+    public Func<string?, string?, LaunchResult>? CommandInvoker { get; }
     public string SlotTitle { get; }
     public string CommandPath { get; }
     public IReadOnlyList<string> DroppedPaths { get; }

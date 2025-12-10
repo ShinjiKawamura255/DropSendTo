@@ -4748,9 +4748,26 @@ public partial class MainWindow : Window
             var contextTitle = slotTitle;
             macroContext = new MacroExecutionContext(
                 SlotExecutionMode.MacroScriptExtended,
-                overrideArgs =>
+                (overrideArgs, overrideCommandPath) =>
                 {
-                    var launchResult = _launcher.Launch(slot, dropPathsOrEmpty, overrideArgs);
+                    var effectiveCommand = string.IsNullOrWhiteSpace(overrideCommandPath)
+                        ? slot.Command
+                        : overrideCommandPath;
+                    var slotOverride = new SlotModel
+                    {
+                        Title = slot.Title,
+                        Command = effectiveCommand,
+                        ArgumentsTemplate = slot.ArgumentsTemplate,
+                        IconPath = slot.IconPath,
+                        ClickEnabled = slot.ClickEnabled,
+                        ShortcutKey = slot.ShortcutKey,
+                        KeyboardMacroScript = slot.KeyboardMacroScript,
+                        ExecutionMode = slot.ExecutionMode,
+                        AccentColor = slot.AccentColor,
+                        MinimizeOptions = slot.MinimizeOptions,
+                        SearchKeywords = slot.SearchKeywords
+                    };
+                    var launchResult = _launcher.Launch(slotOverride, dropPathsOrEmpty, overrideArgs);
                     if (!launchResult.Success)
                     {
                         _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {launchResult.Message}");

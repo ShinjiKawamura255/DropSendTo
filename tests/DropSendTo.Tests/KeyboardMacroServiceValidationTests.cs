@@ -198,6 +198,16 @@ ENDIF
     }
 
     [Fact]
+    public void TryValidateScript_ShouldFail_ForCommandAppWithoutPath()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("COMMAND_APP", SlotExecutionMode.MacroScriptExtended, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("COMMAND_APP");
+    }
+
+    [Fact]
     public void TryValidateScript_ShouldFail_ForPromptWithoutArguments()
     {
         var ok = KeyboardMacroService.TryValidateScript("PROMPT", SlotExecutionMode.MacroScript, out var error);
