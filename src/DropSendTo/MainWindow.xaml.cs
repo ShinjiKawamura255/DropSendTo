@@ -4875,6 +4875,17 @@ public partial class MainWindow : Window
 
     private static int? NormalizeShowLayerPreference(int value) => value < 0 ? null : value;
 
+    private void PositionWindowAtFixedLocation()
+    {
+        var rect = GetWindowRect(this.Left, this.Top);
+        double targetLeft = _config.WindowLeft ?? this.Left;
+        double targetTop = _config.WindowTop ?? this.Top;
+        var bounds = ScreenBoundsResolver.ForRect(this, new Rect(targetLeft, targetTop, rect.Width, rect.Height));
+        var (left, top) = _placement.Clamp(targetLeft, targetTop, bounds, rect.Width, rect.Height);
+        Left = left;
+        Top = top;
+    }
+
     private void ApplyShowLayerPreference(ShowLayerTrigger trigger, bool fromHidden)
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
@@ -4915,6 +4926,7 @@ public partial class MainWindow : Window
         else
         {
             _suppressFixedCapture = false;
+            PositionWindowAtFixedLocation();
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4937,6 +4949,7 @@ public partial class MainWindow : Window
         else
         {
             _suppressFixedCapture = false;
+            PositionWindowAtFixedLocation();
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4958,6 +4971,7 @@ public partial class MainWindow : Window
         else
         {
             _suppressFixedCapture = false;
+            PositionWindowAtFixedLocation();
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -4994,6 +5008,7 @@ public partial class MainWindow : Window
         else
         {
             _suppressFixedCapture = false;
+            PositionWindowAtFixedLocation();
         }
         BringWindowToForeground();
         RearmDragDropTargets();
