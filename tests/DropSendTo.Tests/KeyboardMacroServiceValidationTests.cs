@@ -198,6 +198,35 @@ ENDIF
     }
 
     [Fact]
+    public void TryValidateScript_ShouldFail_ForPromptWithoutArguments()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("PROMPT", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("PROMPT");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForPromptWithInvalidVariable()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("PROMPT 123 \"input\"", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("変数名");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldPass_ForPromptWithDefault()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("PROMPT Name \"Enter\" DEFAULT \"value\"", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
     public void TryValidateScript_ShouldAllowInlineCommentsOnControlStatements()
     {
         const string script = """

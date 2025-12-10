@@ -85,6 +85,7 @@
 - `{clipboard:n}`: 直近 n 行をそのまま展開
 - Macro Script 拡張モードのスロットへドロップした場合はマクロ内から `{{drop_args}}`（コマンド引数形式で連結）、`{{drop_count}}`（件数）、`{{drop_path}}` または `{{drop_path:n}}`（1=先頭）で個別パスを参照でき、`COMMAND "{{drop_path:1}}_processed"` のように加工して登録コマンドへ渡せます。
 - 文字列置換は Ordinal 比較の `REPLACE`、拡張正規表現の `REPLACE_REGEX` の 2 種類を提供します。後者は `$1` 等のキャプチャや `IGNORECASE`/`MULTILINE`/`SINGLELINE`/`IGNOREWHITESPACE` オプションを空白区切りで指定できます。
+- 任意の入力を受けたい場合は `PROMPT <変数> "メッセージ" [DEFAULT "初期値"]` でメッセージ付きの入力ダイアログを表示し、OK で入力値を変数へ格納します（キャンセルするとマクロを失敗として扱います。DEFAULT 省略時は空文字が入ります）。
 - `IF <左辺> <演算子> <右辺>` / `ELSEIF <条件>`（`ELSE IF` も可）/ `ELSE` / `ENDIF` で条件分岐を記述できます。演算子は `==`/`!=`/`>`/`>=`/`<`/`<=`（整数比較）と `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH`（文字列比較）をサポートし、空白を含む値は `""` で囲んでください。`ELSEIF` は複数回使用でき、`ELSE` は 1 回のみです。親が偽、または前段の `IF`/`ELSEIF` が成立した場合は後続ブロックの条件式を評価しないため、未定義変数を参照しても安全です。
 
 ### 2.4 Macro Script クイックリファレンス
@@ -104,6 +105,7 @@
 | `READFILE <変数> <パス> [MAX <バイト>]` | ファイル内容を変数へ読み込み（既定 4096 バイト。超える場合は MAX で明示） | `READFILE Prompt C:\notes\prompt.txt` |
 | `RETURN ["メッセージ"]` | マクロを即終了（メッセージは任意でログ/結果に残る） | `RETURN "条件を満たさないため中止"` |
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
+| `PROMPT <変数> "メッセージ" [DEFAULT "初期値"]` | 入力ダイアログを表示し OK で値を変数へ格納（キャンセルで失敗） | `PROMPT Name "名前を入力" DEFAULT "unknown"` |
 | `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |

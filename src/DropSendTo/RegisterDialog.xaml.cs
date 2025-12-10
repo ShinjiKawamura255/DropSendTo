@@ -120,6 +120,7 @@ public partial class RegisterDialog : Window
             new MacroSnippet("RESOLVE_LINK <変数> <パス>", "RESOLVE_LINK TargetPath {{drop_path}}"),
             new MacroSnippet("RENAME <元パス> <新しいパス>", "RENAME {{drop_path}} {{drop_path}}.bak"),
             new MacroSnippet("READFILE <変数> <パス> [MAX n]", "READFILE Body {{drop_path}}"),
+            new MacroSnippet("PROMPT <名前> \"メッセージ\"", "PROMPT InputValue \"値を入力してください\""),
             new MacroSnippet("POPUP \"メッセージ\"", "POPUP \"{{drop_path}} が見つかりません\"")
         }),
         new MacroSnippetGroup("フロー制御 / Prefix", new[]

@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Linq;
+using DropSendTo;
 using DropSendTo.Models;
 
 namespace DropSendTo.Services;
@@ -45,6 +46,7 @@ public sealed class KeyboardMacroService : IDisposable
     private Func<bool>? _prefixIsArmedAccessor;
     private Action? _prefixResetAction;
     private static Func<uint, INPUT[], int, uint>? _sendInputOverride;
+    private static Func<string, string, string?, (bool Confirmed, string? Value)>? _inputPromptOverride;
     private const int DefaultReadFileLimitBytes = 4096;
     private const int MaxReadFileLimitBytes = 1024 * 1024;
 
@@ -777,6 +779,105 @@ public sealed class KeyboardMacroService : IDisposable
                         var message = readError ?? "READFILE の解釈に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "PROMPT"))
+                {
+                    var payload = line.Length > 6 ? line[6..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (string.IsNullOrWhiteSpace(payload))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT には変数名とメッセージを指定してください。")));
+                    }
+
+                    int index = 0;
+                    while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+                    {
+                        index++;
+                    }
+
+                    var firstSpace = FindFirstWhitespace(payload[index..]);
+                    if (firstSpace < 0)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT には変数名とメッセージを指定してください。")));
+                    }
+
+                    var nameToken = payload.Substring(index, firstSpace).Trim();
+                    if (!IsValidVariableName(nameToken))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, $"PROMPT の変数名が不正です: \"{nameToken}\"")));
+                    }
+
+                    index += firstSpace;
+                    if (!TryParseQuotedArgument(payload, ref index, "PROMPT", "メッセージ", out var messageLiteral, out var promptMessageError))
+                    {
+                        var message = promptMessageError ?? "PROMPT のメッセージ指定が不正です。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    string? defaultLiteral = null;
+                    while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+                    {
+                        index++;
+                    }
+
+                    if (index < payload.Length)
+                    {
+                        var remaining = TrimInlineComment(payload[index..]).Trim();
+                        if (remaining.Length > 0)
+                        {
+                            if (!remaining.StartsWith("DEFAULT", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT のメッセージの後ろに余分な記述があります。")));
+                            }
+
+                            var rest = remaining["DEFAULT".Length..].TrimStart();
+                            int defaultIndex = 0;
+                            if (!TryParseQuotedArgument(rest, ref defaultIndex, "PROMPT", "初期値", out var defaultValueLiteral, out var defaultParseError))
+                            {
+                                var message = defaultParseError ?? "PROMPT の初期値指定が不正です。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            }
+
+                            if (defaultIndex < rest.Length && !string.IsNullOrWhiteSpace(rest[defaultIndex..]))
+                            {
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の引数の後ろに余分な記述があります。")));
+                            }
+
+                            defaultLiteral = defaultValueLiteral;
+                        }
+                    }
+
+                    if (!TryExpandVariables(messageLiteral, variables, out var promptMessage, out var promptExpandError, specialResolver))
+                    {
+                        var message = promptExpandError ?? "PROMPT のメッセージ展開に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    string? defaultValue = null;
+                    if (defaultLiteral != null)
+                    {
+                        if (!TryExpandVariables(defaultLiteral, variables, out defaultValue, out var defaultExpandError, specialResolver))
+                        {
+                            var message = defaultExpandError ?? "PROMPT の初期値展開に失敗しました。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+                    }
+
+                    if (validateOnly)
+                    {
+                        variables[nameToken] = defaultValue ?? string.Empty;
+                        continue;
+                    }
+
+                    if (!TryPromptForInput(promptMessage, MacroPopupTitle, defaultValue, session, cancellationToken, out var promptResult, out var promptError))
+                    {
+                        var message = promptError ?? "PROMPT の入力処理に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    variables[nameToken] = promptResult ?? string.Empty;
                     continue;
                 }
 
@@ -3588,6 +3689,109 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    private bool TryPromptForInput(string message, string caption, string? defaultValue, MacroExecutionSession session, CancellationToken cancellationToken, out string? value, out string? error)
+    {
+        error = null;
+        value = null;
+
+        ThrowIfPausedOrCanceled(session, cancellationToken);
+
+        var overridePrompt = _inputPromptOverride;
+        if (overridePrompt != null)
+        {
+            try
+            {
+                var result = overridePrompt(message ?? string.Empty, caption ?? string.Empty, defaultValue);
+                ThrowIfPausedOrCanceled(session, cancellationToken);
+                if (!result.Confirmed)
+                {
+                    error = "PROMPT がキャンセルされました。";
+                    return false;
+                }
+
+                value = result.Value ?? string.Empty;
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            error = "アプリケーションのディスパッチャが利用できません。";
+            return false;
+        }
+
+        string promptMessage = message ?? string.Empty;
+        string promptCaption = string.IsNullOrWhiteSpace(caption) ? "DropSendTo" : caption.Trim();
+        string defaultText = defaultValue ?? string.Empty;
+        Exception? operationError = null;
+        bool confirmed = false;
+        string? inputText = null;
+
+        void ShowPrompt()
+        {
+            try
+            {
+                ThrowIfPausedOrCanceled(session, cancellationToken);
+                var owner = GetPopupOwnerWindow();
+                var dialog = new InputPromptDialog(promptCaption, promptMessage, defaultText)
+                {
+                    Owner = owner
+                };
+                WindowCascadeService.Arrange(dialog, owner);
+                var result = dialog.ShowDialog();
+                confirmed = result == true && dialog.IsConfirmed;
+                if (confirmed)
+                {
+                    inputText = dialog.InputText ?? string.Empty;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                operationError = ex;
+            }
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            ShowPrompt();
+        }
+        else
+        {
+            dispatcher.Invoke(ShowPrompt);
+        }
+
+        ThrowIfPausedOrCanceled(session, cancellationToken);
+
+        if (operationError != null)
+        {
+            error = operationError.Message;
+            return false;
+        }
+
+        if (!confirmed)
+        {
+            error = "PROMPT がキャンセルされました。";
+            return false;
+        }
+
+        value = inputText ?? string.Empty;
+        return true;
+    }
+
     private static Window? GetPopupOwnerWindow()
     {
         var app = System.Windows.Application.Current;
@@ -5000,6 +5204,11 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         }
 
         _sendInputOverride = (count, _, size) => overrideFunc(count, size);
+    }
+
+    internal static void SetInputPromptOverrideForTesting(Func<string, string, string?, (bool Confirmed, string? Value)>? provider)
+    {
+        _inputPromptOverride = provider;
     }
 
     private sealed class MacroSuspensionHandle : IAsyncDisposable
