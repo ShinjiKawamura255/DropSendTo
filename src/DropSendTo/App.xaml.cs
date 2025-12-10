@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using DropSendTo.Services;
 using DropSendTo.Models;
@@ -61,9 +62,11 @@ public partial class App : WpfApplication
             {
                 _logger.Info($"CLI launch requested with {args.Length} argument(s).");
                 // Choose first registered slot in current layer, otherwise across layers
-                var layer = Math.Clamp(cfg.CurrentLayer, 0, 3);
-                var slot = cfg.Layers[layer].Slots.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command))
-                           ?? cfg.Layers.SelectMany(l => l.Slots).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command));
+                var layers = cfg.Layers ?? new List<Layer>();
+                int totalLayers = Math.Max(layers.Count, 1);
+                var layer = Math.Clamp(cfg.CurrentLayer, 0, totalLayers - 1);
+                var slot = layers[layer].Slots.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command))
+                           ?? layers.SelectMany(l => l.Slots).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command));
                 if (slot != null)
                 {
                     var result = _launcher.Launch(slot, args);

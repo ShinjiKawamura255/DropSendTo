@@ -61,6 +61,7 @@ public partial class MainWindow : Window
     private bool _suppressFixedCapture;
     private bool _suppressFixedCaptureDuringSearch;
     private bool _applySearchPlacementForCurrentSearch;
+    private IReadOnlyList<WpfButton>? _layerButtons;
     private readonly DispatcherTimer _positionSaveTimer;
     private bool _pendingPositionSave;
     private bool _blockLocationSave;
@@ -83,6 +84,8 @@ public partial class MainWindow : Window
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
     private const int MaxSlotColumns = 8;
+    private const int MinLayers = 4;
+    private const int MaxLayers = 8;
     private enum ShowLayerTrigger
     {
         MouseGesture,
@@ -197,8 +200,18 @@ public partial class MainWindow : Window
     }
 
     private int _hoverTargetLayer = -1;
+    private sealed record LayerButtonModel(string Content, object Tag, bool IsLayer, int LayerIndex, string? ToolTip, bool Visible)
+    {
+        public static LayerButtonModel Layer(int layerIndex) =>
+            new((layerIndex + 1).ToString(CultureInfo.InvariantCulture), layerIndex, true, layerIndex, $"Layer {layerIndex + 1}", true);
+
+        public static LayerButtonModel Arrow(string content, string tag, string toolTip) =>
+            new(content, tag, false, -1, toolTip, true);
+
+        public static LayerButtonModel Hidden { get; } = new(string.Empty, string.Empty, false, -1, null, false);
+    }
     private AppConfig _config;
-    private int _currentLayer = 0; // 0..3
+    private int _currentLayer = 0; // 0-based
     private readonly Stack<SlotRunContext> _slotRunStack = new();
     private SlotRunContext? _currentSlotRun;
     private WindowPlacementMode _keyboardPlacementMode;
@@ -229,13 +242,15 @@ public partial class MainWindow : Window
             ? _config.SearchPlacementMode
             : SearchOverlayPlacementMode.Fixed;
         _applySearchPlacementForCurrentSearch = false;
+        _layerButtons = new[] { LayerBtn1, LayerBtn2, LayerBtn3, LayerBtn4 };
         _positionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _positionSaveTimer.Tick += OnPositionSaveTick;
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
         Topmost = _config.AlwaysOnTop;
-        _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+        int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, MinLayers);
+        _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
         if (EditModeIndicator is { } indicator)
         {
             indicator.SizeChanged += (_, _) =>
@@ -962,14 +977,31 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnLayer1(object sender, RoutedEventArgs e) => SetLayer(0);
-    private void OnLayer2(object sender, RoutedEventArgs e) => SetLayer(1);
-    private void OnLayer3(object sender, RoutedEventArgs e) => SetLayer(2);
-    private void OnLayer4(object sender, RoutedEventArgs e) => SetLayer(3);
+    private void OnLayerButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfButton button) return;
+        if (button.Tag is string s)
+        {
+            if (s == "prev")
+            {
+                ChangeLayer(-1);
+            }
+            else if (s == "next")
+            {
+                ChangeLayer(1);
+            }
+            return;
+        }
+
+        if (button.Tag is int target)
+        {
+            SetLayer(target);
+        }
+    }
 
     private void SetLayer(int index)
     {
-        var totalLayers = _config?.Layers?.Count ?? 4;
+        var totalLayers = _config?.Layers?.Count ?? MinLayers;
         if (totalLayers <= 0)
         {
             return;
@@ -996,7 +1028,7 @@ public partial class MainWindow : Window
 
     private void ChangeLayer(int delta)
     {
-        var totalLayers = _config?.Layers?.Count ?? 4;
+        var totalLayers = _config?.Layers?.Count ?? MinLayers;
         if (totalLayers <= 0)
         {
             return;
@@ -3574,6 +3606,93 @@ public partial class MainWindow : Window
         _configService.Save(_config);
     }
 
+    private void OnConfigureLayerCount(object sender, RoutedEventArgs e)
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        var dialog = new InputPromptDialog(
+            "レイヤー数",
+            $"レイヤー数を {MinLayers}〜{MaxLayers} の範囲で選択してください。",
+            _config.Layers.Count.ToString(CultureInfo.InvariantCulture))
+        { Owner = this };
+        WindowCascadeService.Arrange(dialog, this);
+        var result = dialog.ShowDialog();
+        if (result != true || !dialog.IsConfirmed)
+        {
+            return;
+        }
+
+        if (!int.TryParse(dialog.InputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int desired))
+        {
+            WpfMessageBox.Show("レイヤー数には数値を入力してください。", "レイヤー数", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (desired < MinLayers || desired > MaxLayers)
+        {
+            WpfMessageBox.Show($"レイヤー数は {MinLayers}〜{MaxLayers} の範囲で指定してください。", "レイヤー数", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (desired == _config.Layers.Count)
+        {
+            return;
+        }
+
+        ApplyLayerCount(desired);
+    }
+
+    private void ApplyLayerCount(int newCount)
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        int requiredSlots = _config.SlotRows * _config.SlotColumns;
+        int current = _config.Layers.Count;
+        if (newCount < current)
+        {
+            _config.Layers.RemoveRange(newCount, current - newCount);
+        }
+        else if (newCount > current)
+        {
+            for (int i = current; i < newCount; i++)
+            {
+                var layer = new Layer();
+                EnsureLayerSlotCapacity(layer, requiredSlots);
+                _config.Layers.Add(layer);
+            }
+        }
+
+        _currentLayer = Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1);
+        _config.CurrentLayer = _currentLayer;
+        ClampShowLayerPreferencesToRange();
+        Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+        RefreshVisibleSlotMappings();
+        RefreshUi();
+        _configService.Save(_config);
+    }
+
+    private void ClampShowLayerPreferencesToRange()
+    {
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        int maxIndex = _config.Layers.Count - 1;
+        int Normalize(int value) => value < 0 ? -1 : Math.Clamp(value, 0, maxIndex);
+
+        _config.MouseGestureShowLayerWhenVisible = Normalize(_config.MouseGestureShowLayerWhenVisible);
+        _config.MouseGestureShowLayerWhenHidden = Normalize(_config.MouseGestureShowLayerWhenHidden);
+        _config.PrefixShowLayerWhenVisible = Normalize(_config.PrefixShowLayerWhenVisible);
+        _config.PrefixShowLayerWhenHidden = Normalize(_config.PrefixShowLayerWhenHidden);
+    }
+
     private void OnSlotSizeMenuOpened(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem menuItem) return;
@@ -3826,7 +3945,8 @@ public partial class MainWindow : Window
 
             var imported = _configTransferService.ImportConfig(payload, password);
             _config = imported;
-            _currentLayer = Math.Clamp(_config.CurrentLayer, 0, 3);
+            int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
+            _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
             Topmost = _config.AlwaysOnTop;
             _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
@@ -3983,7 +4103,8 @@ public partial class MainWindow : Window
             _config.MouseGestureShowLayerWhenVisible,
             _config.MouseGestureShowLayerWhenHidden,
             _config.PrefixShowLayerWhenVisible,
-            _config.PrefixShowLayerWhenHidden))
+            _config.PrefixShowLayerWhenHidden),
+            _config.Layers.Count)
         { Owner = this };
         WindowCascadeService.Arrange(dialog, this);
         if (!await dialog.ShowForResultAsync())
@@ -4507,7 +4628,12 @@ public partial class MainWindow : Window
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
     {
-        if (e.Delta > 0) SetLayer((_currentLayer + 3) % 4); else SetLayer((_currentLayer + 1) % 4);
+        if (_config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        ChangeLayer(e.Delta > 0 ? -1 : 1);
     }
 
     private void OnDragMoveArea(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -4544,10 +4670,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender == LayerBtn1) _hoverTargetLayer = 0;
-        else if (sender == LayerBtn2) _hoverTargetLayer = 1;
-        else if (sender == LayerBtn3) _hoverTargetLayer = 2;
-        else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+        if (sender is FrameworkElement fe && fe.Tag is int idx)
+        {
+            _hoverTargetLayer = idx;
+        }
+        else
+        {
+            _hoverTargetLayer = -1;
+        }
         _layerHoverTimer.Stop();
         _layerHoverTimer.Start();
         e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
@@ -4561,10 +4691,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender == LayerBtn1) _hoverTargetLayer = 0;
-        else if (sender == LayerBtn2) _hoverTargetLayer = 1;
-        else if (sender == LayerBtn3) _hoverTargetLayer = 2;
-        else if (sender == LayerBtn4) _hoverTargetLayer = 3;
+        if (sender is FrameworkElement fe && fe.Tag is int idx)
+        {
+            _hoverTargetLayer = idx;
+        }
+        else
+        {
+            _hoverTargetLayer = -1;
+        }
         if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
         e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
         e.Handled = true;
@@ -5390,6 +5524,9 @@ public partial class MainWindow : Window
             return;
         }
 
+        _currentLayer = Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1);
+        Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+
         if (_searchLayerActive)
         {
             RebuildSearchResults();
@@ -5483,6 +5620,12 @@ public partial class MainWindow : Window
 
     private void UpdateLayerButtonVisuals()
     {
+        if (_layerButtons == null || _config?.Layers == null || _config.Layers.Count == 0)
+        {
+            return;
+        }
+
+        var models = BuildLayerButtonModels(_config.Layers.Count, Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1));
         void SetState(WpfButton b, bool active)
         {
             if (active)
@@ -5503,10 +5646,93 @@ public partial class MainWindow : Window
                 b.FontWeight = System.Windows.FontWeights.Normal;
             }
         }
-        SetState(LayerBtn1, _currentLayer == 0);
-        SetState(LayerBtn2, _currentLayer == 1);
-        SetState(LayerBtn3, _currentLayer == 2);
-        SetState(LayerBtn4, _currentLayer == 3);
+
+        for (int i = 0; i < _layerButtons.Count; i++)
+        {
+            var button = _layerButtons[i];
+            var model = models[i];
+            button.Visibility = model.Visible ? Visibility.Visible : Visibility.Collapsed;
+            button.IsEnabled = model.Visible;
+            button.Content = model.Content;
+            button.Tag = model.Tag;
+            button.ToolTip = model.ToolTip;
+            button.AllowDrop = model.IsLayer;
+            bool active = model.IsLayer && model.LayerIndex == _currentLayer;
+            SetState(button, active);
+        }
+    }
+
+    private IReadOnlyList<LayerButtonModel> BuildLayerButtonModels(int totalLayers, int currentLayer)
+    {
+        int buttonCount = _layerButtons?.Count ?? 4;
+        var models = new List<LayerButtonModel>(buttonCount);
+        if (totalLayers <= 0)
+        {
+            while (models.Count < buttonCount)
+            {
+                models.Add(LayerButtonModel.Hidden);
+            }
+            return models;
+        }
+
+        if (totalLayers <= buttonCount)
+        {
+            for (int i = 0; i < buttonCount; i++)
+            {
+                models.Add(i < totalLayers ? LayerButtonModel.Layer(i) : LayerButtonModel.Hidden);
+            }
+            return models;
+        }
+
+        bool needLeft = currentLayer > 0;
+        bool needRight = currentLayer < totalLayers - 1;
+        int numericCount = buttonCount - (needLeft ? 1 : 0) - (needRight ? 1 : 0);
+        if (numericCount < 1)
+        {
+            numericCount = 1;
+        }
+
+        int start;
+        if (!needLeft)
+        {
+            start = 0;
+        }
+        else if (!needRight)
+        {
+            start = totalLayers - numericCount;
+        }
+        else
+        {
+            int maxStart = Math.Max(0, totalLayers - numericCount);
+            start = Math.Min(currentLayer, maxStart);
+        }
+
+        if (needLeft)
+        {
+            models.Add(LayerButtonModel.Arrow("◀", "prev", "前のレイヤーへ"));
+        }
+
+        for (int i = 0; i < numericCount && models.Count < buttonCount; i++)
+        {
+            int layerIndex = start + i;
+            if (layerIndex >= totalLayers)
+            {
+                break;
+            }
+            models.Add(LayerButtonModel.Layer(layerIndex));
+        }
+
+        if (needRight && models.Count < buttonCount)
+        {
+            models.Add(LayerButtonModel.Arrow("▶", "next", "次のレイヤーへ"));
+        }
+
+        while (models.Count < buttonCount)
+        {
+            models.Add(LayerButtonModel.Hidden);
+        }
+
+        return models;
     }
 
     protected override void OnClosed(EventArgs e)

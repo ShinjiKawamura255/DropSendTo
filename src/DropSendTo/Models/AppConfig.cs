@@ -6,7 +6,7 @@ namespace DropSendTo.Models;
 public class AppConfig
 {
     public int Version { get; set; } = 34;
-    public int CurrentLayer { get; set; } = 0; // 0..3
+    public int CurrentLayer { get; set; } = 0; // 0-based
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
     public bool AlwaysOnTop { get; set; } = true;

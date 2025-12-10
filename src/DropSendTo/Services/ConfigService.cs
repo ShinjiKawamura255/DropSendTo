@@ -98,8 +98,14 @@ public class ConfigService
     private const int MaxGestureTurns = 50;
     private const int MinGestureRadius = 0;
     private const int MaxGestureRadius = 320;
+    private const int MinLayers = 4;
+    private const int MaxLayers = 8;
     private static int NormalizeGestureRadius(int value) => Math.Clamp(value, MinGestureRadius, MaxGestureRadius);
-    private static int NormalizeShowLayerPreference(int value) => value < 0 ? -1 : Math.Clamp(value, 0, 3);
+    private static int NormalizeShowLayerPreference(int value, int layerCount)
+    {
+        if (layerCount <= 0) return -1;
+        return value < 0 ? -1 : Math.Clamp(value, 0, layerCount - 1);
+    }
 
     private static int NormalizeSlotRows(int value) => Math.Clamp(value, MinSlotRows, MaxSlotRows);
     private static int NormalizeSlotColumns(int value) => Math.Clamp(value, MinSlotColumns, MaxSlotColumns);
@@ -113,9 +119,27 @@ public class ConfigService
         }
     }
 
+    private static void EnsureLayerCount(AppConfig cfg)
+    {
+        cfg.Layers ??= new List<Layer>();
+        int current = cfg.Layers.Count;
+        int target = current <= 0 ? MinLayers : Math.Clamp(current, MinLayers, MaxLayers);
+        if (current < target)
+        {
+            for (int i = current; i < target; i++)
+            {
+                cfg.Layers.Add(new Layer());
+            }
+        }
+        else if (current > target)
+        {
+            cfg.Layers.RemoveRange(target, current - target);
+        }
+    }
+
     private static void Validate(AppConfig cfg)
     {
-        if (cfg.Layers.Count != 4) throw new InvalidDataException("Config must have 4 layers.");
+        EnsureLayerCount(cfg);
         cfg.ShortcutPrefix ??= string.Empty;
         cfg.SlotRows = NormalizeSlotRows(cfg.SlotRows);
         cfg.SlotColumns = NormalizeSlotColumns(cfg.SlotColumns);
@@ -124,7 +148,7 @@ public class ConfigService
             cfg.SlotSize = SlotSize.Medium;
         }
         cfg.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(cfg.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault());
-        cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, 3);
+        cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, cfg.Layers.Count - 1);
         if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
         {
             cfg.StartupBehavior = StartupWindowBehavior.AlwaysShow;
@@ -238,10 +262,10 @@ public class ConfigService
             }
         }
 
-        cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenVisible);
-        cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenHidden);
-        cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenVisible);
-        cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenHidden);
+        cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenVisible, cfg.Layers.Count);
+        cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.MouseGestureShowLayerWhenHidden, cfg.Layers.Count);
+        cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenVisible, cfg.Layers.Count);
+        cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(cfg.PrefixShowLayerWhenHidden, cfg.Layers.Count);
     }
 
     private static bool Migrate(AppConfig cfg)
@@ -581,10 +605,10 @@ public class ConfigService
 
         if (cfg.Version < 27)
         {
-            cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(-1);
-            cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(-1);
-            cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(-1);
-            cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(-1);
+            cfg.MouseGestureShowLayerWhenVisible = NormalizeShowLayerPreference(-1, cfg.Layers.Count);
+            cfg.MouseGestureShowLayerWhenHidden = NormalizeShowLayerPreference(-1, cfg.Layers.Count);
+            cfg.PrefixShowLayerWhenVisible = NormalizeShowLayerPreference(-1, cfg.Layers.Count);
+            cfg.PrefixShowLayerWhenHidden = NormalizeShowLayerPreference(-1, cfg.Layers.Count);
             cfg.Version = 27;
             changed = true;
         }

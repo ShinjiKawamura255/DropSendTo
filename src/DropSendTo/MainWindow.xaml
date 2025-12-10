@@ -75,6 +75,9 @@
                 <MenuItem Header="レイヤー固定..."
                           Click="OnConfigureShowLayerPreferences"/>
                 <Separator/>
+                <MenuItem Header="レイヤー数..."
+                          Click="OnConfigureLayerCount"/>
+                <Separator/>
                 <MenuItem Header="表示位置 (検索)">
                     <MenuItem x:Name="SearchPlacementFixedMenuItem"
                               Header="固定位置"
@@ -196,10 +199,10 @@
                         ToolTip="Slot Setup Mode"
                         Click="OnEditModeToggleButtonClick"/>
                 <Button x:Name="MenuBtn" Content="≡" Width="24" Height="24" Margin="2" Click="OnOpenMenu"/>
-                <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer1" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn2" Content="2" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer2" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn3" Content="3" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer3" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
-                <Button x:Name="LayerBtn4" Content="4" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayer4" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn1" Content="1" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayerButtonClick" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn2" Content="2" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayerButtonClick" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn3" Content="3" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayerButtonClick" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
+                <Button x:Name="LayerBtn4" Content="4" Width="24" Height="24" Margin="2" AllowDrop="True" Click="OnLayerButtonClick" DragEnter="OnLayerDragEnter" DragOver="OnLayerDragOver" DragLeave="OnLayerDragLeave"/>
             </StackPanel>
         </DockPanel>
 

@@ -129,6 +129,8 @@ internal sealed class ConfigTransferService
 
     private sealed class ExportConfigSnapshot
     {
+        private const int MinLayers = 4;
+        private const int MaxLayers = 8;
         public int Version { get; set; }
         public int CurrentLayer { get; set; }
         public double? WindowLeft { get; set; }
@@ -217,7 +219,8 @@ internal sealed class ConfigTransferService
         {
             var layers = Layers ?? new List<ExportLayerSnapshot>();
             var normalizedLayers = new List<Layer>();
-            for (int i = 0; i < 4; i++)
+            int targetLayers = layers.Count == 0 ? MinLayers : Math.Clamp(layers.Count, MinLayers, MaxLayers);
+            for (int i = 0; i < targetLayers; i++)
             {
                 var snapshot = i < layers.Count ? layers[i] : null;
                 normalizedLayers.Add(snapshot?.ToLayer() ?? new Layer());
@@ -226,7 +229,7 @@ internal sealed class ConfigTransferService
             return new AppConfig
             {
                 Version = Version,
-                CurrentLayer = CurrentLayer,
+                CurrentLayer = Math.Clamp(CurrentLayer, 0, normalizedLayers.Count - 1),
                 WindowLeft = WindowLeft,
                 WindowTop = WindowTop,
                 AlwaysOnTop = AlwaysOnTop,

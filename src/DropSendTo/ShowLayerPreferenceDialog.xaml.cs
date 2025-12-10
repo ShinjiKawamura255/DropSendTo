@@ -18,22 +18,18 @@ public sealed partial class ShowLayerPreferenceDialog : Window, IConfirmableDial
 {
     private sealed record LayerChoice(int Value, string Label);
 
-    private readonly List<LayerChoice> _choices = new()
-    {
-        new LayerChoice(-1, "変更しない"),
-        new LayerChoice(0, "Layer 1"),
-        new LayerChoice(1, "Layer 2"),
-        new LayerChoice(2, "Layer 3"),
-        new LayerChoice(3, "Layer 4")
-    };
+    private readonly List<LayerChoice> _choices = new();
+    private readonly int _maxLayers;
 
     public bool IsConfirmed { get; private set; }
     internal ShowLayerPreferenceOptions ResultOptions { get; private set; }
 
-    public ShowLayerPreferenceDialog(ShowLayerPreferenceOptions options)
+    public ShowLayerPreferenceDialog(ShowLayerPreferenceOptions options, int maxLayers)
     {
+        _maxLayers = Math.Max(1, maxLayers);
         ResultOptions = Normalize(options);
         InitializeComponent();
+        BuildChoices();
         InitializeCombos();
         ApplyOptions(ResultOptions);
     }
@@ -51,6 +47,16 @@ public sealed partial class ShowLayerPreferenceDialog : Window, IConfirmableDial
         combo.ItemsSource = _choices;
         combo.DisplayMemberPath = nameof(LayerChoice.Label);
         combo.SelectedValuePath = nameof(LayerChoice.Value);
+    }
+
+    private void BuildChoices()
+    {
+        _choices.Clear();
+        _choices.Add(new LayerChoice(-1, "変更しない"));
+        for (int i = 0; i < _maxLayers; i++)
+        {
+            _choices.Add(new LayerChoice(i, $"Layer {i + 1}"));
+        }
     }
 
     private void ApplyOptions(ShowLayerPreferenceOptions options)
@@ -79,9 +85,9 @@ public sealed partial class ShowLayerPreferenceDialog : Window, IConfirmableDial
         return -1;
     }
 
-    private static ShowLayerPreferenceOptions Normalize(ShowLayerPreferenceOptions options)
+    private ShowLayerPreferenceOptions Normalize(ShowLayerPreferenceOptions options)
     {
-        static int NormalizeLayer(int value) => value < 0 ? -1 : Math.Clamp(value, 0, 3);
+        int NormalizeLayer(int value) => value < 0 ? -1 : Math.Clamp(value, 0, _maxLayers - 1);
         return new ShowLayerPreferenceOptions(
             NormalizeLayer(options.MouseGestureVisibleLayer),
             NormalizeLayer(options.MouseGestureHiddenLayer),
