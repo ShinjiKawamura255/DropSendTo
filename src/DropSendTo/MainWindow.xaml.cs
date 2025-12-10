@@ -3613,10 +3613,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new InputPromptDialog(
-            "レイヤー数",
-            $"レイヤー数を {MinLayers}〜{MaxLayers} の範囲で選択してください。",
-            _config.Layers.Count.ToString(CultureInfo.InvariantCulture))
+        var dialog = new LayerCountDialog(_config.Layers.Count, MinLayers, MaxLayers)
         { Owner = this };
         WindowCascadeService.Arrange(dialog, this);
         var result = dialog.ShowDialog();
@@ -3625,17 +3622,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!int.TryParse(dialog.InputText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int desired))
-        {
-            WpfMessageBox.Show("レイヤー数には数値を入力してください。", "レイヤー数", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (desired < MinLayers || desired > MaxLayers)
-        {
-            WpfMessageBox.Show($"レイヤー数は {MinLayers}〜{MaxLayers} の範囲で指定してください。", "レイヤー数", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+        int desired = dialog.SelectedCount;
 
         if (desired == _config.Layers.Count)
         {
@@ -5684,30 +5671,23 @@ public partial class MainWindow : Window
             return models;
         }
 
-        bool needLeft = currentLayer > 0;
-        bool needRight = currentLayer < totalLayers - 1;
-        int numericCount = buttonCount - (needLeft ? 1 : 0) - (needRight ? 1 : 0);
-        if (numericCount < 1)
+        int numericCount = Math.Min(3, buttonCount);
+        int start = Math.Clamp(currentLayer - 1, 0, Math.Max(0, totalLayers - numericCount));
+        int end = start + numericCount - 1;
+        bool leftHidden = start > 0;
+        bool rightHidden = end < totalLayers - 1;
+
+        // 両側に隠れたレイヤーがある場合は矢印を両側に出すため、数字を2枠に圧縮
+        if (leftHidden && rightHidden && numericCount == 3)
         {
-            numericCount = 1;
+            numericCount = 2;
+            start = Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1);
+            end = start + numericCount - 1;
+            leftHidden = start > 0;
+            rightHidden = end < totalLayers - 1;
         }
 
-        int start;
-        if (!needLeft)
-        {
-            start = 0;
-        }
-        else if (!needRight)
-        {
-            start = totalLayers - numericCount;
-        }
-        else
-        {
-            int maxStart = Math.Max(0, totalLayers - numericCount);
-            start = Math.Min(currentLayer, maxStart);
-        }
-
-        if (needLeft)
+        if (leftHidden)
         {
             models.Add(LayerButtonModel.Arrow("◀", "prev", "前のレイヤーへ"));
         }
@@ -5722,7 +5702,7 @@ public partial class MainWindow : Window
             models.Add(LayerButtonModel.Layer(layerIndex));
         }
 
-        if (needRight && models.Count < buttonCount)
+        if (rightHidden && models.Count < buttonCount)
         {
             models.Add(LayerButtonModel.Arrow("▶", "next", "次のレイヤーへ"));
         }

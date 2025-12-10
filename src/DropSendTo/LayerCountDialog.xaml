@@ -1,0 +1,82 @@
+<Window x:Class="DropSendTo.LayerCountDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="レイヤー数"
+        Height="200"
+        Width="340"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        Background="{StaticResource Theme.WindowBackgroundBrush}">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="4"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+            <DockPanel LastChildFill="False">
+                <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Margin="12,0"
+                           VerticalAlignment="Center"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Button Content="✕"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                        Width="32"
+                        Height="24"
+                        Margin="0,4,6,4"
+                        DockPanel.Dock="Right"
+                        Padding="0"
+                        Click="OnCancel"/>
+            </DockPanel>
+        </Border>
+
+        <Grid Margin="16" Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                       Text="レイヤー数を選択してください (4〜8)"
+                       Margin="0,0,0,8"
+                       Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+
+            <TextBlock Grid.Row="1" Grid.Column="0"
+                       Text="レイヤー数"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"/>
+            <ComboBox x:Name="LayerCountCombo"
+                      Grid.Row="1" Grid.Column="1"
+                      Height="28"
+                      MinWidth="120"
+                      DisplayMemberPath="Label"
+                      SelectedValuePath="Value"/>
+
+            <StackPanel Orientation="Horizontal"
+                        Grid.Row="3"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        HorizontalAlignment="Right"
+                        Margin="0,16,0,0">
+                <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
+                <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True" Click="OnCancel"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
