@@ -266,11 +266,15 @@ internal sealed class ConfigTransferService
 
     private sealed class ExportLayerSnapshot
     {
+        public string? Name { get; set; }
         public List<ExportSlotSnapshot> Slots { get; set; } = new();
 
         public static ExportLayerSnapshot FromLayer(Layer layer)
         {
-            var snapshot = new ExportLayerSnapshot();
+            var snapshot = new ExportLayerSnapshot
+            {
+                Name = layer.Name
+            };
             if (layer.Slots != null)
             {
                 snapshot.Slots = layer.Slots.Select(ExportSlotSnapshot.FromSlot).ToList();
@@ -281,6 +285,7 @@ internal sealed class ConfigTransferService
         public Layer ToLayer()
         {
             var layer = new Layer();
+            layer.Name = Name ?? string.Empty;
             layer.Slots = Slots?.Select(s => s.ToSlot()).ToList() ?? new List<SlotModel>();
             return layer;
         }
