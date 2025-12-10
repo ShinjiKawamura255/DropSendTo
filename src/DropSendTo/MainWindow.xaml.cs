@@ -5712,7 +5712,8 @@ public partial class MainWindow : Window
             button.Content = model.Content;
             button.Tag = model.Tag;
             button.ToolTip = model.ToolTip;
-            button.AllowDrop = model.IsLayer;
+            // ドラッグ中のホバーでのレイヤー切替に使うため、矢印でも AllowDrop を有効化する
+            button.AllowDrop = true;
             bool active = model.IsLayer && model.LayerIndex == _currentLayer;
             SetState(button, active);
         }
