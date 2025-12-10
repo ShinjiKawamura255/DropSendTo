@@ -75,6 +75,20 @@
                 <MenuItem Header="レイヤー固定..."
                           Click="OnConfigureShowLayerPreferences"/>
                 <Separator/>
+                <MenuItem Header="表示位置 (検索)">
+                    <MenuItem x:Name="SearchPlacementFixedMenuItem"
+                              Header="固定位置"
+                              IsCheckable="True"
+                              Click="OnSearchPlacementFixed"/>
+                    <MenuItem x:Name="SearchPlacementFollowMouseMenuItem"
+                              Header="マウスフォロー"
+                              IsCheckable="True"
+                              Click="OnSearchPlacementFollowMouse"/>
+                    <MenuItem x:Name="SearchPlacementScreenCenterMenuItem"
+                              Header="画面中央 (マウスがある画面)"
+                              IsCheckable="True"
+                              Click="OnSearchPlacementScreenCenter"/>
+                </MenuItem>
                 <MenuItem Header="表示位置 (キーボード)">
                     <MenuItem x:Name="KeyboardPlacementFixedMenuItem"
                               Header="固定位置"

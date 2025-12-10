@@ -12,6 +12,18 @@ internal static class ScreenBoundsResolver
 {
     private const uint MonitorDefaultToNearest = 0x00000002;
 
+    public static ScreenBounds ForPoint(double x, double y)
+    {
+        var rect = new Rect(x, y, 1, 1);
+        var screens = EnumerateScreens();
+        if (screens.Count == 0)
+        {
+            return new ScreenBounds(rect.Left, rect.Top, rect.Width, rect.Height);
+        }
+
+        return SelectBounds(rect, screens);
+    }
+
     public static ScreenBounds ForWindow(Window window)
     {
         if (window == null) throw new ArgumentNullException(nameof(window));

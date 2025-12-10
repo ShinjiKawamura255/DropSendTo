@@ -44,6 +44,7 @@ public class AppConfig
     public SlotSize SlotSize { get; set; } = SlotSize.Medium;
     public CustomSlotSizeOptions CustomSlotSize { get; set; } = CustomSlotSizeOptions.CreateDefault();
     public bool PreferRemoteSessions { get; set; } = true;
+    public SearchOverlayPlacementMode SearchPlacementMode { get; set; } = SearchOverlayPlacementMode.Fixed;
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()
@@ -75,6 +76,13 @@ public enum WindowPlacementMode
 {
     Fixed = 0,
     MouseFollow = 1
+}
+
+public enum SearchOverlayPlacementMode
+{
+    Fixed = 0,
+    MouseFollow = 1,
+    CursorScreenCenter = 2
 }
 
 public sealed class CustomSlotSizeOptions
