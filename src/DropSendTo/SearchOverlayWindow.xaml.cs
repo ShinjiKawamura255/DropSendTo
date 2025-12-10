@@ -11,7 +11,7 @@ public partial class SearchOverlayWindow : Window
     public event EventHandler? CancelRequested;
     public event EventHandler<SlotNavigationRequestedEventArgs>? SlotNavigationRequested;
 
-    public bool EnableEmacsNavigation { get; set; } = true;
+    public bool EnableEmacsNavigation { get; set; }
     public NavigationDirection NavigationDirectionToSlots { get; set; } = NavigationDirection.Down;
 
     public bool IsInputFocused => SearchBox.IsKeyboardFocusWithin;

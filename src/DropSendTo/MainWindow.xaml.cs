@@ -1185,7 +1185,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _searchOverlayWindow.EnableEmacsNavigation = _config?.EnableEmacsNavigation ?? true;
+        _searchOverlayWindow.EnableEmacsNavigation = _config?.EnableEmacsNavigation ?? false;
     }
 
     private void PositionSearchOverlay()
@@ -1841,8 +1841,8 @@ public partial class MainWindow : Window
     {
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
-        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
-        bool viEnabled = _config?.EnableViNavigation ?? true;
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
+        bool viEnabled = _config?.EnableViNavigation ?? false;
 
         if (_config?.Layers == null || _config.Layers.Count == 0)
         {
@@ -2036,8 +2036,8 @@ public partial class MainWindow : Window
 
     private bool TryMapNavigationCommand(System.Windows.Input.KeyEventArgs e, System.Windows.Input.Key key, out NavigationCommand command)
     {
-        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
-        bool viEnabled = _config?.EnableViNavigation ?? true;
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
+        bool viEnabled = _config?.EnableViNavigation ?? false;
         command = NavigationCommand.MoveUp;
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
         bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
@@ -2463,8 +2463,8 @@ public partial class MainWindow : Window
 
     private bool TryMapMenuCommand(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, out NavigationCommand command)
     {
-        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
-        bool viEnabled = _config?.EnableViNavigation ?? true;
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
+        bool viEnabled = _config?.EnableViNavigation ?? false;
         command = NavigationCommand.MoveUp;
         bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
         bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
@@ -2588,7 +2588,7 @@ public partial class MainWindow : Window
 
     private bool ShouldReturnToSearch(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
     {
-        bool emacsEnabled = _config?.EnableEmacsNavigation ?? true;
+        bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
         if (_isSearchOverlayBelowMain)
         {
             if (modifiers == System.Windows.Input.ModifierKeys.None && key == System.Windows.Input.Key.Down)

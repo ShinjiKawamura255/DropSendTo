@@ -16,8 +16,8 @@ public class AppConfig
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
     public bool EnablePrefixLayerShortcuts { get; set; }
-    public bool EnableEmacsNavigation { get; set; } = true;
-    public bool EnableViNavigation { get; set; } = true;
+    public bool EnableEmacsNavigation { get; set; }
+    public bool EnableViNavigation { get; set; }
     public bool HideEmptySlotNames { get; set; }
     public MacroConcurrencyMode MacroConcurrencyMode { get; set; } = MacroConcurrencyMode.Exclusive;
     public bool EnableMouseGestures { get; set; } = true;

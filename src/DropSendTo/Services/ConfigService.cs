@@ -488,8 +488,8 @@ public class ConfigService
 
         if (cfg.Version < 19)
         {
-            cfg.EnableEmacsNavigation = true;
-            cfg.EnableViNavigation = true;
+            cfg.EnableEmacsNavigation = false;
+            cfg.EnableViNavigation = false;
             cfg.Version = 19;
             changed = true;
         }
