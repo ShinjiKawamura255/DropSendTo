@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     private SlotShortcutListWindow? _shortcutListWindow;
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
+    private int _lastLayerNavigationDirection;
     private bool _suppressLayerSelectionForPrefix;
     private bool _metaPrefixPending;
     private DateTime _metaPrefixExpiryUtc;
@@ -1013,12 +1014,14 @@ public partial class MainWindow : Window
         }
 
         var target = Math.Clamp(index, 0, totalLayers - 1);
-        if (target == _currentLayer)
+        var delta = target - _currentLayer;
+        if (delta == 0)
         {
             ShowLayerNameOverlay();
             return;
         }
 
+        _lastLayerNavigationDirection = Math.Sign(delta);
         _currentLayer = target;
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
@@ -5677,11 +5680,15 @@ public partial class MainWindow : Window
         bool leftHidden = start > 0;
         bool rightHidden = end < totalLayers - 1;
 
-        // 両側に隠れたレイヤーがある場合は矢印を両側に出すため、数字を2枠に圧縮
-        if (leftHidden && rightHidden && numericCount == 3)
+        if (leftHidden && rightHidden)
         {
             numericCount = 2;
-            start = Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1);
+            start = _lastLayerNavigationDirection switch
+            {
+                > 0 => Math.Clamp(currentLayer - 1, 1, totalLayers - numericCount - 1),
+                < 0 => Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1),
+                _ => Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1)
+            };
             end = start + numericCount - 1;
             leftHidden = start > 0;
             rightHidden = end < totalLayers - 1;
