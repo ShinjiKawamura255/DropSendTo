@@ -201,6 +201,7 @@ public partial class MainWindow : Window
     }
 
     private int _hoverTargetLayer = -1;
+    private int _hoverNavigationDirection;
     private sealed record LayerButtonModel(string Content, object Tag, bool IsLayer, int LayerIndex, string? ToolTip, bool Visible)
     {
         public static LayerButtonModel Layer(int layerIndex) =>
@@ -295,11 +296,28 @@ public partial class MainWindow : Window
         };
         _layerHoverTimer.Tick += (_, _) =>
         {
-            if (_hoverTargetLayer >= 0)
+            if (_hoverNavigationDirection != 0)
+            {
+                var total = _config?.Layers?.Count ?? 0;
+                if (total <= 0)
+                {
+                    _layerHoverTimer.Stop();
+                    return;
+                }
+                int next = Math.Clamp(_currentLayer + _hoverNavigationDirection, 0, total - 1);
+                if (next == _currentLayer)
+                {
+                    _layerHoverTimer.Stop();
+                    return;
+                }
+                SetLayer(next);
+                _layerHoverTimer.Start();
+            }
+            else if (_hoverTargetLayer >= 0)
             {
                 SetLayer(_hoverTargetLayer);
+                _layerHoverTimer.Stop();
             }
-            _layerHoverTimer.Stop();
         };
 
         SystemEvents.SessionSwitch += OnSystemSessionSwitch;
@@ -4679,13 +4697,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender is FrameworkElement fe && fe.Tag is int idx)
+        if (sender is FrameworkElement fe)
         {
-            _hoverTargetLayer = idx;
-        }
-        else
-        {
-            _hoverTargetLayer = -1;
+            switch (fe.Tag)
+            {
+                case int idx:
+                    _hoverTargetLayer = idx;
+                    _hoverNavigationDirection = 0;
+                    break;
+                case string s when s == "prev":
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = -1;
+                    break;
+                case string s when s == "next":
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = 1;
+                    break;
+                default:
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = 0;
+                    break;
+            }
         }
         _layerHoverTimer.Stop();
         _layerHoverTimer.Start();
@@ -4700,13 +4732,27 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (sender is FrameworkElement fe && fe.Tag is int idx)
+        if (sender is FrameworkElement fe)
         {
-            _hoverTargetLayer = idx;
-        }
-        else
-        {
-            _hoverTargetLayer = -1;
+            switch (fe.Tag)
+            {
+                case int idx:
+                    _hoverTargetLayer = idx;
+                    _hoverNavigationDirection = 0;
+                    break;
+                case string s when s == "prev":
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = -1;
+                    break;
+                case string s when s == "next":
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = 1;
+                    break;
+                default:
+                    _hoverTargetLayer = -1;
+                    _hoverNavigationDirection = 0;
+                    break;
+            }
         }
         if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
         e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
@@ -4716,6 +4762,7 @@ public partial class MainWindow : Window
     private void OnLayerDragLeave(object sender, DragEventArgs e)
     {
         _hoverTargetLayer = -1;
+        _hoverNavigationDirection = 0;
         _layerHoverTimer.Stop();
         e.Handled = true;
     }
