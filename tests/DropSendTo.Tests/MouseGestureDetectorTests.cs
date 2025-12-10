@@ -54,6 +54,9 @@ public class MouseGestureDetectorTests
         var noCtrl = Run(detector, options, CreateCirclePoints(3, clockwise: true), ctrlPressed: false, blocked: false);
         noCtrl.Should().Be(MouseGestureAction.None);
 
+        var hideWithoutCtrl = Run(detector, options, CreateCirclePoints(2, clockwise: false), ctrlPressed: false, blocked: false);
+        hideWithoutCtrl.Should().Be(MouseGestureAction.HideWindow);
+
         var withCtrl = Run(detector, options, CreateCirclePoints(3, clockwise: true), ctrlPressed: true, blocked: false);
         var counts = detector.GetTurnCountsForDebug();
         withCtrl.Should().Be(MouseGestureAction.ShowWindow, $"cw={counts.Clockwise}, ccw={counts.CounterClockwise}, angle={counts.RemainderAngle}");

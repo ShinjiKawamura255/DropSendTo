@@ -112,12 +112,6 @@ internal sealed class MouseGestureDetector
                 return MouseGestureAction.None;
             }
 
-            if (_options.RequireCtrl && !isCtrlPressed)
-            {
-                ResetState();
-                return MouseGestureAction.None;
-            }
-
             var nowUtc = _utcNowProvider();
             TryResetForIdle(nowUtc);
             _lastMoveUtc = nowUtc;
@@ -199,7 +193,7 @@ internal sealed class MouseGestureDetector
                 _accumulatedAngle += FullTurn;
             }
 
-            return EvaluateCompletion();
+            return EvaluateCompletion(isCtrlPressed);
         }
     }
 
@@ -227,12 +221,17 @@ internal sealed class MouseGestureDetector
         }
     }
 
-    private MouseGestureAction EvaluateCompletion()
+    private MouseGestureAction EvaluateCompletion(bool isCtrlPressed)
     {
         if (!_options.InvertDirections)
         {
             if (_clockwiseTurns >= _options.ClockwiseTurnsToShow)
             {
+                if (_options.RequireCtrl && !isCtrlPressed)
+                {
+                    return MouseGestureAction.None;
+                }
+
                 ResetState();
                 return MouseGestureAction.ShowWindow;
             }
@@ -247,6 +246,11 @@ internal sealed class MouseGestureDetector
         {
             if (_counterClockwiseTurns >= _options.ClockwiseTurnsToShow)
             {
+                if (_options.RequireCtrl && !isCtrlPressed)
+                {
+                    return MouseGestureAction.None;
+                }
+
                 ResetState();
                 return MouseGestureAction.ShowWindow;
             }
