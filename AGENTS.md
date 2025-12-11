@@ -39,6 +39,9 @@
 - Naming: File `ClassName.Tests.cs`; method `Method_ShouldExpectedBehavior_WhenCondition`.
 - Run locally on Windows; avoid tests requiring UI focus when possible.
 
+## Language / Localization
+- UI 文言の既定は日本語とする。Language メニューで English を選択可能にし、新規 UI 要素を追加する場合は日英の文言を揃えること。
+
 ## Control Flow Cheat Sheet
 - 全体設計は `docs/DESIGN.md`、API 仕様とコマンド一覧は `docs/SPEC.md`、試験観点は `docs/TESTPLAN.md` を参照。
 - UI 起点: `src/DropSendTo/MainWindow.xaml(.cs)`。スロット操作と Prefix 状態を制御し、マクロの呼び出しは `KeyboardMacroService` へ委譲。Slot Size／行列切替、タスクトレイ最小化、`ClipboardHistoryService.Instance.Initialize` のライフサイクル管理、`ConfigTransferService` を用いたエクスポート/インポートダイアログ、`WindowPlacementService` でウィンドウ位置を補正する。

@@ -45,6 +45,7 @@
 - TC-099 PrefixSearch: Prefix 待機中に `Alt+Space` を押すとタスクトレイ格納中でも復帰し検索レイヤーが開いて検索入力へフォーカスすること、スロットのショートカット欄へ `Alt+Space` を含むキーを入力すると検証エラーで保存できないことを確認する。
 - TC-100 PrefixSearchRestore: Prefix+Alt+Space で検索レイヤーを開いた状態から Esc（または Emacs ライク有効時の Ctrl+G）で閉じたとき、呼び出し直前がタスクトレイ格納なら再び最小化され、表示中にマウス追従などで移動した場合でも元の位置へ戻ることを確認する。
 - TC-101 SearchHotkeyOption: 検索ホットキー設定ダイアログが既定で無効になっていること、注意書きに Prefix+Alt+Space でも呼び出せることと Alt+Space 競合の警告があることを確認する。Alt+Space 等を指定して有効化すると Prefix を押さずに検索レイヤーが開き、無効化すると元に戻ること、Prefix+Alt+Space が引き続き利用できることを確認する。
+- TC-108 LanguageMenu: Language メニューで Japanese/English を切り替えるとメニューと検索ラベルの文言が即時更新され、config に保存されることを確認する。既定は日本語で、再起動後も選択した言語が復元される。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
@@ -104,4 +105,5 @@
 - FR-032 → SP-010 → DES-002/003 → TC-074
 - FR-033 → SP-009 → DES-002/004 → TC-034
 - FR-034 → SP-009 → DES-002/004 → TC-036
+- FR-035 → SP-006 → DES-003 → TC-108
 - NFR-003 → SP-001 → DES-003 → TC-040/045

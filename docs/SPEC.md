@@ -52,6 +52,7 @@
 - MUST: 上記メニューの Open Config は `%AppData%/DropSendTo/config.json` を既定アプリで開き、Open Logs は `%AppData%/DropSendTo/logs` フォルダをエクスプローラで開く。
 - MUST: Slot Layout は行/列（2〜8）を直接入力するダイアログで変更でき、確定と同時に UI を更新して設定へ保存する。
 - MUST: Change Prefix を選択すると Prefix ダイアログが表示され、正規化した Prefix を保存する。不正な入力はエラーメッセージで拒否する。
+- MUST: Language メニューで日本語/English を切り替えた場合、メニューと検索ラベルの文言を即時更新し、選択を設定に保存・復元する（既定は日本語）。
 
 ## SP-007 Error Handling
 - MUST: 例外や起動失敗時はユーザーに分かる文面でダイアログ表示し、ログへ `ERROR` レベルで書き込む。
@@ -145,7 +146,7 @@
 ## Traceability (excerpt)
 - SP-001 → DES-002/003 → TC-040/045/065
 - SP-004 → DES-002/004 → TC-020/021/025/080/087
-- SP-006 → DES-002/003 → TC-065/090
+- SP-006 → DES-002/003 → TC-065/090/108
 - SP-007 → DES-005 → TC-030/095
 - SP-009 → DES-002/004 → TC-025/027/031
 - SP-010 → DES-002/003/005 → TC-035/068/085/086/099/100/101
