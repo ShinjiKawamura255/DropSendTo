@@ -1967,7 +1967,6 @@ public partial class MainWindow : Window
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
         bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
         bool viEnabled = _config?.EnableViNavigation ?? false;
-        var queryEmpty = string.IsNullOrWhiteSpace(_searchQuery);
 
         if (_config?.Layers == null || _config.Layers.Count == 0)
         {
@@ -1984,32 +1983,6 @@ public partial class MainWindow : Window
         {
             CloseSearchLayerAndMaybeRestore();
             return true;
-        }
-
-        if (_searchLayerActive && queryEmpty && emacsEnabled && modifiers == System.Windows.Input.ModifierKeys.Control)
-        {
-            bool wantsSlots = (_isSearchOverlayBelowMain && key == System.Windows.Input.Key.N)
-                              || (!_isSearchOverlayBelowMain && key == System.Windows.Input.Key.P);
-            if (wantsSlots)
-            {
-                int total = GetNavigableSlotCount();
-                if (total > 0)
-                {
-                    ActivateKeyboardNavigation();
-                    _keyboardSelectedSlotIndex = 0;
-                    NormalizeKeyboardSelectionIndex();
-                    UpdateKeyboardSelectionVisual();
-                    if (SlotsPanel != null)
-                    {
-                        Keyboard.Focus(SlotsPanel);
-                    }
-                    else
-                    {
-                        Keyboard.Focus(this);
-                    }
-                }
-                return true;
-            }
         }
 
         if (viEnabled &&
