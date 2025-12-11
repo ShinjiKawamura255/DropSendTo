@@ -964,6 +964,13 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        if (TryMinimizeOnEscape(key, modifiers))
+        {
+            e.Handled = true;
+            return;
+        }
         _metaPrefixPending = false;
         base.OnPreviewKeyDown(e);
     }
@@ -6165,8 +6172,27 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _logger.Warn($"Failed to position window for search anchor: {ex.Message}");
+        _logger.Warn($"Failed to position window for search anchor: {ex.Message}");
         }
+    }
+
+    private bool TryMinimizeOnEscape(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
+    {
+        if (_config?.AlwaysOnTop != false)
+        {
+            return false;
+        }
+        if (key != System.Windows.Input.Key.Escape || modifiers != System.Windows.Input.ModifierKeys.None)
+        {
+            return false;
+        }
+        if (_searchLayerActive || _isMinimizedToTray || !IsActive)
+        {
+            return false;
+        }
+
+        MinimizeWindowToTray();
+        return true;
     }
 
     private static class NativeMethods
