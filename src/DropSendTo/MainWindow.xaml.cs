@@ -959,14 +959,16 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
-        if (HandleSearchKey(e) || HandleKeyboardNavigationKey(e) || HandleLayerSelectionKey(e))
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+
+        if (TryMinimizeOnEscape(key, modifiers))
         {
             e.Handled = true;
             return;
         }
-        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
-        var modifiers = System.Windows.Input.Keyboard.Modifiers;
-        if (TryMinimizeOnEscape(key, modifiers))
+
+        if (HandleSearchKey(e) || HandleKeyboardNavigationKey(e) || HandleLayerSelectionKey(e))
         {
             e.Handled = true;
             return;
@@ -6178,15 +6180,11 @@ public partial class MainWindow : Window
 
     private bool TryMinimizeOnEscape(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
     {
-        if (_config?.AlwaysOnTop != false)
-        {
-            return false;
-        }
         if (key != System.Windows.Input.Key.Escape || modifiers != System.Windows.Input.ModifierKeys.None)
         {
             return false;
         }
-        if (_searchLayerActive || _isMinimizedToTray || !IsActive)
+        if (_searchLayerActive || _isMinimizedToTray || !IsActive || Topmost)
         {
             return false;
         }
