@@ -252,7 +252,7 @@ public partial class MainWindow : Window
         _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
-        Topmost = _config.AlwaysOnTop;
+        ApplyTopmostState();
         int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, MinLayers);
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
         if (EditModeIndicator is { } indicator)
@@ -556,6 +556,19 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool GetDesiredTopmost()
+    {
+        return _isSlotLayoutEditMode || (_config?.AlwaysOnTop ?? true);
+    }
+
+    private void ApplyTopmostState()
+    {
+        bool desiredTopmost = GetDesiredTopmost();
+        Topmost = true;
+        Topmost = desiredTopmost;
+        UpdateOverlayTopmost();
+    }
+
     private void BringWindowToForeground()
     {
         RestoreWindowFromTray();
@@ -570,9 +583,7 @@ public partial class MainWindow : Window
         Activate();
         Focus();
 
-        bool desiredTopmost = _config?.AlwaysOnTop ?? true;
-        Topmost = true;
-        Topmost = desiredTopmost;
+        ApplyTopmostState();
     }
 
     private static void ForceForegroundWindow(IntPtr handle)
@@ -941,7 +952,6 @@ public partial class MainWindow : Window
     private void OnExit(object sender, RoutedEventArgs e)
     {
         _config.CurrentLayer = _currentLayer;
-        _config.AlwaysOnTop = this.Topmost;
         _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
         _configService.Save(_config);
         Close();
@@ -3814,6 +3824,7 @@ public partial class MainWindow : Window
         UpdateSlotPanelEditModePadding();
         UpdateWindowSize(_config.SlotRows, _config.SlotColumns);
         ClampWindowWithinBounds();
+        ApplyTopmostState();
         if (EditModeToggleButton != null)
         {
             EditModeToggleButton.Content = isEnabled ? "✕" : "✎";
@@ -3976,7 +3987,8 @@ public partial class MainWindow : Window
             _config = imported;
             int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
             _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
-            Topmost = _config.AlwaysOnTop;
+            _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
+            ApplyTopmostState();
             _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             ApplySlotLayout();
@@ -4348,9 +4360,8 @@ public partial class MainWindow : Window
     private void OnToggleAlwaysOnTop(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem item) return;
-        Topmost = item.IsChecked;
-        _config.AlwaysOnTop = Topmost;
-        UpdateOverlayTopmost();
+        _config.AlwaysOnTop = item.IsChecked;
+        ApplyTopmostState();
         _configService.Save(_config);
     }
 
