@@ -4229,6 +4229,12 @@ public partial class MainWindow : Window
         UpdatePlacementMenuState();
     }
 
+    private void OnKeyboardPlacementScreenCenter(object sender, RoutedEventArgs e)
+    {
+        SetPlacementMode(WindowPlacementMode.CursorScreenCenter, ShowLayerTrigger.Prefix, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
     private void OnMousePlacementFollowKeyboard(object sender, RoutedEventArgs e)
     {
         _mousePlacementFollowsKeyboard = true;
@@ -4252,6 +4258,14 @@ public partial class MainWindow : Window
         _mousePlacementFollowsKeyboard = false;
         _config.MousePlacementFollowsKeyboard = false;
         SetPlacementMode(WindowPlacementMode.MouseFollow, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
+        UpdatePlacementMenuState();
+    }
+
+    private void OnMousePlacementScreenCenter(object sender, RoutedEventArgs e)
+    {
+        _mousePlacementFollowsKeyboard = false;
+        _config.MousePlacementFollowsKeyboard = false;
+        SetPlacementMode(WindowPlacementMode.CursorScreenCenter, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
         UpdatePlacementMenuState();
     }
 
@@ -4457,6 +4471,10 @@ public partial class MainWindow : Window
         {
             KeyboardPlacementFollowMouseMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.MouseFollow;
         }
+        if (KeyboardPlacementScreenCenterMenuItem != null)
+        {
+            KeyboardPlacementScreenCenterMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.CursorScreenCenter;
+        }
 
         bool followKeyboard = _mousePlacementFollowsKeyboard;
         if (MousePlacementFollowKeyboardMenuItem != null)
@@ -4465,13 +4483,18 @@ public partial class MainWindow : Window
         }
         if (MousePlacementFixedMenuItem != null)
         {
-            MousePlacementFixedMenuItem.IsEnabled = true;
+            MousePlacementFixedMenuItem.IsEnabled = !followKeyboard;
             MousePlacementFixedMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.Fixed;
         }
         if (MousePlacementFollowMouseMenuItem != null)
         {
-            MousePlacementFollowMouseMenuItem.IsEnabled = true;
+            MousePlacementFollowMouseMenuItem.IsEnabled = !followKeyboard;
             MousePlacementFollowMouseMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.MouseFollow;
+        }
+        if (MousePlacementScreenCenterMenuItem != null)
+        {
+            MousePlacementScreenCenterMenuItem.IsEnabled = !followKeyboard;
+            MousePlacementScreenCenterMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.CursorScreenCenter;
         }
 
         if (SearchPlacementFixedMenuItem != null)
@@ -5237,15 +5260,20 @@ public partial class MainWindow : Window
         bool wasHidden = IsWindowHiddenForShow();
         ApplyShowLayerPreference(ShowLayerTrigger.Prefix, wasHidden);
         var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
-        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
-        if (placement == WindowPlacementMode.MouseFollow)
+        _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
+        switch (placement)
         {
-            PositionWindowAtMouse();
-        }
-        else
-        {
-            _suppressFixedCapture = false;
-            PositionWindowAtFixedLocation();
+            case WindowPlacementMode.MouseFollow:
+                PositionWindowAtMouse();
+                break;
+            case WindowPlacementMode.CursorScreenCenter:
+                PositionWindowAtCursorScreenCenter();
+                break;
+            case WindowPlacementMode.Fixed:
+            default:
+                _suppressFixedCapture = false;
+                PositionWindowAtFixedLocation();
+                break;
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -5285,15 +5313,20 @@ public partial class MainWindow : Window
                 case SearchOverlayPlacementMode.Fixed:
                 default:
                     var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
-                    _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
-                    if (placement == WindowPlacementMode.MouseFollow)
+                    _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
+                    switch (placement)
                     {
-                        PositionWindowAtMouse();
-                    }
-                    else
-                    {
-                        _suppressFixedCapture = false;
-                        PositionWindowAtFixedLocation();
+                        case WindowPlacementMode.MouseFollow:
+                            PositionWindowAtMouse();
+                            break;
+                        case WindowPlacementMode.CursorScreenCenter:
+                            PositionWindowAtCursorScreenCenter();
+                            break;
+                        case WindowPlacementMode.Fixed:
+                        default:
+                            _suppressFixedCapture = false;
+                            PositionWindowAtFixedLocation();
+                            break;
                     }
                     break;
             }
@@ -5335,19 +5368,27 @@ public partial class MainWindow : Window
             PositionWindowNearCursorForDragGesture();
         }
         var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
-        _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
+        _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
         if (isDrag)
         {
             // already positioned above
         }
-        else if (placement == WindowPlacementMode.MouseFollow)
-        {
-            PositionWindowAtMouse();
-        }
         else
         {
-            _suppressFixedCapture = false;
-            PositionWindowAtFixedLocation();
+            switch (placement)
+            {
+                case WindowPlacementMode.MouseFollow:
+                    PositionWindowAtMouse();
+                    break;
+                case WindowPlacementMode.CursorScreenCenter:
+                    PositionWindowAtCursorScreenCenter();
+                    break;
+                case WindowPlacementMode.Fixed:
+                default:
+                    _suppressFixedCapture = false;
+                    PositionWindowAtFixedLocation();
+                    break;
+            }
         }
         BringWindowToForeground();
         RearmDragDropTargets();
@@ -5861,7 +5902,12 @@ public partial class MainWindow : Window
     private void TogglePlacementMode(ShowLayerTrigger trigger)
     {
         var current = GetPlacementMode(trigger);
-        var next = current == WindowPlacementMode.Fixed ? WindowPlacementMode.MouseFollow : WindowPlacementMode.Fixed;
+        var next = current switch
+        {
+            WindowPlacementMode.Fixed => WindowPlacementMode.MouseFollow,
+            WindowPlacementMode.MouseFollow => WindowPlacementMode.CursorScreenCenter,
+            _ => WindowPlacementMode.Fixed
+        };
         SetPlacementMode(next, trigger, initiatedByToggle: true);
     }
 
@@ -5877,40 +5923,34 @@ public partial class MainWindow : Window
 
     private void SetPlacementMode(WindowPlacementMode mode, ShowLayerTrigger trigger, bool initiatedByToggle)
     {
+        bool isFixed = mode == WindowPlacementMode.Fixed;
         if (trigger == ShowLayerTrigger.Prefix)
         {
             if (_keyboardPlacementMode == mode)
             {
-                if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
+                if (!isFixed && initiatedByToggle)
                 {
-                    PositionWindowAtMouse();
+                    PositionWindowForMode(mode);
                 }
             }
             else
             {
-                if (mode == WindowPlacementMode.MouseFollow)
+                _keyboardPlacementMode = mode;
+                _config.WindowPlacementMode = mode;
+                _config.KeyboardPlacementMode = mode;
+                if (initiatedByToggle)
                 {
-                    _keyboardPlacementMode = mode;
-                    _config.WindowPlacementMode = mode;
-                    _config.KeyboardPlacementMode = mode;
-                    if (initiatedByToggle)
+                    _blockLocationSave = true;
+                    if (isFixed)
                     {
-                        _blockLocationSave = true;
-                        PositionWindowAtMouse();
-                    }
-                }
-                else
-                {
-                    _keyboardPlacementMode = mode;
-                    _config.WindowPlacementMode = mode;
-                    _config.KeyboardPlacementMode = mode;
-                    if (initiatedByToggle)
-                    {
-                        _blockLocationSave = true;
                         RestoreWindowPosition();
                     }
-                    _suppressFixedCapture = false;
+                    else
+                    {
+                        PositionWindowForMode(mode);
+                    }
                 }
+                _suppressFixedCapture = !isFixed;
             }
 
             if (_mousePlacementFollowsKeyboard)
@@ -5932,37 +5972,48 @@ public partial class MainWindow : Window
 
             if (_mousePlacementMode == mode)
             {
-                if (mode == WindowPlacementMode.MouseFollow && initiatedByToggle)
+                if (!isFixed && initiatedByToggle)
                 {
-                    PositionWindowAtMouse();
+                    PositionWindowForMode(mode);
                 }
                 return;
             }
 
-            if (mode == WindowPlacementMode.MouseFollow)
+            _mousePlacementMode = mode;
+            _config.MousePlacementMode = mode;
+            if (initiatedByToggle)
             {
-                _mousePlacementMode = mode;
-                _config.MousePlacementMode = mode;
-                if (initiatedByToggle)
+                _blockLocationSave = true;
+                if (isFixed)
                 {
-                    _blockLocationSave = true;
-                    PositionWindowAtMouse();
-                }
-            }
-            else
-            {
-                _mousePlacementMode = mode;
-                _config.MousePlacementMode = mode;
-                if (initiatedByToggle)
-                {
-                    _blockLocationSave = true;
                     RestoreWindowPosition();
                 }
-                _suppressFixedCapture = false;
+                else
+                {
+                    PositionWindowForMode(mode);
+                }
             }
+            _suppressFixedCapture = !isFixed;
         }
 
         _configService.Save(_config);
+    }
+
+    private void PositionWindowForMode(WindowPlacementMode mode)
+    {
+        switch (mode)
+        {
+            case WindowPlacementMode.MouseFollow:
+                PositionWindowAtMouse();
+                break;
+            case WindowPlacementMode.CursorScreenCenter:
+                PositionWindowAtCursorScreenCenter();
+                break;
+            case WindowPlacementMode.Fixed:
+            default:
+                PositionWindowAtFixedLocation();
+                break;
+        }
     }
 
     private void CaptureFixedWindowPosition(bool clampBeforeStoring)
@@ -6035,15 +6086,20 @@ public partial class MainWindow : Window
                 case SearchOverlayPlacementMode.Fixed:
                 default:
                     var placement = GetPlacementMode(ShowLayerTrigger.Prefix);
-                    _suppressFixedCapture = placement == WindowPlacementMode.MouseFollow;
-                    if (placement == WindowPlacementMode.MouseFollow)
+                    _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
+                    switch (placement)
                     {
-                        PositionWindowAtMouse();
-                    }
-                    else
-                    {
-                        _suppressFixedCapture = false;
-                        PositionWindowAtFixedLocation();
+                        case WindowPlacementMode.MouseFollow:
+                            PositionWindowAtMouse();
+                            break;
+                        case WindowPlacementMode.CursorScreenCenter:
+                            PositionWindowAtCursorScreenCenter();
+                            break;
+                        case WindowPlacementMode.Fixed:
+                        default:
+                            _suppressFixedCapture = false;
+                            PositionWindowAtFixedLocation();
+                            break;
                     }
                     break;
             }

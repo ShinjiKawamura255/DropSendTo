@@ -75,7 +75,8 @@ public enum WindowVisibilityState
 public enum WindowPlacementMode
 {
     Fixed = 0,
-    MouseFollow = 1
+    MouseFollow = 1,
+    CursorScreenCenter = 2
 }
 
 public enum SearchOverlayPlacementMode

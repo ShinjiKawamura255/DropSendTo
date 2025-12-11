@@ -100,6 +100,10 @@
                               Header="マウスフォロー"
                               IsCheckable="True"
                               Click="OnKeyboardPlacementMouseFollow"/>
+                    <MenuItem x:Name="KeyboardPlacementScreenCenterMenuItem"
+                              Header="画面中央 (マウスがある画面)"
+                              IsCheckable="True"
+                              Click="OnKeyboardPlacementScreenCenter"/>
                 </MenuItem>
                 <MenuItem Header="表示位置 (マウスジェスチャ)">
                     <MenuItem x:Name="MousePlacementFollowKeyboardMenuItem"
@@ -115,6 +119,10 @@
                               Header="マウスフォロー"
                               IsCheckable="True"
                               Click="OnMousePlacementMouseFollow"/>
+                    <MenuItem x:Name="MousePlacementScreenCenterMenuItem"
+                              Header="画面中央 (マウスがある画面)"
+                              IsCheckable="True"
+                              Click="OnMousePlacementScreenCenter"/>
                 </MenuItem>
             </MenuItem>
             <MenuItem x:Name="PrefixLayerShortcutMenuItem"
