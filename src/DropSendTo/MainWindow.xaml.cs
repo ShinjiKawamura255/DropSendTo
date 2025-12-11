@@ -2797,11 +2797,6 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(_searchQuery))
-        {
-            return false;
-        }
-
         return _searchResults.Count > 0;
     }
 
