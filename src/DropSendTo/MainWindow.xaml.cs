@@ -4503,17 +4503,14 @@ public partial class MainWindow : Window
         }
         if (MousePlacementFixedMenuItem != null)
         {
-            MousePlacementFixedMenuItem.IsEnabled = !followKeyboard;
             MousePlacementFixedMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.Fixed;
         }
         if (MousePlacementFollowMouseMenuItem != null)
         {
-            MousePlacementFollowMouseMenuItem.IsEnabled = !followKeyboard;
             MousePlacementFollowMouseMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.MouseFollow;
         }
         if (MousePlacementScreenCenterMenuItem != null)
         {
-            MousePlacementScreenCenterMenuItem.IsEnabled = !followKeyboard;
             MousePlacementScreenCenterMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.CursorScreenCenter;
         }
 
@@ -4523,30 +4520,15 @@ public partial class MainWindow : Window
         }
         if (SearchPlacementFollowMouseMenuItem != null)
         {
-            SearchPlacementFollowMouseMenuItem.IsEnabled = true;
             SearchPlacementFollowMouseMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.MouseFollow && !_searchPlacementFollowsKeyboard;
         }
         if (SearchPlacementScreenCenterMenuItem != null)
         {
-            SearchPlacementScreenCenterMenuItem.IsEnabled = true;
             SearchPlacementScreenCenterMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.CursorScreenCenter && !_searchPlacementFollowsKeyboard;
         }
         if (SearchPlacementFollowKeyboardMenuItem != null)
         {
             SearchPlacementFollowKeyboardMenuItem.IsChecked = _searchPlacementFollowsKeyboard;
-        }
-        bool followSearch = _searchPlacementFollowsKeyboard;
-        if (SearchPlacementFixedMenuItem != null)
-        {
-            SearchPlacementFixedMenuItem.IsEnabled = !followSearch;
-        }
-        if (SearchPlacementFollowMouseMenuItem != null)
-        {
-            SearchPlacementFollowMouseMenuItem.IsEnabled = !followSearch;
-        }
-        if (SearchPlacementScreenCenterMenuItem != null)
-        {
-            SearchPlacementScreenCenterMenuItem.IsEnabled = !followSearch;
         }
     }
 
