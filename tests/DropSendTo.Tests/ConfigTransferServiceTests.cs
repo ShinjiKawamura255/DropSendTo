@@ -35,7 +35,9 @@ public class ConfigTransferServiceTests
             MouseGestureEnforceRadiusLimit = false,
             MouseGestureMinRadiusPixels = 80,
             MouseGestureMaxRadiusPixels = 180,
-            SearchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter
+            SearchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter,
+            SearchPlacementFollowsKeyboard = true,
+            KeyboardPlacementMode = WindowPlacementMode.CursorScreenCenter
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";
@@ -68,6 +70,7 @@ public class ConfigTransferServiceTests
         imported.MouseGestureEnforceRadiusLimit.Should().BeFalse();
         imported.MouseGestureMaxRadiusPixels.Should().Be(180);
         imported.SearchPlacementMode.Should().Be(SearchOverlayPlacementMode.CursorScreenCenter);
+        imported.SearchPlacementFollowsKeyboard.Should().BeTrue();
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
         imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);

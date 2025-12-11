@@ -169,6 +169,10 @@ public class ConfigService
         {
             cfg.MousePlacementMode = WindowPlacementMode.Fixed;
         }
+        if (!Enum.IsDefined(typeof(SearchOverlayPlacementMode), cfg.SearchPlacementMode))
+        {
+            cfg.SearchPlacementMode = SearchOverlayPlacementMode.Fixed;
+        }
         if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
         {
             cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;

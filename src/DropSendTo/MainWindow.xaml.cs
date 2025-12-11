@@ -219,6 +219,7 @@ public partial class MainWindow : Window
     private WindowPlacementMode _keyboardPlacementMode;
     private WindowPlacementMode _mousePlacementMode;
     private bool _mousePlacementFollowsKeyboard;
+    private bool _searchPlacementFollowsKeyboard;
     private bool _isSlotLayoutEditMode;
     private System.Windows.Point? _slotDragStartPoint;
     private bool _isSlotLayoutDragInProgress;
@@ -240,6 +241,7 @@ public partial class MainWindow : Window
         _keyboardPlacementMode = _config.KeyboardPlacementMode;
         _mousePlacementMode = _config.MousePlacementMode;
         _mousePlacementFollowsKeyboard = _config.MousePlacementFollowsKeyboard;
+        _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
         _searchPlacementMode = Enum.IsDefined(typeof(SearchOverlayPlacementMode), (int)_config.SearchPlacementMode)
             ? _config.SearchPlacementMode
             : SearchOverlayPlacementMode.Fixed;
@@ -4271,6 +4273,8 @@ public partial class MainWindow : Window
 
     private void OnSearchPlacementFixed(object sender, RoutedEventArgs e)
     {
+        _searchPlacementFollowsKeyboard = false;
+        _config.SearchPlacementFollowsKeyboard = false;
         _searchPlacementMode = SearchOverlayPlacementMode.Fixed;
         _config.SearchPlacementMode = _searchPlacementMode;
         _configService.Save(_config);
@@ -4283,6 +4287,8 @@ public partial class MainWindow : Window
 
     private void OnSearchPlacementFollowMouse(object sender, RoutedEventArgs e)
     {
+        _searchPlacementFollowsKeyboard = false;
+        _config.SearchPlacementFollowsKeyboard = false;
         _searchPlacementMode = SearchOverlayPlacementMode.MouseFollow;
         _config.SearchPlacementMode = _searchPlacementMode;
         _configService.Save(_config);
@@ -4295,8 +4301,22 @@ public partial class MainWindow : Window
 
     private void OnSearchPlacementScreenCenter(object sender, RoutedEventArgs e)
     {
+        _searchPlacementFollowsKeyboard = false;
+        _config.SearchPlacementFollowsKeyboard = false;
         _searchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter;
         _config.SearchPlacementMode = _searchPlacementMode;
+        _configService.Save(_config);
+        UpdatePlacementMenuState();
+        if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
+        {
+            PositionSearchOverlay();
+        }
+    }
+
+    private void OnSearchPlacementFollowKeyboard(object sender, RoutedEventArgs e)
+    {
+        _searchPlacementFollowsKeyboard = true;
+        _config.SearchPlacementFollowsKeyboard = true;
         _configService.Save(_config);
         UpdatePlacementMenuState();
         if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
@@ -4503,11 +4523,30 @@ public partial class MainWindow : Window
         }
         if (SearchPlacementFollowMouseMenuItem != null)
         {
-            SearchPlacementFollowMouseMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.MouseFollow;
+            SearchPlacementFollowMouseMenuItem.IsEnabled = true;
+            SearchPlacementFollowMouseMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.MouseFollow && !_searchPlacementFollowsKeyboard;
         }
         if (SearchPlacementScreenCenterMenuItem != null)
         {
-            SearchPlacementScreenCenterMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.CursorScreenCenter;
+            SearchPlacementScreenCenterMenuItem.IsEnabled = true;
+            SearchPlacementScreenCenterMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.CursorScreenCenter && !_searchPlacementFollowsKeyboard;
+        }
+        if (SearchPlacementFollowKeyboardMenuItem != null)
+        {
+            SearchPlacementFollowKeyboardMenuItem.IsChecked = _searchPlacementFollowsKeyboard;
+        }
+        bool followSearch = _searchPlacementFollowsKeyboard;
+        if (SearchPlacementFixedMenuItem != null)
+        {
+            SearchPlacementFixedMenuItem.IsEnabled = !followSearch;
+        }
+        if (SearchPlacementFollowMouseMenuItem != null)
+        {
+            SearchPlacementFollowMouseMenuItem.IsEnabled = !followSearch;
+        }
+        if (SearchPlacementScreenCenterMenuItem != null)
+        {
+            SearchPlacementScreenCenterMenuItem.IsEnabled = !followSearch;
         }
     }
 
@@ -5300,7 +5339,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            switch (_searchPlacementMode)
+            var effectiveMode = GetEffectiveSearchPlacementMode();
+            switch (effectiveMode)
             {
                 case SearchOverlayPlacementMode.MouseFollow:
                     _suppressFixedCapture = true;
@@ -6069,11 +6109,37 @@ public partial class MainWindow : Window
         }
     }
 
+    private SearchOverlayPlacementMode GetEffectiveSearchPlacementMode()
+    {
+        if (_searchPlacementFollowsKeyboard)
+        {
+            return MapWindowPlacementToSearch(_keyboardPlacementMode);
+        }
+
+        if (!Enum.IsDefined(typeof(SearchOverlayPlacementMode), (int)_searchPlacementMode))
+        {
+            return SearchOverlayPlacementMode.Fixed;
+        }
+
+        return _searchPlacementMode;
+    }
+
+    private static SearchOverlayPlacementMode MapWindowPlacementToSearch(WindowPlacementMode mode)
+    {
+        return mode switch
+        {
+            WindowPlacementMode.MouseFollow => SearchOverlayPlacementMode.MouseFollow,
+            WindowPlacementMode.CursorScreenCenter => SearchOverlayPlacementMode.CursorScreenCenter,
+            _ => SearchOverlayPlacementMode.Fixed
+        };
+    }
+
     private void PositionWindowForSearchOverlayAnchor()
     {
         try
         {
-            switch (_searchPlacementMode)
+            var effectiveMode = GetEffectiveSearchPlacementMode();
+            switch (effectiveMode)
             {
                 case SearchOverlayPlacementMode.MouseFollow:
                     _suppressFixedCapture = true;

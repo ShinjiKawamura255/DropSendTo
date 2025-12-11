@@ -45,6 +45,7 @@ public class AppConfig
     public CustomSlotSizeOptions CustomSlotSize { get; set; } = CustomSlotSizeOptions.CreateDefault();
     public bool PreferRemoteSessions { get; set; } = true;
     public SearchOverlayPlacementMode SearchPlacementMode { get; set; } = SearchOverlayPlacementMode.Fixed;
+    public bool SearchPlacementFollowsKeyboard { get; set; }
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()

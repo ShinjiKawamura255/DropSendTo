@@ -163,6 +163,7 @@ internal sealed class ConfigTransferService
         public int SlotColumns { get; set; }
         public SlotSize SlotSize { get; set; }
         public SearchOverlayPlacementMode SearchPlacementMode { get; set; }
+        public bool SearchPlacementFollowsKeyboard { get; set; }
         public WindowPlacementMode KeyboardPlacementMode { get; set; }
         public WindowPlacementMode MousePlacementMode { get; set; }
         public bool MousePlacementFollowsKeyboard { get; set; }
@@ -207,6 +208,7 @@ internal sealed class ConfigTransferService
                 SlotColumns = config.SlotColumns,
                 SlotSize = config.SlotSize,
                 SearchPlacementMode = config.SearchPlacementMode,
+                SearchPlacementFollowsKeyboard = config.SearchPlacementFollowsKeyboard,
                 KeyboardPlacementMode = config.KeyboardPlacementMode,
                 MousePlacementMode = config.MousePlacementMode,
                 MousePlacementFollowsKeyboard = config.MousePlacementFollowsKeyboard,
@@ -261,6 +263,7 @@ internal sealed class ConfigTransferService
                 SlotColumns = SlotColumns,
                 SlotSize = SlotSize,
                 SearchPlacementMode = SearchPlacementMode,
+                SearchPlacementFollowsKeyboard = SearchPlacementFollowsKeyboard,
                 KeyboardPlacementMode = KeyboardPlacementMode,
                 MousePlacementMode = MousePlacementMode,
                 MousePlacementFollowsKeyboard = MousePlacementFollowsKeyboard,
