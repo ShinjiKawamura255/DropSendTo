@@ -1452,20 +1452,19 @@ public partial class MainWindow : Window
         }
 
         var query = (_searchQuery ?? string.Empty).Trim();
-        if (string.IsNullOrEmpty(query) || _config?.Layers == null)
+        if (_config?.Layers == null)
         {
             return;
         }
 
-        var tokens = query
-            .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(NormalizeTokenForSearch)
-            .Where(t => !string.IsNullOrEmpty(t))
-            .ToArray();
-        if (tokens.Length == 0)
-        {
-            return;
-        }
+        var tokens = string.IsNullOrEmpty(query)
+            ? Array.Empty<string>()
+            : query
+                .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(NormalizeTokenForSearch)
+                .Where(t => !string.IsNullOrEmpty(t))
+                .ToArray();
+        bool matchAll = tokens.Length == 0;
 
         for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
         {
@@ -1476,6 +1475,12 @@ public partial class MainWindow : Window
                 var slot = layer.Slots[slotIndex];
                 if (slot == null || IsSlotEmpty(slot))
                 {
+                    continue;
+                }
+
+                if (matchAll)
+                {
+                    _searchResults.Add(new SearchResult(layerIndex, slotIndex));
                     continue;
                 }
 
