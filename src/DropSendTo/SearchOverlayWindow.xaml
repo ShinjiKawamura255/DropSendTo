@@ -21,7 +21,8 @@
             Padding="12,10"
             SnapsToDevicePixels="True">
         <StackPanel Orientation="Vertical" Margin="0">
-            <TextBlock Text="Search"
+            <TextBlock x:Name="SearchLabel"
+                       Text="Search"
                        Margin="0,0,0,6"
                        FontSize="12"
                        FontWeight="Medium"

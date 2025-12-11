@@ -73,6 +73,7 @@ public partial class MainWindow : Window
     private bool _searchLayerActive;
     private bool _isSearchOverlayBelowMain;
     private SearchOverlayPlacementMode _searchPlacementMode;
+    private AppLanguage _currentLanguage;
     private string _searchQuery = string.Empty;
     private PrefixSearchRestoreContext? _prefixSearchRestoreContext;
     private readonly List<SearchResult> _searchResults = new();
@@ -102,6 +103,146 @@ public partial class MainWindow : Window
     private const double LayoutEditIndicatorTopSpacing = 4;
     private const double LayoutEditIndicatorBottomSpacing = 6;
     private const double LayoutEditIndicatorFallbackHeight = 22;
+    private readonly record struct UiText(
+        string ConfigMenu,
+        string OpenConfig,
+        string OpenLogs,
+        string ExportConfig,
+        string ImportConfig,
+        string ChangePrefix,
+        string SearchHotkey,
+        string LayerSettings,
+        string LayerCount,
+        string EditLayerNames,
+        string LayoutDisplay,
+        string SlotLayout,
+        string SlotSize,
+        string HideEmptySlotNames,
+        string StartupWindow,
+        string StartupAlwaysShow,
+        string StartupRestore,
+        string MacroMode,
+        string MacroExclusive,
+        string MacroInterrupt,
+        string MacroSuspend,
+        string KeyboardNavigation,
+        string EmacsNavigation,
+        string ViNavigation,
+        string MouseGestures,
+        string DisplayBehavior,
+        string ShowLayerPreference,
+        string KeyboardPlacement,
+        string MousePlacement,
+        string SearchPlacement,
+        string FollowKeyboardPlacement,
+        string PlacementFixed,
+        string PlacementMouseFollow,
+        string PlacementScreenCenter,
+        string PrefixLayerShortcut,
+        string RemoteSessionPriority,
+        string MinimizeTriggers,
+        string ShortcutList,
+        string LanguageMenu,
+        string LanguageJapanese,
+        string LanguageEnglish,
+        string AlwaysOnTop,
+        string MinimizeToTray,
+        string Exit,
+        string SearchLabel);
+
+    private static readonly UiText JapaneseText = new(
+        ConfigMenu: "設定ファイル / ログ",
+        OpenConfig: "設定ファイルを開く",
+        OpenLogs: "ログを開く",
+        ExportConfig: "設定をエクスポート...",
+        ImportConfig: "設定をインポート...",
+        ChangePrefix: "Prefix を変更...",
+        SearchHotkey: "検索ホットキー...",
+        LayerSettings: "レイヤー設定",
+        LayerCount: "レイヤー数...",
+        EditLayerNames: "レイヤー名を編集...",
+        LayoutDisplay: "レイアウト / 表示",
+        SlotLayout: "Slot Layout...",
+        SlotSize: "Slot Size",
+        HideEmptySlotNames: "未登録スロット名を非表示",
+        StartupWindow: "起動時のウィンドウ",
+        StartupAlwaysShow: "常にウィンドウを表示",
+        StartupRestore: "前回の状態を復元",
+        MacroMode: "Macro 実行モード",
+        MacroExclusive: "排他（単一実行のみ）",
+        MacroInterrupt: "割り込み実行（実行中マクロを停止）",
+        MacroSuspend: "一時停止して割り込み（完了後に元マクロ再開）",
+        KeyboardNavigation: "キーボード操作",
+        EmacsNavigation: "Emacs ライク操作",
+        ViNavigation: "vi ライク操作",
+        MouseGestures: "マウスジェスチャ (表示/最小化)...",
+        DisplayBehavior: "表示挙動",
+        ShowLayerPreference: "表示時のレイヤー切替...",
+        KeyboardPlacement: "表示位置 (キーボード)",
+        MousePlacement: "表示位置 (マウスジェスチャ)",
+        SearchPlacement: "表示位置 (検索)",
+        FollowKeyboardPlacement: "キーボード設定に追従",
+        PlacementFixed: "固定位置",
+        PlacementMouseFollow: "マウスフォロー",
+        PlacementScreenCenter: "画面中央 (マウスがある画面)",
+        PrefixLayerShortcut: "Prefix: Ctrl+N/P でレイヤー切替",
+        RemoteSessionPriority: "Prefix: リモートセッション優先 (RDP/Citrix)",
+        MinimizeTriggers: "最小化トリガー...",
+        ShortcutList: "ショートカット一覧...",
+        LanguageMenu: "Language",
+        LanguageJapanese: "日本語",
+        LanguageEnglish: "English",
+        AlwaysOnTop: "常に最前面に表示",
+        MinimizeToTray: "Minimize to Tray",
+        Exit: "Exit",
+        SearchLabel: "検索");
+
+    private static readonly UiText EnglishText = new(
+        ConfigMenu: "Config / Logs",
+        OpenConfig: "Open Config",
+        OpenLogs: "Open Logs",
+        ExportConfig: "Export Config...",
+        ImportConfig: "Import Config...",
+        ChangePrefix: "Change Prefix...",
+        SearchHotkey: "Search Hotkey...",
+        LayerSettings: "Layer Settings",
+        LayerCount: "Layer Count...",
+        EditLayerNames: "Edit Layer Names...",
+        LayoutDisplay: "Layout / Display",
+        SlotLayout: "Slot Layout...",
+        SlotSize: "Slot Size",
+        HideEmptySlotNames: "Hide empty slot names",
+        StartupWindow: "Startup Window",
+        StartupAlwaysShow: "Always show window",
+        StartupRestore: "Restore last state",
+        MacroMode: "Macro Mode",
+        MacroExclusive: "Exclusive (single run only)",
+        MacroInterrupt: "Interrupt running macro",
+        MacroSuspend: "Pause and resume",
+        KeyboardNavigation: "Keyboard Navigation",
+        EmacsNavigation: "Emacs-like navigation",
+        ViNavigation: "vi-like navigation",
+        MouseGestures: "Mouse gestures (show/minimize)...",
+        DisplayBehavior: "Display Behavior",
+        ShowLayerPreference: "Show-layer preference...",
+        KeyboardPlacement: "Placement (keyboard)",
+        MousePlacement: "Placement (mouse gesture)",
+        SearchPlacement: "Placement (search)",
+        FollowKeyboardPlacement: "Follow keyboard setting",
+        PlacementFixed: "Fixed position",
+        PlacementMouseFollow: "Follow mouse",
+        PlacementScreenCenter: "Screen center (cursor screen)",
+        PrefixLayerShortcut: "Prefix: Switch layers with Ctrl+N/P",
+        RemoteSessionPriority: "Prefix: Prefer remote session (RDP/Citrix)",
+        MinimizeTriggers: "Minimize triggers...",
+        ShortcutList: "Shortcut list...",
+        LanguageMenu: "Language",
+        LanguageJapanese: "Japanese",
+        LanguageEnglish: "English",
+        AlwaysOnTop: "Always on top",
+        MinimizeToTray: "Minimize to Tray",
+        Exit: "Exit",
+        SearchLabel: "Search");
 
     private readonly record struct SlotSizeMetrics(
         double BaseWidth,
@@ -253,6 +394,7 @@ public partial class MainWindow : Window
                             && _config.LastWindowVisibility == WindowVisibilityState.Tray;
         Loaded += OnLoaded;
         ApplyTopmostState();
+        _currentLanguage = _config.Language;
         int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, MinLayers);
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
         if (EditModeIndicator is { } indicator)
@@ -272,6 +414,7 @@ public partial class MainWindow : Window
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshUi();
         UpdateTrayMenuState();
+        ApplyLanguageToUi();
         LocationChanged += OnWindowLocationChanged;
         this.Closing += (_, _) =>
         {
@@ -553,6 +696,86 @@ public partial class MainWindow : Window
         if (MinimizeToTrayMenuItem != null)
         {
             MinimizeToTrayMenuItem.IsEnabled = !_isMinimizedToTray;
+        }
+    }
+
+    private static UiText GetUiText(AppLanguage language) =>
+        language == AppLanguage.English ? EnglishText : JapaneseText;
+
+    private void ApplyLanguageToUi()
+    {
+        _currentLanguage = _config?.Language ?? AppLanguage.Japanese;
+        var text = GetUiText(_currentLanguage);
+
+        if (ConfigMenuItem != null) ConfigMenuItem.Header = text.ConfigMenu;
+        if (OpenConfigMenuItem != null) OpenConfigMenuItem.Header = text.OpenConfig;
+        if (OpenLogsMenuItem != null) OpenLogsMenuItem.Header = text.OpenLogs;
+        if (ExportConfigMenuItem != null) ExportConfigMenuItem.Header = text.ExportConfig;
+        if (ImportConfigMenuItem != null) ImportConfigMenuItem.Header = text.ImportConfig;
+        if (ChangePrefixMenuItem != null) ChangePrefixMenuItem.Header = text.ChangePrefix;
+        if (SearchHotkeyMenuItem != null) SearchHotkeyMenuItem.Header = text.SearchHotkey;
+        if (LayerSettingsMenuItem != null) LayerSettingsMenuItem.Header = text.LayerSettings;
+        if (LayerCountMenuItem != null) LayerCountMenuItem.Header = text.LayerCount;
+        if (EditLayerNamesMenuItem != null) EditLayerNamesMenuItem.Header = text.EditLayerNames;
+        if (LayoutDisplayMenuItem != null) LayoutDisplayMenuItem.Header = text.LayoutDisplay;
+        if (LayoutMenuItem != null) LayoutMenuItem.Header = text.SlotLayout;
+        if (SlotSizeMenuItem != null) SlotSizeMenuItem.Header = text.SlotSize;
+        if (HideEmptySlotNamesMenuItem != null) HideEmptySlotNamesMenuItem.Header = text.HideEmptySlotNames;
+        if (StartupWindowMenuItem != null) StartupWindowMenuItem.Header = text.StartupWindow;
+        if (StartupAlwaysShowMenuItem != null) StartupAlwaysShowMenuItem.Header = text.StartupAlwaysShow;
+        if (StartupRestoreMenuItem != null) StartupRestoreMenuItem.Header = text.StartupRestore;
+        if (MacroModeMenuItem != null) MacroModeMenuItem.Header = text.MacroMode;
+        if (MacroModeExclusiveMenuItem != null) MacroModeExclusiveMenuItem.Header = text.MacroExclusive;
+        if (MacroModeInterruptMenuItem != null) MacroModeInterruptMenuItem.Header = text.MacroInterrupt;
+        if (MacroModeSuspendMenuItem != null) MacroModeSuspendMenuItem.Header = text.MacroSuspend;
+        if (KeyboardNavigationMenuItem != null) KeyboardNavigationMenuItem.Header = text.KeyboardNavigation;
+        if (EmacsNavigationMenuItem != null) EmacsNavigationMenuItem.Header = text.EmacsNavigation;
+        if (ViNavigationMenuItem != null) ViNavigationMenuItem.Header = text.ViNavigation;
+        if (MouseGesturesMenuItem != null) MouseGesturesMenuItem.Header = text.MouseGestures;
+        if (DisplayBehaviorMenuItem != null) DisplayBehaviorMenuItem.Header = text.DisplayBehavior;
+        if (ShowLayerPreferenceMenuItem != null) ShowLayerPreferenceMenuItem.Header = text.ShowLayerPreference;
+        if (KeyboardPlacementMenuItem != null) KeyboardPlacementMenuItem.Header = text.KeyboardPlacement;
+        if (MousePlacementMenuItem != null) MousePlacementMenuItem.Header = text.MousePlacement;
+        if (SearchPlacementMenuItem != null) SearchPlacementMenuItem.Header = text.SearchPlacement;
+        if (MousePlacementFollowKeyboardMenuItem != null) MousePlacementFollowKeyboardMenuItem.Header = text.FollowKeyboardPlacement;
+        if (SearchPlacementFollowKeyboardMenuItem != null) SearchPlacementFollowKeyboardMenuItem.Header = text.FollowKeyboardPlacement;
+        if (MousePlacementFixedMenuItem != null) MousePlacementFixedMenuItem.Header = text.PlacementFixed;
+        if (MousePlacementFollowMouseMenuItem != null) MousePlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
+        if (MousePlacementScreenCenterMenuItem != null) MousePlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
+        if (KeyboardPlacementFixedMenuItem != null) KeyboardPlacementFixedMenuItem.Header = text.PlacementFixed;
+        if (KeyboardPlacementFollowMouseMenuItem != null) KeyboardPlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
+        if (KeyboardPlacementScreenCenterMenuItem != null) KeyboardPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
+        if (SearchPlacementFixedMenuItem != null) SearchPlacementFixedMenuItem.Header = text.PlacementFixed;
+        if (SearchPlacementFollowMouseMenuItem != null) SearchPlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
+        if (SearchPlacementScreenCenterMenuItem != null) SearchPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
+        if (PrefixLayerShortcutMenuItem != null) PrefixLayerShortcutMenuItem.Header = text.PrefixLayerShortcut;
+        if (RemoteSessionPriorityMenuItem != null) RemoteSessionPriorityMenuItem.Header = text.RemoteSessionPriority;
+        if (MinimizeTriggersMenuItem != null) MinimizeTriggersMenuItem.Header = text.MinimizeTriggers;
+        if (ShortcutListMenuItem != null) ShortcutListMenuItem.Header = text.ShortcutList;
+        if (LanguageMenuItem != null) LanguageMenuItem.Header = text.LanguageMenu;
+        if (LanguageJapaneseMenuItem != null) LanguageJapaneseMenuItem.Header = text.LanguageJapanese;
+        if (LanguageEnglishMenuItem != null) LanguageEnglishMenuItem.Header = text.LanguageEnglish;
+        if (AlwaysOnTopMenuItem != null) AlwaysOnTopMenuItem.Header = text.AlwaysOnTop;
+        if (MinimizeToTrayMenuItem != null) MinimizeToTrayMenuItem.Header = text.MinimizeToTray;
+        if (ExitMenuItem != null) ExitMenuItem.Header = text.Exit;
+
+        if (_searchOverlayWindow != null)
+        {
+            _searchOverlayWindow.SetSearchLabel(text.SearchLabel);
+        }
+
+        UpdateLanguageMenuState();
+    }
+
+    private void UpdateLanguageMenuState()
+    {
+        if (LanguageJapaneseMenuItem != null)
+        {
+            LanguageJapaneseMenuItem.IsChecked = _currentLanguage == AppLanguage.Japanese;
+        }
+        if (LanguageEnglishMenuItem != null)
+        {
+            LanguageEnglishMenuItem.IsChecked = _currentLanguage == AppLanguage.English;
         }
     }
 
@@ -3998,6 +4221,7 @@ public partial class MainWindow : Window
             _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
             _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
             ApplyTopmostState();
+            _currentLanguage = _config.Language;
             _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             ApplySlotLayout();
@@ -4005,6 +4229,7 @@ public partial class MainWindow : Window
             Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
             RefreshUi();
             UpdateTrayMenuState();
+            ApplyLanguageToUi();
             _configService.Save(_config);
             WpfMessageBox.Show("コンフィグのインポートが完了しました。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -4371,6 +4596,29 @@ public partial class MainWindow : Window
         if (sender is not MenuItem item) return;
         _config.AlwaysOnTop = item.IsChecked;
         ApplyTopmostState();
+        _configService.Save(_config);
+    }
+
+    private void OnLanguageJapanese(object sender, RoutedEventArgs e) => SetLanguage(AppLanguage.Japanese);
+
+    private void OnLanguageEnglish(object sender, RoutedEventArgs e) => SetLanguage(AppLanguage.English);
+
+    private void SetLanguage(AppLanguage language)
+    {
+        if (_config == null)
+        {
+            return;
+        }
+
+        if (_config.Language == language)
+        {
+            UpdateLanguageMenuState();
+            return;
+        }
+
+        _config.Language = language;
+        _currentLanguage = language;
+        ApplyLanguageToUi();
         _configService.Save(_config);
     }
 

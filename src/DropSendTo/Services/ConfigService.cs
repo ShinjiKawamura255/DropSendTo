@@ -173,6 +173,10 @@ public class ConfigService
         {
             cfg.SearchPlacementMode = SearchOverlayPlacementMode.Fixed;
         }
+        if (!Enum.IsDefined(typeof(AppLanguage), cfg.Language))
+        {
+            cfg.Language = AppLanguage.Japanese;
+        }
         if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
         {
             cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
@@ -520,6 +524,13 @@ public class ConfigService
         {
             cfg.PreferRemoteSessions = true;
             cfg.Version = 18;
+            changed = true;
+        }
+
+        if (cfg.Version < 19)
+        {
+            cfg.Language = AppLanguage.Japanese;
+            cfg.Version = 19;
             changed = true;
         }
 

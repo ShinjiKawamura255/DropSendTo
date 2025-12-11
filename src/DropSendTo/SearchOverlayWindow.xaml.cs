@@ -46,6 +46,11 @@ public partial class SearchOverlayWindow : Window
         }
     }
 
+    public void SetSearchLabel(string text)
+    {
+        SearchLabel.Text = text;
+    }
+
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {
         SearchTextChanged?.Invoke(this, SearchBox.Text);

@@ -46,6 +46,7 @@ public class AppConfig
     public bool PreferRemoteSessions { get; set; } = true;
     public SearchOverlayPlacementMode SearchPlacementMode { get; set; } = SearchOverlayPlacementMode.Fixed;
     public bool SearchPlacementFollowsKeyboard { get; set; }
+    public AppLanguage Language { get; set; } = AppLanguage.Japanese;
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()
@@ -85,6 +86,12 @@ public enum SearchOverlayPlacementMode
     Fixed = 0,
     MouseFollow = 1,
     CursorScreenCenter = 2
+}
+
+public enum AppLanguage
+{
+    Japanese = 0,
+    English = 1
 }
 
 public sealed class CustomSlotSizeOptions

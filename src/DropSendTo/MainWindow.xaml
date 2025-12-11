@@ -14,19 +14,19 @@
         ShowInTaskbar="False">
     <Window.ContextMenu>
         <ContextMenu Opened="OnContextMenuOpened">
-            <MenuItem Header="設定ファイル / ログ">
-                <MenuItem Header="Open Config" Click="OnOpenConfig"/>
-                <MenuItem Header="Open Logs" Click="OnOpenLogs"/>
-                <MenuItem Header="Export Config..." Click="OnExportConfig"/>
-                <MenuItem Header="Import Config..." Click="OnImportConfig"/>
+            <MenuItem x:Name="ConfigMenuItem" Header="設定ファイル / ログ">
+                <MenuItem x:Name="OpenConfigMenuItem" Header="Open Config" Click="OnOpenConfig"/>
+                <MenuItem x:Name="OpenLogsMenuItem" Header="Open Logs" Click="OnOpenLogs"/>
+                <MenuItem x:Name="ExportConfigMenuItem" Header="Export Config..." Click="OnExportConfig"/>
+                <MenuItem x:Name="ImportConfigMenuItem" Header="Import Config..." Click="OnImportConfig"/>
             </MenuItem>
-            <MenuItem Header="Change Prefix..." Click="OnChangePrefix"/>
-            <MenuItem Header="検索ホットキー..." Click="OnConfigureSearchHotkey"/>
-            <MenuItem Header="レイヤー設定">
-                <MenuItem Header="レイヤー数..." Click="OnConfigureLayerCount"/>
-                <MenuItem Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
+            <MenuItem x:Name="ChangePrefixMenuItem" Header="Change Prefix..." Click="OnChangePrefix"/>
+            <MenuItem x:Name="SearchHotkeyMenuItem" Header="検索ホットキー..." Click="OnConfigureSearchHotkey"/>
+            <MenuItem x:Name="LayerSettingsMenuItem" Header="レイヤー設定">
+                <MenuItem x:Name="LayerCountMenuItem" Header="レイヤー数..." Click="OnConfigureLayerCount"/>
+                <MenuItem x:Name="EditLayerNamesMenuItem" Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
             </MenuItem>
-            <MenuItem Header="レイアウト / 表示">
+            <MenuItem x:Name="LayoutDisplayMenuItem" Header="レイアウト / 表示">
                 <MenuItem x:Name="LayoutMenuItem"
                           Header="Slot Layout..."
                           Click="OnConfigureSlotLayout"/>
@@ -38,7 +38,7 @@
                           IsCheckable="True"
                           Click="OnToggleHideEmptySlotNames"/>
             </MenuItem>
-            <MenuItem Header="起動時のウィンドウ">
+            <MenuItem x:Name="StartupWindowMenuItem" Header="起動時のウィンドウ">
                 <MenuItem x:Name="StartupAlwaysShowMenuItem"
                           Header="常にウィンドウを表示"
                           IsCheckable="True"
@@ -48,7 +48,7 @@
                           IsCheckable="True"
                           Click="OnStartupRestoreState"/>
             </MenuItem>
-            <MenuItem Header="Macro 実行モード">
+            <MenuItem x:Name="MacroModeMenuItem" Header="Macro 実行モード">
                 <MenuItem x:Name="MacroModeExclusiveMenuItem"
                           Header="排他（単一実行のみ）"
                           IsCheckable="True"
@@ -62,7 +62,7 @@
                           IsCheckable="True"
                           Click="OnMacroModeSuspend"/>
             </MenuItem>
-            <MenuItem Header="キーボード操作">
+            <MenuItem x:Name="KeyboardNavigationMenuItem" Header="キーボード操作">
                 <MenuItem x:Name="EmacsNavigationMenuItem"
                           Header="Emacs ライク操作"
                           IsCheckable="True"
@@ -72,12 +72,12 @@
                           IsCheckable="True"
                           Click="OnToggleViNavigation"/>
             </MenuItem>
-            <MenuItem Header="マウスジェスチャ (表示/最小化)..."
+            <MenuItem x:Name="MouseGesturesMenuItem" Header="マウスジェスチャ (表示/最小化)..."
                       Click="OnConfigureMouseGestures"/>
-            <MenuItem Header="表示挙動">
-                <MenuItem Header="表示時のレイヤー切替..."
+            <MenuItem x:Name="DisplayBehaviorMenuItem" Header="表示挙動">
+                <MenuItem x:Name="ShowLayerPreferenceMenuItem" Header="表示時のレイヤー切替..."
                           Click="OnConfigureShowLayerPreferences"/>
-                <MenuItem Header="表示位置 (キーボード)">
+                <MenuItem x:Name="KeyboardPlacementMenuItem" Header="表示位置 (キーボード)">
                     <MenuItem x:Name="KeyboardPlacementFixedMenuItem"
                               Header="固定位置"
                               IsCheckable="True"
@@ -91,7 +91,7 @@
                               IsCheckable="True"
                               Click="OnKeyboardPlacementScreenCenter"/>
                 </MenuItem>
-                <MenuItem Header="表示位置 (マウスジェスチャ)">
+                <MenuItem x:Name="MousePlacementMenuItem" Header="表示位置 (マウスジェスチャ)">
                     <MenuItem x:Name="MousePlacementFollowKeyboardMenuItem"
                               Header="キーボード設定に追従"
                               IsCheckable="True"
@@ -110,7 +110,7 @@
                               IsCheckable="True"
                               Click="OnMousePlacementScreenCenter"/>
                 </MenuItem>
-                <MenuItem Header="表示位置 (検索)">
+                <MenuItem x:Name="SearchPlacementMenuItem" Header="表示位置 (検索)">
                     <MenuItem x:Name="SearchPlacementFollowKeyboardMenuItem"
                               Header="キーボード設定に追従"
                               IsCheckable="True"
@@ -138,10 +138,20 @@
                       Header="Prefix: リモートセッション優先 (RDP/Citrix)"
                       IsCheckable="True"
                       Click="OnToggleRemoteSessionPriority"/>
-            <MenuItem Header="最小化トリガー..."
+            <MenuItem x:Name="MinimizeTriggersMenuItem" Header="最小化トリガー..."
                       Click="OnConfigureMinimizeTriggers"/>
-            <MenuItem Header="ショートカット一覧..."
+            <MenuItem x:Name="ShortcutListMenuItem" Header="ショートカット一覧..."
                       Click="OnShowShortcutList"/>
+            <MenuItem x:Name="LanguageMenuItem" Header="Language">
+                <MenuItem x:Name="LanguageJapaneseMenuItem"
+                          Header="日本語"
+                          IsCheckable="True"
+                          Click="OnLanguageJapanese"/>
+                <MenuItem x:Name="LanguageEnglishMenuItem"
+                          Header="English"
+                          IsCheckable="True"
+                          Click="OnLanguageEnglish"/>
+            </MenuItem>
             <Separator/>
             <MenuItem x:Name="AlwaysOnTopMenuItem"
                       Header="常に最前面に表示"
@@ -151,7 +161,7 @@
             <MenuItem x:Name="MinimizeToTrayMenuItem"
                       Header="Minimize to Tray"
                       Click="OnMinimizeToTray"/>
-            <MenuItem Header="Exit" Click="OnExit"/>
+            <MenuItem x:Name="ExitMenuItem" Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
     <Border CornerRadius="12" Background="{StaticResource Theme.OverlayScrimBrush}" Padding="6">
