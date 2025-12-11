@@ -9,6 +9,7 @@ namespace DropSendTo;
 internal partial class CustomSlotSizeDialog : Window
 {
     public CustomSlotSizeOptions ResultOptions { get; private set; } = CustomSlotSizeOptions.CreateDefault();
+    public event EventHandler<CustomSlotSizeOptions>? SlotSizeApplied;
 
     private CustomSlotSizeOptions _current;
 
@@ -29,9 +30,9 @@ internal partial class CustomSlotSizeDialog : Window
         SlotMarginBox.Text = _current.SlotMargin.ToString(CultureInfo.CurrentCulture);
     }
 
-    private void OnOk(object sender, RoutedEventArgs e)
+    private void OnApply(object sender, RoutedEventArgs e)
     {
-        if (!TryParse(out var options, out var error))
+        if (!TryGetValidatedOptions(out var normalized, out var error))
         {
             ErrorBlock.Text = error;
             ErrorBlock.Visibility = Visibility.Visible;
@@ -39,7 +40,23 @@ internal partial class CustomSlotSizeDialog : Window
         }
 
         ErrorBlock.Visibility = Visibility.Collapsed;
-        ResultOptions = CustomSlotSizeNormalizer.Normalize(options);
+        ResultOptions = normalized;
+        _current = normalized.Clone();
+        PopulateFields();
+        SlotSizeApplied?.Invoke(this, ResultOptions);
+    }
+
+    private void OnOk(object sender, RoutedEventArgs e)
+    {
+        if (!TryGetValidatedOptions(out var normalized, out var error))
+        {
+            ErrorBlock.Text = error;
+            ErrorBlock.Visibility = Visibility.Visible;
+            return;
+        }
+
+        ErrorBlock.Visibility = Visibility.Collapsed;
+        ResultOptions = normalized;
         DialogResult = true;
         Close();
     }
@@ -50,9 +67,10 @@ internal partial class CustomSlotSizeDialog : Window
         Close();
     }
 
-    private bool TryParse(out CustomSlotSizeOptions options, out string error)
+    private bool TryGetValidatedOptions(out CustomSlotSizeOptions normalized, out string error)
     {
-        options = _current.Clone();
+        var options = _current.Clone();
+        normalized = options;
         error = string.Empty;
         if (!TryParseDouble(SlotHeightBox.Text, out var height))
         {
@@ -97,7 +115,7 @@ internal partial class CustomSlotSizeDialog : Window
         options.ColumnStep = columnStep;
         options.SlotMargin = margin;
 
-        var normalized = CustomSlotSizeNormalizer.Normalize(options.Clone());
+        normalized = CustomSlotSizeNormalizer.Normalize(options.Clone());
         if (normalized.SlotHeight != options.SlotHeight && options.SlotHeight < normalized.SlotHeight)
         {
             error = $"スロット高さはフォントと余白に合わせて最低 {normalized.SlotHeight:0.#} 以上にする必要があります。";

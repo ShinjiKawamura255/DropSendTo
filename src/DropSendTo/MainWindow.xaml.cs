@@ -3981,17 +3981,42 @@ public partial class MainWindow : Window
             {
                 Owner = this
             };
+            bool appliedDuringDialog = false;
+            dialog.SlotSizeApplied += (_, options) =>
+            {
+                appliedDuringDialog = true;
+                ApplyCustomSlotSize(options);
+            };
             WindowCascadeService.Arrange(dialog, this);
             var result = dialog.ShowDialog();
-            if (result != true)
+            if (result == true && !appliedDuringDialog)
+            {
+                ApplyCustomSlotSize(dialog.ResultOptions?.Clone() ?? CustomSlotSizeOptions.CreateDefault());
+            }
+            else if (result != true && !appliedDuringDialog)
             {
                 return;
             }
 
-            _config.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(dialog.ResultOptions?.Clone() ?? CustomSlotSizeOptions.CreateDefault());
+            return;
         }
 
         _config.SlotSize = size;
+        ApplySlotLayout();
+        RefreshUi();
+        ClampWindowWithinBounds();
+        _configService.Save(_config);
+    }
+
+    private void ApplyCustomSlotSize(CustomSlotSizeOptions options)
+    {
+        if (_config == null)
+        {
+            return;
+        }
+
+        _config.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(options.Clone());
+        _config.SlotSize = SlotSize.Custom;
         ApplySlotLayout();
         RefreshUi();
         ClampWindowWithinBounds();

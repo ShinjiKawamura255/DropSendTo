@@ -6,7 +6,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         Background="{StaticResource Theme.WindowBackgroundBrush}"
-        Height="340"
+        Height="360"
         Width="420"
         WindowStartupLocation="CenterOwner">
     <Border Padding="12" Background="{StaticResource Theme.WindowBackgroundBrush}">
@@ -43,32 +43,32 @@
                     <StackPanel Margin="0,0,8,8">
                         <TextBlock Text="スロット高さ (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="SlotHeightBox" />
-                        <TextBlock Text="24〜120。フォントと余白に合わせて自動調整されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="24〜120。タイトル/ステータスのフォントと余白を含む高さの基準になります。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="8,0,0,8">
                         <TextBlock Text="タイトルフォントサイズ" Margin="0,0,0,2"/>
                         <TextBox x:Name="TitleFontBox" />
-                        <TextBlock Text="8〜18。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" />
+                        <TextBlock Text="8〜18。大きくすると高さの最低値も上がります。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="0,0,8,8">
                         <TextBlock Text="ステータスフォントサイズ" Margin="0,0,0,2"/>
                         <TextBox x:Name="StatusFontBox" />
-                        <TextBlock Text="8〜16。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" />
+                        <TextBlock Text="8〜16。Status 行の高さに影響します。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="8,0,0,8">
                         <TextBlock Text="スロット間隔 (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="SlotMarginBox" />
-                        <TextBlock Text="0〜12。左右・上下に同じ余白を適用します。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="0〜12。スロット外側の余白（上下左右）。ドラッグ間隔や行列の総サイズにも反映されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="縦方向ステップ (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="RowStepBox" />
-                        <TextBlock Text="追加行の高さ増分。最低でもスロット高さ+余白以上。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="追加行の高さ増分。Slot 高さ+余白より小さい場合は自動で底上げされます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="8,0,0,0">
                         <TextBlock Text="横方向ステップ (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="ColumnStepBox" />
-                        <TextBlock Text="Small と同等幅を基準に 50〜120 で調整。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="Small と同等幅を基準に 50〜120 で調整。列の横幅ステップに利用されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </UniformGrid>
             </StackPanel>
@@ -76,6 +76,11 @@
             <StackPanel Grid.Row="2"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right">
+                <Button Content="Apply"
+                        Width="90"
+                        Height="32"
+                        Margin="6,0"
+                        Click="OnApply"/>
                 <Button Content="OK"
                         Width="90"
                         Height="32"
