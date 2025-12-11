@@ -15,6 +15,7 @@ public partial class App : WpfApplication
     private readonly LauncherService _launcher = new();
     private readonly LoggerService _logger = LoggerService.Instance;
     private readonly SingleInstanceService _singleInstance = new(@"Global\DropSendTo");
+    private readonly HorizontalMouseWheelService _horizontalMouseWheelService = new();
 
     public App()
     {
@@ -49,6 +50,7 @@ public partial class App : WpfApplication
         }
 
         base.OnStartup(e);
+        _horizontalMouseWheelService.Start();
 
         _logger.Info($"DropSendTo starting (args={e.Args.Length}).");
 
@@ -102,6 +104,7 @@ public partial class App : WpfApplication
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _horizontalMouseWheelService.Dispose();
         base.OnExit(e);
         _singleInstance.Dispose();
     }
