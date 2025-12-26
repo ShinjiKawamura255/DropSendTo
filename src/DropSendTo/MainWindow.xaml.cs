@@ -1188,7 +1188,7 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
-        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var key = GetEffectiveKey(e);
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
 
         if (TryMinimizeOnEscape(key, modifiers))
@@ -2192,7 +2192,7 @@ public partial class MainWindow : Window
 
     private bool HandleSearchKey(System.Windows.Input.KeyEventArgs e)
     {
-        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var key = GetEffectiveKey(e);
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
         bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
         bool viEnabled = _config?.EnableViNavigation ?? false;
@@ -2260,7 +2260,7 @@ public partial class MainWindow : Window
             return true;
         }
 
-        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var key = GetEffectiveKey(e);
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
         NavigationCommand command = NavigationCommand.MoveUp;
         if (_searchLayerActive && key == System.Windows.Input.Key.Tab &&
@@ -2390,6 +2390,12 @@ public partial class MainWindow : Window
         MetaPrefix
     }
 
+    private static System.Windows.Input.Key GetEffectiveKey(System.Windows.Input.KeyEventArgs e)
+    {
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        return key == System.Windows.Input.Key.ImeProcessed ? e.ImeProcessedKey : key;
+    }
+
     private bool TryMapNavigationCommand(System.Windows.Input.KeyEventArgs e, System.Windows.Input.Key key, out NavigationCommand command)
     {
         bool emacsEnabled = _config?.EnableEmacsNavigation ?? false;
@@ -2398,7 +2404,6 @@ public partial class MainWindow : Window
         var modifiers = System.Windows.Input.Keyboard.Modifiers;
         bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
         bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
-        bool shift = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
         bool hasOther = (modifiers & ~(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift | System.Windows.Input.ModifierKeys.Alt)) != 0;
         if (hasOther)
         {
@@ -2411,7 +2416,7 @@ public partial class MainWindow : Window
             return true;
         }
 
-        if (viEnabled && !ctrl && !alt && (key == System.Windows.Input.Key.OemSemicolon || key == System.Windows.Input.Key.Oem1) && shift)
+        if (viEnabled && IsViColonInput(key, modifiers))
         {
             command = NavigationCommand.OpenMenu;
             return true;
@@ -2503,6 +2508,80 @@ public partial class MainWindow : Window
         }
 
         return false;
+    }
+
+    private static bool IsViColonInput(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers)
+    {
+        bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
+        bool hasOther = (modifiers & ~(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift | System.Windows.Input.ModifierKeys.Alt)) != 0;
+        if (ctrl || alt || hasOther)
+        {
+            return false;
+        }
+
+        if (TryGetInputCharacter(key, modifiers, out var input))
+        {
+            return input == ':' || input == '：';
+        }
+
+        return (key == System.Windows.Input.Key.OemSemicolon || key == System.Windows.Input.Key.Oem1) &&
+               (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+    }
+
+    private static bool TryGetInputCharacter(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys modifiers, out char value)
+    {
+        value = '\0';
+        int vk = KeyInterop.VirtualKeyFromKey(key);
+        if (vk == 0)
+        {
+            return false;
+        }
+
+        var state = new byte[256];
+        if (!NativeMethods.GetKeyboardState(state))
+        {
+            return false;
+        }
+
+        ApplyModifierState(state, modifiers);
+
+        uint scanCode = NativeMethods.MapVirtualKey((uint)vk, NativeMethods.MAPVK_VK_TO_VSC);
+        var buffer = new StringBuilder(4);
+        int result = NativeMethods.ToUnicodeEx((uint)vk, scanCode, state, buffer, buffer.Capacity, 0, NativeMethods.GetKeyboardLayout(0));
+        if (result <= 0 || buffer.Length == 0)
+        {
+            return false;
+        }
+
+        value = buffer[0];
+        return true;
+    }
+
+    private static void ApplyModifierState(byte[] state, System.Windows.Input.ModifierKeys modifiers)
+    {
+        bool shift = (modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+        bool ctrl = (modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool alt = (modifiers & System.Windows.Input.ModifierKeys.Alt) != 0;
+        SetKeyPressed(state, NativeMethods.VK_SHIFT, shift);
+        SetKeyPressed(state, NativeMethods.VK_LSHIFT, shift);
+        SetKeyPressed(state, NativeMethods.VK_RSHIFT, shift);
+        SetKeyPressed(state, NativeMethods.VK_CONTROL, ctrl);
+        SetKeyPressed(state, NativeMethods.VK_LCONTROL, ctrl);
+        SetKeyPressed(state, NativeMethods.VK_RCONTROL, ctrl);
+        SetKeyPressed(state, NativeMethods.VK_MENU, alt);
+        SetKeyPressed(state, NativeMethods.VK_LMENU, alt);
+        SetKeyPressed(state, NativeMethods.VK_RMENU, alt);
+    }
+
+    private static void SetKeyPressed(byte[] state, int vKey, bool isPressed)
+    {
+        if (vKey < 0 || vKey >= state.Length)
+        {
+            return;
+        }
+
+        state[vKey] = isPressed ? (byte)0x80 : (byte)0x00;
     }
 
     private void MoveKeyboardSelectionToBoundary(bool start)
@@ -2634,7 +2713,7 @@ public partial class MainWindow : Window
             return false;
         }
 
-        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        var key = GetEffectiveKey(e);
         if (!TryMapMenuCommand(key, System.Windows.Input.Keyboard.Modifiers, out var command))
         {
             return false;
@@ -2925,7 +3004,7 @@ public partial class MainWindow : Window
             return true;
         }
 
-        if (viEnabled && (key == System.Windows.Input.Key.OemSemicolon || key == System.Windows.Input.Key.Oem1) && shift && !ctrl && !alt)
+        if (viEnabled && IsViColonInput(key, modifiers))
         {
             command = NavigationCommand.Cancel;
             return true;
@@ -6475,6 +6554,9 @@ public partial class MainWindow : Window
         internal const int VK_MBUTTON = 0x04;
         internal const int VK_XBUTTON1 = 0x05;
         internal const int VK_XBUTTON2 = 0x06;
+        internal const int VK_SHIFT = 0x10;
+        internal const int VK_CONTROL = 0x11;
+        internal const int VK_MENU = 0x12;
         internal const ushort VK_LSHIFT = 0xA0;
         internal const ushort VK_RSHIFT = 0xA1;
         internal const ushort VK_LCONTROL = 0xA2;
@@ -6483,6 +6565,7 @@ public partial class MainWindow : Window
         internal const ushort VK_RMENU = 0xA5;
         internal const ushort VK_LWIN = 0x5B;
         internal const ushort VK_RWIN = 0x5C;
+        internal const uint MAPVK_VK_TO_VSC = 0;
         private const int MOUSEEVENTF_MOVE = 0x0001;
         private const int INPUT_MOUSE = 0;
         private const int INPUT_KEYBOARD = 1;
@@ -6530,6 +6613,25 @@ public partial class MainWindow : Window
 
         [DllImport("user32.dll")]
         internal static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll")]
+        internal static extern bool GetKeyboardState(byte[] lpKeyState);
+
+        [DllImport("user32.dll")]
+        internal static extern IntPtr GetKeyboardLayout(uint idThread);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        internal static extern int ToUnicodeEx(
+            uint wVirtKey,
+            uint wScanCode,
+            byte[] lpKeyState,
+            [Out] StringBuilder pwszBuff,
+            int cchBuff,
+            uint wFlags,
+            IntPtr dwhkl);
+
+        [DllImport("user32.dll")]
+        internal static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct POINT
