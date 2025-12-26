@@ -19,10 +19,11 @@ internal sealed record MouseGestureOptions(
     bool SuppressDuringPresentation,
     bool EnforceRadiusLimit,
     int MinRadiusPixels,
-    int MaxRadiusPixels)
+    int MaxRadiusPixels,
+    bool EnableDragMiddleClickShow)
 {
     public static MouseGestureOptions Default { get; } =
-        new(true, 3, 2, false, false, false, true, 0, 140);
+        new(true, 3, 2, false, false, false, true, 0, 140, false);
 
     public MouseGestureOptions Normalize()
     {

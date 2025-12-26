@@ -716,6 +716,12 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 35)
+        {
+            cfg.Version = 35;
+            changed = true;
+        }
+
         return changed;
     }
 }

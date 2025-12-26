@@ -138,8 +138,6 @@ public partial class MainWindow : Window
         string PlacementFixed,
         string PlacementMouseFollow,
         string PlacementScreenCenter,
-        string PrefixLayerShortcut,
-        string RemoteSessionPriority,
         string MinimizeTriggers,
         string ShortcutList,
         string LanguageMenu,
@@ -185,8 +183,6 @@ public partial class MainWindow : Window
         PlacementFixed: "固定位置",
         PlacementMouseFollow: "マウスフォロー",
         PlacementScreenCenter: "画面中央 (マウスがある画面)",
-        PrefixLayerShortcut: "Prefix: Ctrl+N/P でレイヤー切替",
-        RemoteSessionPriority: "Prefix: リモートセッション優先 (RDP/Citrix)",
         MinimizeTriggers: "最小化トリガー...",
         ShortcutList: "ショートカット一覧...",
         LanguageMenu: "Language",
@@ -232,8 +228,6 @@ public partial class MainWindow : Window
         PlacementFixed: "Fixed position",
         PlacementMouseFollow: "Follow mouse",
         PlacementScreenCenter: "Screen center (cursor screen)",
-        PrefixLayerShortcut: "Prefix: Switch layers with Ctrl+N/P",
-        RemoteSessionPriority: "Prefix: Prefer remote session (RDP/Citrix)",
         MinimizeTriggers: "Minimize triggers...",
         ShortcutList: "Shortcut list...",
         LanguageMenu: "Language",
@@ -748,8 +742,6 @@ public partial class MainWindow : Window
         if (SearchPlacementFixedMenuItem != null) SearchPlacementFixedMenuItem.Header = text.PlacementFixed;
         if (SearchPlacementFollowMouseMenuItem != null) SearchPlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
         if (SearchPlacementScreenCenterMenuItem != null) SearchPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
-        if (PrefixLayerShortcutMenuItem != null) PrefixLayerShortcutMenuItem.Header = text.PrefixLayerShortcut;
-        if (RemoteSessionPriorityMenuItem != null) RemoteSessionPriorityMenuItem.Header = text.RemoteSessionPriority;
         if (MinimizeTriggersMenuItem != null) MinimizeTriggersMenuItem.Header = text.MinimizeTriggers;
         if (ShortcutListMenuItem != null) ShortcutListMenuItem.Header = text.ShortcutList;
         if (LanguageMenuItem != null) LanguageMenuItem.Header = text.LanguageMenu;
@@ -4357,15 +4349,16 @@ public partial class MainWindow : Window
             }
 
             var result = dlg.ResultOptions;
-        bool changed =
-            _config.EnableMouseGestures != result.Enabled
-            || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
-            || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
-            || _config.MouseGestureInvertDirections != result.InvertDirections
-            || _config.MouseGestureRequireCtrl != result.RequireCtrl
-            || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
-            || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
-            || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
+            bool changed =
+                _config.EnableMouseGestures != result.Enabled
+                || _config.EnableDragMiddleClickShow != result.EnableDragMiddleClickShow
+                || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
+                || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
+                || _config.MouseGestureInvertDirections != result.InvertDirections
+                || _config.MouseGestureRequireCtrl != result.RequireCtrl
+                || _config.MouseGestureSuppressDuringPresentation != result.SuppressDuringPresentation
+                || _config.MouseGestureEnforceRadiusLimit != result.EnforceRadiusLimit
+                || _config.MouseGestureMaxRadiusPixels != result.MaxRadiusPixels;
 
             if (!changed)
             {
@@ -4373,13 +4366,14 @@ public partial class MainWindow : Window
             }
 
             _config.EnableMouseGestures = result.Enabled;
+            _config.EnableDragMiddleClickShow = result.EnableDragMiddleClickShow;
             _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
             _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
             _config.MouseGestureInvertDirections = result.InvertDirections;
-        _config.MouseGestureRequireCtrl = result.RequireCtrl;
-        _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
-        _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
-        _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
+            _config.MouseGestureRequireCtrl = result.RequireCtrl;
+            _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+            _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
+            _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
 
             ApplyMouseGestureOptions();
             _configService.Save(_config);
@@ -4478,16 +4472,6 @@ public partial class MainWindow : Window
     private void OnMinimizeToTray(object sender, RoutedEventArgs e)
     {
         MinimizeWindowToTray();
-    }
-
-    private void OnTogglePrefixLayerShortcuts(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item) return;
-        bool enabled = item.IsChecked;
-        if (_config.EnablePrefixLayerShortcuts == enabled) return;
-        _config.EnablePrefixLayerShortcuts = enabled;
-        _shortcutService.SetPrefixLayerShortcutsEnabled(enabled);
-        _configService.Save(_config);
     }
 
     private void OnKeyboardPlacementFixed(object sender, RoutedEventArgs e)
@@ -4674,16 +4658,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnToggleRemoteSessionPriority(object sender, RoutedEventArgs e)
-    {
-        if (_config == null || _shortcutService == null || RemoteSessionPriorityMenuItem == null) return;
-        bool enabled = RemoteSessionPriorityMenuItem.IsChecked;
-        if (_config.PreferRemoteSessions == enabled) return;
-        _config.PreferRemoteSessions = enabled;
-        _shortcutService.SetRemoteSessionPreference(enabled);
-        _configService.Save(_config);
-    }
-
     private MouseGestureOptions BuildMouseGestureOptions() =>
         new(
             _config?.EnableMouseGestures ?? MouseGestureOptions.Default.Enabled,
@@ -4694,7 +4668,8 @@ public partial class MainWindow : Window
             _config?.MouseGestureSuppressDuringPresentation ?? MouseGestureOptions.Default.SuppressDuringPresentation,
             _config?.MouseGestureEnforceRadiusLimit ?? MouseGestureOptions.Default.EnforceRadiusLimit,
             _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels,
-            _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels);
+            _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels,
+            _config?.EnableDragMiddleClickShow ?? MouseGestureOptions.Default.EnableDragMiddleClickShow);
 
     private void ApplyMouseGestureOptions()
     {
@@ -4743,10 +4718,6 @@ public partial class MainWindow : Window
     private void UpdateContextMenuState()
     {
         AlwaysOnTopMenuItem.IsChecked = this.Topmost;
-        if (PrefixLayerShortcutMenuItem != null)
-        {
-            PrefixLayerShortcutMenuItem.IsChecked = _config.EnablePrefixLayerShortcuts;
-        }
         if (EmacsNavigationMenuItem != null)
         {
             EmacsNavigationMenuItem.IsChecked = _config.EnableEmacsNavigation;
@@ -4754,10 +4725,6 @@ public partial class MainWindow : Window
         if (ViNavigationMenuItem != null)
         {
             ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
-        }
-        if (RemoteSessionPriorityMenuItem != null)
-        {
-            RemoteSessionPriorityMenuItem.IsChecked = _config.PreferRemoteSessions;
         }
         if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null)
         {
@@ -5157,6 +5124,13 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
+        {
+            e.Handled = true;
+            e.Effects = WpfDragDropEffects.Link;
+        }
+
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
         b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));

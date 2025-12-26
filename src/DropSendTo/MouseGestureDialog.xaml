@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         x:ClassModifier="internal"
-        Title="マウスジェスチャ設定" Height="400" Width="460"
+        Title="マウスジェスチャ設定" Height="430" Width="460"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None"
         Background="{StaticResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
@@ -49,6 +49,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -62,33 +63,42 @@
                   Checked="OnEnableChanged"
                   Unchecked="OnEnableChanged"/>
 
-        <TextBlock Text="表示 (時計回り)"
-                   Grid.Row="1" Grid.Column="0"
-                   VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="ClockwiseTurnsBox"
-                 Grid.Row="1" Grid.Column="1"
-                 Margin="0,0,0,6"
-                 PreviewTextInput="OnTurnsPreviewTextInput"/>
+        <CheckBox x:Name="DragMiddleClickCheckBox"
+                  Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                  Margin="0,0,0,10"
+                  Checked="OnDragMiddleClickChanged"
+                  Unchecked="OnDragMiddleClickChanged">
+            <TextBlock Text="ドラッグ中にホイールクリックで表示 / Show on middle click while dragging"
+                       TextWrapping="Wrap"/>
+        </CheckBox>
 
-        <TextBlock Text="非表示 (反時計回り)"
+        <TextBlock Text="表示 (時計回り)"
                    Grid.Row="2" Grid.Column="0"
                    VerticalAlignment="Center" Margin="0,0,8,6"/>
-        <TextBox x:Name="CounterClockwiseTurnsBox"
+        <TextBox x:Name="ClockwiseTurnsBox"
                  Grid.Row="2" Grid.Column="1"
                  Margin="0,0,0,6"
                  PreviewTextInput="OnTurnsPreviewTextInput"/>
 
+        <TextBlock Text="非表示 (反時計回り)"
+                   Grid.Row="3" Grid.Column="0"
+                   VerticalAlignment="Center" Margin="0,0,8,6"/>
+        <TextBox x:Name="CounterClockwiseTurnsBox"
+                 Grid.Row="3" Grid.Column="1"
+                 Margin="0,0,0,6"
+                 PreviewTextInput="OnTurnsPreviewTextInput"/>
+
         <CheckBox x:Name="InvertDirectionsCheckBox"
-                  Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                  Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                   Content="方向を入れ替える（反時計回りで表示、時計回りで非表示）"
                   Margin="0,4,0,6"/>
 
         <CheckBox x:Name="RequireCtrlCheckBox"
-                  Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                  Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
                   Content="Ctrl を押しながらのときだけ表示（時計回り）を発動する（最小化は Ctrl 不要）"
                   Margin="0,0,0,6"/>
 
-        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,6">
+        <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,6">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <TextBlock Text="判定半径（最大のみ）" VerticalAlignment="Center" />
                 <TextBlock x:Name="RadiusValueText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource Theme.MutedTextBrush}"/>
@@ -119,11 +129,11 @@
         </StackPanel>
 
         <CheckBox x:Name="SuppressPresentationCheckBox"
-                  Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+                  Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
                   Content="発表モードでは発動させない"
                   Margin="0,0,0,10"/>
 
-        <TextBlock Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2"
+        <TextBlock Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                    TextWrapping="Wrap"
                    Foreground="{StaticResource Theme.MutedTextBrush}"
                    FontSize="12"
@@ -132,7 +142,7 @@
                    />
 
         <TextBlock x:Name="ErrorBlock"
-                   Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
+                   Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2"
                    Foreground="{StaticResource Theme.AlertTextBrush}"
                    FontSize="12"
                    Visibility="Collapsed"
@@ -140,7 +150,7 @@
                    Margin="0,0,0,6"/>
 
         <StackPanel Orientation="Horizontal"
-                    Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2"
+                    Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2"
                     HorizontalAlignment="Right">
             <Button Content="OK" Width="90" Height="32" Margin="4" IsDefault="True" Click="OnOk"/>
             <Button Content="Cancel" Width="90" Height="32" Margin="4" IsCancel="True" Click="OnCancel"/>

@@ -22,6 +22,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
         InitializeComponent();
         ResultOptions = (options ?? MouseGestureOptions.Default).Normalize();
         EnableCheckBox.IsChecked = ResultOptions.Enabled;
+        DragMiddleClickCheckBox.IsChecked = ResultOptions.EnableDragMiddleClickShow;
         ClockwiseTurnsBox.Text = ResultOptions.ClockwiseTurnsToShow.ToString();
         CounterClockwiseTurnsBox.Text = ResultOptions.CounterClockwiseTurnsToHide.ToString();
         InvertDirectionsCheckBox.IsChecked = ResultOptions.InvertDirections;
@@ -62,7 +63,8 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
             SuppressPresentationCheckBox.IsChecked == true,
             EnforceRadiusCheckBox.IsChecked == true,
             (int)MaxRadiusSlider.Value,
-            (int)MaxRadiusSlider.Value).Normalize();
+            (int)MaxRadiusSlider.Value,
+            DragMiddleClickCheckBox.IsChecked == true).Normalize();
 
         IsConfirmed = true;
         Close();
@@ -77,17 +79,21 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
 
     private void OnEnableChanged(object sender, RoutedEventArgs e) => UpdateEnabledState();
 
+    private void OnDragMiddleClickChanged(object sender, RoutedEventArgs e) => UpdateEnabledState();
+
     private void UpdateEnabledState()
     {
-        bool enabled = EnableCheckBox.IsChecked == true;
-        ClockwiseTurnsBox.IsEnabled = enabled;
-        CounterClockwiseTurnsBox.IsEnabled = enabled;
-        InvertDirectionsCheckBox.IsEnabled = enabled;
-        RequireCtrlCheckBox.IsEnabled = enabled;
-        SuppressPresentationCheckBox.IsEnabled = enabled;
-        MaxRadiusSlider.IsEnabled = enabled && EnforceRadiusCheckBox.IsChecked == true;
-        EnforceRadiusCheckBox.IsEnabled = enabled;
-        if (!enabled || EnforceRadiusCheckBox.IsChecked != true)
+        bool gestureEnabled = EnableCheckBox.IsChecked == true;
+        bool dragMiddleEnabled = DragMiddleClickCheckBox.IsChecked == true;
+        bool anyEnabled = gestureEnabled || dragMiddleEnabled;
+        ClockwiseTurnsBox.IsEnabled = gestureEnabled;
+        CounterClockwiseTurnsBox.IsEnabled = gestureEnabled;
+        InvertDirectionsCheckBox.IsEnabled = gestureEnabled;
+        RequireCtrlCheckBox.IsEnabled = gestureEnabled;
+        SuppressPresentationCheckBox.IsEnabled = anyEnabled;
+        MaxRadiusSlider.IsEnabled = gestureEnabled && EnforceRadiusCheckBox.IsChecked == true;
+        EnforceRadiusCheckBox.IsEnabled = gestureEnabled;
+        if (!gestureEnabled || EnforceRadiusCheckBox.IsChecked != true)
         {
             StopRadiusGuide();
         }

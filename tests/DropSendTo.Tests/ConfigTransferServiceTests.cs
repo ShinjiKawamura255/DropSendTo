@@ -27,6 +27,7 @@ public class ConfigTransferServiceTests
             SlotColumns = 3,
             SlotSize = SlotSize.Medium,
             EnableMouseGestures = false,
+            EnableDragMiddleClickShow = true,
             MouseGestureClockwiseTurnsToShow = 5,
             MouseGestureCounterClockwiseTurnsToHide = 4,
             MouseGestureInvertDirections = true,
@@ -63,6 +64,7 @@ public class ConfigTransferServiceTests
         imported.EnablePrefixLayerShortcuts.Should().BeTrue();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.EnableMouseGestures.Should().BeFalse();
+        imported.EnableDragMiddleClickShow.Should().BeTrue();
         imported.MouseGestureClockwiseTurnsToShow.Should().Be(5);
         imported.MouseGestureCounterClockwiseTurnsToHide.Should().Be(4);
         imported.MouseGestureInvertDirections.Should().BeTrue();

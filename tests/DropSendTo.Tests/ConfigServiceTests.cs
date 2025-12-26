@@ -37,6 +37,7 @@ public class ConfigServiceTests
         cfg.EnableEmacsNavigation.Should().BeFalse();
         cfg.EnableViNavigation.Should().BeFalse();
         cfg.EnableMouseGestures.Should().BeTrue();
+        cfg.EnableDragMiddleClickShow.Should().BeFalse();
         cfg.MouseGestureClockwiseTurnsToShow.Should().Be(3);
         cfg.MouseGestureCounterClockwiseTurnsToHide.Should().Be(2);
         cfg.CustomSlotSize.Should().NotBeNull();

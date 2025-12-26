@@ -101,6 +101,7 @@ internal sealed class ShortcutService : IDisposable
     private IntPtr _mouseHookHandle = IntPtr.Zero;
     private readonly MouseGestureDetector _mouseGestureDetector = new();
     private MouseGestureOptions _mouseGestureOptions = MouseGestureOptions.Default;
+    private bool _suppressDragMiddleClickRelease;
     private bool _disposed;
 
     private KeyChord? _prefixChord;
@@ -970,6 +971,36 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
+    private bool ShouldTriggerDragMiddleClickShow(MSLLHOOKSTRUCT data)
+    {
+        var options = _mouseGestureOptions;
+        if (!options.EnableDragMiddleClickShow)
+        {
+            return false;
+        }
+        if ((data.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED)) != 0)
+        {
+            return false;
+        }
+        if (!IsDragButtonPressed())
+        {
+            return false;
+        }
+        if (options.SuppressDuringPresentation && IsPresentationModeLikelyActive())
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static bool IsDragButtonPressed()
+    {
+        return (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0
+               || (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0
+               || (GetAsyncKeyState(VK_XBUTTON1) & 0x8000) != 0
+               || (GetAsyncKeyState(VK_XBUTTON2) & 0x8000) != 0;
+    }
+
     private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode < 0)
@@ -987,6 +1018,23 @@ internal sealed class ShortcutService : IDisposable
                 DispatchMouseGestureAction(action);
             }
             return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        }
+
+        bool suppressMiddleClick = false;
+        if (msg == WM_MBUTTONDOWN)
+        {
+            var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+            if (ShouldTriggerDragMiddleClickShow(data))
+            {
+                _suppressDragMiddleClickRelease = true;
+                suppressMiddleClick = true;
+                _dispatcher.BeginInvoke(() => MouseGestureShowRequested?.Invoke(this, EventArgs.Empty));
+            }
+        }
+        else if (msg == WM_MBUTTONUP && _suppressDragMiddleClickRelease)
+        {
+            _suppressDragMiddleClickRelease = false;
+            suppressMiddleClick = true;
         }
 
         bool shouldReset = msg is WM_LBUTTONDOWN or WM_LBUTTONUP
@@ -1008,7 +1056,7 @@ internal sealed class ShortcutService : IDisposable
             _mouseGestureDetector.Reset();
         }
 
-        return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        return suppressMiddleClick ? new IntPtr(1) : CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
     }
 
     public void Dispose()
@@ -1584,6 +1632,10 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_SHIFT = 0x10;
     private const ushort VK_MENU = 0x12;
+    private const ushort VK_LBUTTON = 0x01;
+    private const ushort VK_RBUTTON = 0x02;
+    private const ushort VK_XBUTTON1 = 0x05;
+    private const ushort VK_XBUTTON2 = 0x06;
     private const ushort VK_LCONTROL = 0xA2;
     private const ushort VK_RCONTROL = 0xA3;
     private const ushort VK_LSHIFT = 0xA0;

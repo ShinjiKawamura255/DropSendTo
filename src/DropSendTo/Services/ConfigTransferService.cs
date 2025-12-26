@@ -145,6 +145,7 @@ internal sealed class ConfigTransferService
         public bool EnableViNavigation { get; set; }
         public bool HideEmptySlotNames { get; set; }
         public bool EnableMouseGestures { get; set; }
+        public bool EnableDragMiddleClickShow { get; set; }
         public int MouseGestureClockwiseTurnsToShow { get; set; }
         public int MouseGestureCounterClockwiseTurnsToHide { get; set; }
         public bool MouseGestureInvertDirections { get; set; }
@@ -190,6 +191,7 @@ internal sealed class ConfigTransferService
                 EnableViNavigation = config.EnableViNavigation,
                 HideEmptySlotNames = config.HideEmptySlotNames,
                 EnableMouseGestures = config.EnableMouseGestures,
+                EnableDragMiddleClickShow = config.EnableDragMiddleClickShow,
                 MouseGestureClockwiseTurnsToShow = config.MouseGestureClockwiseTurnsToShow,
                 MouseGestureCounterClockwiseTurnsToHide = config.MouseGestureCounterClockwiseTurnsToHide,
                 MouseGestureInvertDirections = config.MouseGestureInvertDirections,
@@ -246,6 +248,7 @@ internal sealed class ConfigTransferService
                 EnableViNavigation = EnableViNavigation,
                 HideEmptySlotNames = HideEmptySlotNames,
                 EnableMouseGestures = EnableMouseGestures,
+                EnableDragMiddleClickShow = EnableDragMiddleClickShow,
                 MouseGestureClockwiseTurnsToShow = MouseGestureClockwiseTurnsToShow,
                 MouseGestureCounterClockwiseTurnsToHide = MouseGestureCounterClockwiseTurnsToHide,
                 MouseGestureInvertDirections = MouseGestureInvertDirections,
