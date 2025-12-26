@@ -66,6 +66,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _positionSaveTimer;
     private bool _pendingPositionSave;
     private bool _blockLocationSave;
+    private bool _suppressFixedCaptureFromTransientShow;
     private bool _minimizeOnLoaded;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
@@ -1138,6 +1139,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
             _shortcutService.SearchHotkeyRequested += OnSearchHotkeyRequested;
             _shortcutService.MouseGestureShowRequested += OnMouseGestureShowRequested;
+            _shortcutService.DragMiddleClickShowRequested += OnDragMiddleClickShowRequested;
             _shortcutService.MouseGestureHideRequested += OnMouseGestureHideRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
@@ -5002,6 +5004,7 @@ public partial class MainWindow : Window
     {
         if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
         {
+            _suppressFixedCaptureFromTransientShow = false;
             try { DragMove(); } catch { /* ignore */ }
         }
     }
@@ -5501,7 +5504,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_config == null || _isMinimizedToTray || _suppressFixedCapture || _suppressFixedCaptureDuringSearch)
+        if (_config == null || _isMinimizedToTray || _suppressFixedCapture || _suppressFixedCaptureDuringSearch || _suppressFixedCaptureFromTransientShow)
         {
             return;
         }
@@ -5660,42 +5663,12 @@ public partial class MainWindow : Window
 
     private void OnMouseGestureShowRequested(object? sender, EventArgs e)
     {
-        HideLayerNameOverlayImmediate();
-        bool wasHidden = IsWindowHiddenForShow();
-        ApplyShowLayerPreference(ShowLayerTrigger.MouseGesture, wasHidden);
-        bool isDrag = IsAnyMouseButtonPressed();
-        if (isDrag)
-        {
-            PositionWindowNearCursorForDragGesture();
-        }
-        var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
-        _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
-        if (isDrag)
-        {
-            // already positioned above
-        }
-        else
-        {
-            switch (placement)
-            {
-                case WindowPlacementMode.MouseFollow:
-                    PositionWindowAtMouse();
-                    break;
-                case WindowPlacementMode.CursorScreenCenter:
-                    PositionWindowAtCursorScreenCenter();
-                    break;
-                case WindowPlacementMode.Fixed:
-                default:
-                    _suppressFixedCapture = false;
-                    PositionWindowAtFixedLocation();
-                    break;
-            }
-        }
-        BringWindowToForeground();
-        RearmDragDropTargets();
-        ActivateKeyboardNavigation();
-        ShowLayerNameOverlay();
-        RefreshDragHoverIfMouseButtonDown();
+        ShowWindowFromMouseGesture(useTransientPosition: false);
+    }
+
+    private void OnDragMiddleClickShowRequested(object? sender, EventArgs e)
+    {
+        ShowWindowFromMouseGesture(useTransientPosition: true);
     }
 
     private void OnMouseGestureHideRequested(object? sender, EventArgs e)
@@ -5728,6 +5701,47 @@ public partial class MainWindow : Window
     private void OnPrefixPositionToggleRequested(object? sender, EventArgs e)
     {
         TogglePlacementMode(ShowLayerTrigger.Prefix);
+    }
+
+    private void ShowWindowFromMouseGesture(bool useTransientPosition)
+    {
+        HideLayerNameOverlayImmediate();
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.MouseGesture, wasHidden);
+        bool isDrag = IsAnyMouseButtonPressed();
+        _suppressFixedCaptureFromTransientShow = useTransientPosition && isDrag;
+        if (isDrag)
+        {
+            PositionWindowNearCursorForDragGesture();
+        }
+        var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
+        _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
+        if (isDrag)
+        {
+            // already positioned above
+        }
+        else
+        {
+            switch (placement)
+            {
+                case WindowPlacementMode.MouseFollow:
+                    PositionWindowAtMouse();
+                    break;
+                case WindowPlacementMode.CursorScreenCenter:
+                    PositionWindowAtCursorScreenCenter();
+                    break;
+                case WindowPlacementMode.Fixed:
+                default:
+                    _suppressFixedCapture = false;
+                    PositionWindowAtFixedLocation();
+                    break;
+            }
+        }
+        BringWindowToForeground();
+        RearmDragDropTargets();
+        ActivateKeyboardNavigation();
+        ShowLayerNameOverlay();
+        RefreshDragHoverIfMouseButtonDown();
     }
 
     // When the window is summoned during a drag, force a minimal cursor move so WPF delivers DragEnter/DragOver immediately.
@@ -6156,6 +6170,7 @@ public partial class MainWindow : Window
         _shortcutService.SearchHotkeyRequested -= OnSearchHotkeyRequested;
         _shortcutService.PrefixSearchRequested -= OnPrefixSearchRequested;
         _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
+        _shortcutService.DragMiddleClickShowRequested -= OnDragMiddleClickShowRequested;
         _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;
         _shortcutService.PrefixStateChanged -= OnPrefixStateChanged;
         SystemEvents.SessionSwitch -= OnSystemSessionSwitch;
@@ -6319,7 +6334,7 @@ public partial class MainWindow : Window
 
     private void CaptureFixedWindowPosition(bool clampBeforeStoring)
     {
-        if (_suppressFixedCapture)
+        if (_suppressFixedCapture || _suppressFixedCaptureFromTransientShow)
         {
             return;
         }

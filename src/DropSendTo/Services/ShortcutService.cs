@@ -150,6 +150,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixPreviousLayerRequested;
     public event EventHandler? PrefixSearchRequested;
     public event EventHandler? MouseGestureShowRequested;
+    public event EventHandler? DragMiddleClickShowRequested;
     public event EventHandler? MouseGestureHideRequested;
     public event EventHandler? SearchHotkeyRequested;
 
@@ -1028,7 +1029,7 @@ internal sealed class ShortcutService : IDisposable
             {
                 _suppressDragMiddleClickRelease = true;
                 suppressMiddleClick = true;
-                _dispatcher.BeginInvoke(() => MouseGestureShowRequested?.Invoke(this, EventArgs.Empty));
+                _dispatcher.BeginInvoke(() => DragMiddleClickShowRequested?.Invoke(this, EventArgs.Empty));
             }
         }
         else if (msg == WM_MBUTTONUP && _suppressDragMiddleClickRelease)
