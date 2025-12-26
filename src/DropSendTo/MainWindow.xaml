@@ -130,14 +130,6 @@
                               Click="OnSearchPlacementScreenCenter"/>
                 </MenuItem>
             </MenuItem>
-            <MenuItem x:Name="PrefixLayerShortcutMenuItem"
-                      Header="Prefix: Ctrl+N/P でレイヤー切替"
-                      IsCheckable="True"
-                      Click="OnTogglePrefixLayerShortcuts"/>
-            <MenuItem x:Name="RemoteSessionPriorityMenuItem"
-                      Header="Prefix: リモートセッション優先 (RDP/Citrix)"
-                      IsCheckable="True"
-                      Click="OnToggleRemoteSessionPriority"/>
             <MenuItem x:Name="MinimizeTriggersMenuItem" Header="最小化トリガー..."
                       Click="OnConfigureMinimizeTriggers"/>
             <MenuItem x:Name="ShortcutListMenuItem" Header="ショートカット一覧..."

@@ -63,12 +63,12 @@
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="縦方向ステップ (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="RowStepBox" />
-                        <TextBlock Text="追加行の高さ増分。Slot 高さ+余白より小さい場合は自動で底上げされます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="行ピッチ。1 行目以降を並べる縦の間隔になります。Slot 高さ+余白より小さい値は自動で底上げされます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel Margin="8,0,0,0">
                         <TextBlock Text="横方向ステップ (px)" Margin="0,0,0,2"/>
                         <TextBox x:Name="ColumnStepBox" />
-                        <TextBlock Text="Small と同等幅を基準に 50〜120 で調整。列の横幅ステップに利用されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Text="列ピッチ。各列の横幅の基準になります。Small 幅を基準に 50〜120 を目安にし、それより狭い値は自動で補正されます。" FontSize="11" Foreground="{StaticResource Theme.SubtleTextBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </UniformGrid>
             </StackPanel>
