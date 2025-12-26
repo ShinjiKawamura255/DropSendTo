@@ -98,6 +98,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         try
         {
+            entry.Value.Session.InvokeCancelHandlers();
             cts.Cancel();
             if (entry.Value.Session.IsPaused)
             {
@@ -377,12 +378,14 @@ public sealed class KeyboardMacroService : IDisposable
 
         MacroExecutionSession? session = null;
         CancellationTokenSource? linkedCts = null;
+        CancellationTokenRegistration cancelRegistration = default;
         try
         {
             linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             session = new MacroExecutionSession(_macroLock);
             session.MarkLockHeld();
             SetMacroRunning(linkedCts, session);
+            cancelRegistration = linkedCts.Token.Register(() => session.InvokeCancelHandlers());
             string? commandOverridePath = null;
             MacroExecutionResult result;
             try
@@ -429,6 +432,7 @@ public sealed class KeyboardMacroService : IDisposable
             {
                 ClearMacroRunning(session);
             }
+            cancelRegistration.Dispose();
             linkedCts?.Dispose();
             if (session?.LockHeld ?? false)
             {
@@ -912,7 +916,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                     if (!validateOnly)
                     {
-                        if (!TryShowPopup(popupMessage, MacroPopupTitle, MessageBoxImage.Information, out var popupError))
+                        if (!TryShowPopup(popupMessage, MacroPopupTitle, MessageBoxImage.Information, session, cancellationToken, out var popupError))
                         {
                             var message = popupError ?? "POPUP の表示に失敗しました。";
                             return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
@@ -3661,9 +3665,10 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    private bool TryShowPopup(string message, string caption, MessageBoxImage image, out string? error)
+    private bool TryShowPopup(string message, string caption, MessageBoxImage image, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
         error = null;
+        ThrowIfPausedOrCanceled(session, cancellationToken);
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null)
         {
@@ -3679,6 +3684,7 @@ public sealed class KeyboardMacroService : IDisposable
         {
             try
             {
+                ThrowIfPausedOrCanceled(session, cancellationToken);
                 IntPtr ownerHandle = IntPtr.Zero;
                 Window? ownerWindow = null;
                 var owner = GetPopupOwnerWindow();
@@ -3710,6 +3716,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                 try
                 {
+                    using var cancelRegistration = RegisterCancelablePopup(session, popupCaption);
                     var flags = MessageBoxConstants.MB_OK |
                                 MessageBoxConstants.MB_SETFOREGROUND |
                                 MessageBoxConstants.MB_TOPMOST |
@@ -3723,6 +3730,10 @@ public sealed class KeyboardMacroService : IDisposable
                         ownerWindow.ShowInTaskbar = false;
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -3745,6 +3756,7 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
+        ThrowIfPausedOrCanceled(session, cancellationToken);
         return true;
     }
 
@@ -3798,6 +3810,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         void ShowPrompt()
         {
+            IDisposable? cancelRegistration = null;
             try
             {
                 ThrowIfPausedOrCanceled(session, cancellationToken);
@@ -3806,6 +3819,7 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     Owner = owner
                 };
+                cancelRegistration = RegisterCancelableWindow(session, dialog);
                 WindowCascadeService.Arrange(dialog, owner);
                 var result = dialog.ShowDialog();
                 confirmed = result == true && dialog.IsConfirmed;
@@ -3821,6 +3835,10 @@ public sealed class KeyboardMacroService : IDisposable
             catch (Exception ex)
             {
                 operationError = ex;
+            }
+            finally
+            {
+                cancelRegistration?.Dispose();
             }
         }
 
@@ -3849,6 +3867,47 @@ public sealed class KeyboardMacroService : IDisposable
 
         value = inputText ?? string.Empty;
         return true;
+    }
+
+    private static IDisposable? RegisterCancelableWindow(MacroExecutionSession session, Window? window)
+    {
+        if (window == null)
+        {
+            return null;
+        }
+
+        // NOTE: 新規コマンドでダイアログ/ウィンドウを開く場合はここに登録してキャンセル時に閉じる。
+        return session.RegisterCancelHandler(() =>
+        {
+            try
+            {
+                if (window.Dispatcher.CheckAccess())
+                {
+                    if (window.IsVisible)
+                    {
+                        window.Close();
+                    }
+                    return;
+                }
+
+                window.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (window.IsVisible)
+                    {
+                        window.Close();
+                    }
+                }));
+            }
+            catch
+            {
+                // ignore close failures on cancellation
+            }
+        });
+    }
+
+    private static IDisposable RegisterCancelablePopup(MacroExecutionSession session, string caption)
+    {
+        return session.RegisterCancelHandler(() => CloseDialogWindowsByCaption(caption));
     }
 
     private static Window? GetPopupOwnerWindow()
@@ -3892,6 +3951,53 @@ public sealed class KeyboardMacroService : IDisposable
             MessageBoxImage.Information => MessageBoxConstants.MB_ICONINFORMATION,
             _ => 0
         };
+
+    private static void CloseDialogWindowsByCaption(string caption)
+    {
+        if (string.IsNullOrWhiteSpace(caption))
+        {
+            return;
+        }
+
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindow(hwnd)) return true;
+            if (!TryGetWindowClassName(hwnd, out var className)) return true;
+            if (!string.Equals(className, DialogClassName, StringComparison.Ordinal)) return true;
+            if (!TryGetWindowText(hwnd, out var title)) return true;
+            if (!string.Equals(title, caption, StringComparison.Ordinal)) return true;
+            PostMessage(hwnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            return true;
+        }, IntPtr.Zero);
+    }
+
+    private static bool TryGetWindowText(IntPtr hwnd, out string text)
+    {
+        var sb = new StringBuilder(256);
+        int length = GetWindowText(hwnd, sb, sb.Capacity);
+        if (length > 0)
+        {
+            text = sb.ToString();
+            return true;
+        }
+
+        text = string.Empty;
+        return false;
+    }
+
+    private static bool TryGetWindowClassName(IntPtr hwnd, out string className)
+    {
+        var sb = new StringBuilder(128);
+        int length = GetClassName(hwnd, sb, sb.Capacity);
+        if (length > 0)
+        {
+            className = sb.ToString();
+            return true;
+        }
+
+        className = string.Empty;
+        return false;
+    }
 
     private bool TrySendRuneUsingUnicode(Rune rune, Span<char> buffer, INPUT[] inputs, MacroExecutionSession session, CancellationToken cancellationToken, out string? error)
     {
@@ -5181,6 +5287,8 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     private const ushort VK_OEM_5 = 0xDC;
     private const ushort VK_OEM_6 = 0xDD;
     private const ushort VK_OEM_7 = 0xDE;
+    private const int WM_CLOSE = 0x0010;
+    private const string DialogClassName = "#32770";
     private static class MessageBoxConstants
     {
         public const uint MB_OK = 0x00000000;
@@ -5253,6 +5361,7 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     }
 
     private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
     internal static void SetSendInputOverrideForTesting(Func<uint, int, uint>? overrideFunc)
     {
@@ -5301,6 +5410,8 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     {
         private readonly SemaphoreSlim _lock;
         private readonly MacroPauseCoordinator _pauseCoordinator = new();
+        private readonly object _cancelSync = new();
+        private readonly List<Action> _cancelHandlers = new();
         private bool _lockHeld;
 
         public MacroExecutionSession(SemaphoreSlim macroLock)
@@ -5316,6 +5427,37 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
 
         public void WaitIfPaused(CancellationToken cancellationToken) =>
             _pauseCoordinator.WaitIfPaused(cancellationToken);
+
+        public IDisposable RegisterCancelHandler(Action handler)
+        {
+            if (handler == null) throw new ArgumentNullException(nameof(handler));
+            lock (_cancelSync)
+            {
+                _cancelHandlers.Add(handler);
+            }
+            return new CancelRegistration(this, handler);
+        }
+
+        public void InvokeCancelHandlers()
+        {
+            Action[] handlers;
+            lock (_cancelSync)
+            {
+                handlers = _cancelHandlers.ToArray();
+            }
+
+            foreach (var handler in handlers)
+            {
+                try
+                {
+                    handler();
+                }
+                catch
+                {
+                    // ignore cancellation handler errors
+                }
+            }
+        }
 
         public async Task<bool> PauseAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {
@@ -5359,6 +5501,34 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
                 }
             }
             _pauseCoordinator.Resume();
+        }
+
+        private void RemoveCancelHandler(Action handler)
+        {
+            lock (_cancelSync)
+            {
+                _cancelHandlers.Remove(handler);
+            }
+        }
+
+        private sealed class CancelRegistration : IDisposable
+        {
+            private readonly MacroExecutionSession _session;
+            private readonly Action _handler;
+            private bool _disposed;
+
+            public CancelRegistration(MacroExecutionSession session, Action handler)
+            {
+                _session = session;
+                _handler = handler;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                _session.RemoveCancelHandler(_handler);
+            }
         }
     }
 
@@ -5500,6 +5670,18 @@ private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
 [DllImport("user32.dll")]
 private static extern bool IsWindow(IntPtr hWnd);
+
+[DllImport("user32.dll")]
+private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+[DllImport("user32.dll")]
+private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
 [DllImport("user32.dll")]
 private static extern IntPtr GetKeyboardLayout(uint idThread);
