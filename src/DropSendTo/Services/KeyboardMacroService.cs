@@ -23,6 +23,7 @@ public sealed class KeyboardMacroService : IDisposable
     private const int TextSendInterCharacterDelayMilliseconds = 18;
     private const int TextSendWhitespaceDelayMilliseconds = 28;
     private const int ClipTextAutoWaitMilliseconds = 30;
+    private const int MaxPromptTimeoutMilliseconds = 600000;
     private const string MacroPopupTitle = "DropSendTo Macro";
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
@@ -46,9 +47,16 @@ public sealed class KeyboardMacroService : IDisposable
     private Func<bool>? _prefixIsArmedAccessor;
     private Action? _prefixResetAction;
     private static Func<uint, INPUT[], int, uint>? _sendInputOverride;
-    private static Func<string, string, string?, (bool Confirmed, string? Value)>? _inputPromptOverride;
+    private static Func<string, string, string?, TimeSpan?, string?, (PromptOutcome Outcome, string? Value)>? _inputPromptOverride;
     private const int DefaultReadFileLimitBytes = 4096;
     private const int MaxReadFileLimitBytes = 1024 * 1024;
+
+    internal enum PromptOutcome
+    {
+        Confirmed,
+        Canceled,
+        TimedOut
+    }
 
     public void Initialize(WindowInteropHelper helper)
     {
@@ -823,35 +831,87 @@ public sealed class KeyboardMacroService : IDisposable
                     }
 
                     string? defaultLiteral = null;
+                    string? timeoutMsLiteral = null;
+                    string? timeoutValueLiteral = null;
                     while (index < payload.Length && char.IsWhiteSpace(payload[index]))
                     {
                         index++;
                     }
 
-                    if (index < payload.Length)
+                    while (index < payload.Length)
                     {
-                        var remaining = TrimInlineComment(payload[index..]).Trim();
-                        if (remaining.Length > 0)
+                        int optionStart = index;
+                        while (index < payload.Length && !char.IsWhiteSpace(payload[index]))
                         {
-                            if (!remaining.StartsWith("DEFAULT", StringComparison.OrdinalIgnoreCase))
+                            index++;
+                        }
+
+                        var optionName = payload.Substring(optionStart, index - optionStart);
+                        if (string.IsNullOrWhiteSpace(optionName))
+                        {
+                            break;
+                        }
+
+                        if (optionName.Equals("DEFAULT", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (defaultLiteral != null)
                             {
-                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT のメッセージの後ろに余分な記述があります。")));
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の DEFAULT は 1 度だけ指定してください。")));
                             }
 
-                            var rest = remaining["DEFAULT".Length..].TrimStart();
-                            int defaultIndex = 0;
-                            if (!TryParseQuotedArgument(rest, ref defaultIndex, "PROMPT", "初期値", out var defaultValueLiteral, out var defaultParseError))
+                            if (!TryParseQuotedArgument(payload, ref index, "PROMPT", "初期値", out var defaultValueLiteral, out var defaultParseError))
                             {
                                 var message = defaultParseError ?? "PROMPT の初期値指定が不正です。";
                                 return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                             }
 
-                            if (defaultIndex < rest.Length && !string.IsNullOrWhiteSpace(rest[defaultIndex..]))
+                            defaultLiteral = defaultValueLiteral;
+                        }
+                        else if (optionName.Equals("TIMEOUT", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (timeoutMsLiteral != null)
                             {
-                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の引数の後ろに余分な記述があります。")));
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の TIMEOUT は 1 度だけ指定してください。")));
                             }
 
-                            defaultLiteral = defaultValueLiteral;
+                            while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+                            {
+                                index++;
+                            }
+
+                            if (index >= payload.Length)
+                            {
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の TIMEOUT にはミリ秒と値を指定してください。")));
+                            }
+
+                            int timeoutStart = index;
+                            while (index < payload.Length && !char.IsWhiteSpace(payload[index]))
+                            {
+                                index++;
+                            }
+
+                            timeoutMsLiteral = payload.Substring(timeoutStart, index - timeoutStart);
+                            if (string.IsNullOrWhiteSpace(timeoutMsLiteral))
+                            {
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の TIMEOUT にはミリ秒を指定してください。")));
+                            }
+
+                            if (!TryParseQuotedArgument(payload, ref index, "PROMPT", "タイムアウト時の初期値", out var timeoutDefaultLiteral, out var timeoutParseError))
+                            {
+                                var message = timeoutParseError ?? "PROMPT の TIMEOUT 指定が不正です。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            }
+
+                            timeoutValueLiteral = timeoutDefaultLiteral;
+                        }
+                        else
+                        {
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "PROMPT の引数の後ろに余分な記述があります。")));
+                        }
+
+                        while (index < payload.Length && char.IsWhiteSpace(payload[index]))
+                        {
+                            index++;
                         }
                     }
 
@@ -871,13 +931,45 @@ public sealed class KeyboardMacroService : IDisposable
                         }
                     }
 
+                    int? timeoutMs = null;
+                    string? timeoutValue = null;
+                    if (timeoutMsLiteral != null)
+                    {
+                        if (!TryExpandVariables(timeoutMsLiteral, variables, out var timeoutExpanded, out var timeoutExpandError, specialResolver))
+                        {
+                            var message = timeoutExpandError ?? "PROMPT の TIMEOUT 展開に失敗しました。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+
+                        if (!int.TryParse(timeoutExpanded, out var parsedTimeout) ||
+                            parsedTimeout < 1 ||
+                            parsedTimeout > MaxPromptTimeoutMilliseconds)
+                        {
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(
+                                lineNumber,
+                                $"PROMPT の TIMEOUT に指定できる時間は 1〜{MaxPromptTimeoutMilliseconds} ミリ秒です。")));
+                        }
+
+                        timeoutMs = parsedTimeout;
+                    }
+
+                    if (timeoutValueLiteral != null)
+                    {
+                        if (!TryExpandVariables(timeoutValueLiteral, variables, out timeoutValue, out var timeoutValueError, specialResolver))
+                        {
+                            var message = timeoutValueError ?? "PROMPT の TIMEOUT 初期値展開に失敗しました。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+                    }
+
                     if (validateOnly)
                     {
                         variables[nameToken] = defaultValue ?? string.Empty;
                         continue;
                     }
 
-                    if (!TryPromptForInput(promptMessage, MacroPopupTitle, defaultValue, session, cancellationToken, out var promptResult, out var promptError))
+                    var promptTimeout = timeoutMs.HasValue ? TimeSpan.FromMilliseconds(timeoutMs.Value) : (TimeSpan?)null;
+                    if (!TryPromptForInput(promptMessage, MacroPopupTitle, defaultValue, promptTimeout, timeoutValue, session, cancellationToken, out var promptResult, out var promptError))
                     {
                         var message = promptError ?? "PROMPT の入力処理に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
@@ -3760,7 +3852,16 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    private bool TryPromptForInput(string message, string caption, string? defaultValue, MacroExecutionSession session, CancellationToken cancellationToken, out string? value, out string? error)
+    private bool TryPromptForInput(
+        string message,
+        string caption,
+        string? defaultValue,
+        TimeSpan? timeout,
+        string? timeoutValue,
+        MacroExecutionSession session,
+        CancellationToken cancellationToken,
+        out string? value,
+        out string? error)
     {
         error = null;
         value = null;
@@ -3772,16 +3873,20 @@ public sealed class KeyboardMacroService : IDisposable
         {
             try
             {
-                var result = overridePrompt(message ?? string.Empty, caption ?? string.Empty, defaultValue);
+                var result = overridePrompt(message ?? string.Empty, caption ?? string.Empty, defaultValue, timeout, timeoutValue);
                 ThrowIfPausedOrCanceled(session, cancellationToken);
-                if (!result.Confirmed)
+                switch (result.Outcome)
                 {
-                    error = "PROMPT がキャンセルされました。";
-                    return false;
+                    case PromptOutcome.Confirmed:
+                        value = result.Value ?? string.Empty;
+                        return true;
+                    case PromptOutcome.TimedOut:
+                        value = timeoutValue ?? string.Empty;
+                        return true;
+                    default:
+                        error = "PROMPT がキャンセルされました。";
+                        return false;
                 }
-
-                value = result.Value ?? string.Empty;
-                return true;
             }
             catch (OperationCanceledException)
             {
@@ -3811,6 +3916,7 @@ public sealed class KeyboardMacroService : IDisposable
         void ShowPrompt()
         {
             IDisposable? cancelRegistration = null;
+            System.Windows.Threading.DispatcherTimer? timeoutTimer = null;
             try
             {
                 ThrowIfPausedOrCanceled(session, cancellationToken);
@@ -3819,6 +3925,22 @@ public sealed class KeyboardMacroService : IDisposable
                 {
                     Owner = owner
                 };
+                if (timeout.HasValue)
+                {
+                    var timeoutText = timeoutValue ?? string.Empty;
+                    timeoutTimer = new System.Windows.Threading.DispatcherTimer(
+                        System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                        dialog.Dispatcher)
+                    {
+                        Interval = timeout.Value
+                    };
+                    timeoutTimer.Tick += (_, _) =>
+                    {
+                        timeoutTimer?.Stop();
+                        dialog.ApplyTimeoutResult(timeoutText);
+                    };
+                    timeoutTimer.Start();
+                }
                 cancelRegistration = RegisterCancelableWindow(session, dialog);
                 WindowCascadeService.Arrange(dialog, owner);
                 var result = dialog.ShowDialog();
@@ -3838,6 +3960,7 @@ public sealed class KeyboardMacroService : IDisposable
             }
             finally
             {
+                timeoutTimer?.Stop();
                 cancelRegistration?.Dispose();
             }
         }
@@ -5374,7 +5497,7 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         _sendInputOverride = (count, _, size) => overrideFunc(count, size);
     }
 
-    internal static void SetInputPromptOverrideForTesting(Func<string, string, string?, (bool Confirmed, string? Value)>? provider)
+    internal static void SetInputPromptOverrideForTesting(Func<string, string, string?, TimeSpan?, string?, (PromptOutcome Outcome, string? Value)>? provider)
     {
         _inputPromptOverride = provider;
     }

@@ -237,6 +237,25 @@ ENDIF
     }
 
     [Fact]
+    public void TryValidateScript_ShouldPass_ForPromptWithTimeout()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("PROMPT Name \"Enter\" TIMEOUT 5000 \"auto\"", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForPromptWithTimeoutMissingValue()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("PROMPT Name \"Enter\" TIMEOUT 5000", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("タイムアウト");
+    }
+
+    [Fact]
     public void TryValidateScript_ShouldAllowInlineCommentsOnControlStatements()
     {
         const string script = """

@@ -133,6 +133,7 @@ public partial class RegisterDialog : Window
             new MacroSnippet("RENAME <元パス> <新しいパス>", "RENAME {{drop_path}} {{drop_path}}.bak"),
             new MacroSnippet("READFILE <変数> <パス> [MAX n]", "READFILE Body {{drop_path}}"),
             new MacroSnippet("PROMPT <名前> \"メッセージ\"", "PROMPT InputValue \"値を入力してください\""),
+            new MacroSnippet("PROMPT ... TIMEOUT <ms> \"値\"", "PROMPT InputValue \"値を入力してください\" TIMEOUT 5000 \"(timeout)\""),
             new MacroSnippet("POPUP \"メッセージ\"", "POPUP \"{{drop_path}} が見つかりません\"")
         }),
         new MacroSnippetGroup("フロー制御 / Prefix", new[]

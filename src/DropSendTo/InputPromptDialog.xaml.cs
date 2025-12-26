@@ -26,6 +26,19 @@ internal partial class InputPromptDialog : Window, IConfirmableDialog
 
     public bool IsConfirmed { get; private set; }
 
+    internal void ApplyTimeoutResult(string? value)
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        InputText = value ?? string.Empty;
+        IsConfirmed = true;
+        DialogResult = true;
+        Close();
+    }
+
     private void OnTextChanged(object sender, TextChangedEventArgs e)
     {
         if (ErrorText != null)
