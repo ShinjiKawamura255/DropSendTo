@@ -33,5 +33,8 @@ public enum SlotAccentColor
     Indigo = 2,
     Amber = 3,
     Olive = 4,
-    Crimson = 5
+    Crimson = 5,
+    Azure = 6,
+    Emerald = 7,
+    Magenta = 8
 }

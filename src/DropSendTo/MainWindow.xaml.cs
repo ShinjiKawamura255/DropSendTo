@@ -313,6 +313,10 @@ public partial class MainWindow : Window
                 CreateFrozenBrush(MediaColor.FromRgb(0x16, 0x15, 0x2E)),
                 CreateFrozenBrush(MediaColor.FromRgb(0x4E, 0x52, 0xA6)),
                 CreateFrozenBrush(MediaColor.FromRgb(0xF4, 0xF2, 0xFF))),
+            [SlotAccentColor.Azure] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x0F, 0x1B, 0x33)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x2B, 0x78, 0xC4)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xE2, 0xF1, 0xFF))),
             [SlotAccentColor.Amber] = new(
                 CreateFrozenBrush(MediaColor.FromRgb(0x2D, 0x1F, 0x0F)),
                 CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x6B, 0x17)),
@@ -321,10 +325,18 @@ public partial class MainWindow : Window
                 CreateFrozenBrush(MediaColor.FromRgb(0x20, 0x27, 0x12)),
                 CreateFrozenBrush(MediaColor.FromRgb(0x6E, 0x8C, 0x23)),
                 CreateFrozenBrush(MediaColor.FromRgb(0xF0, 0xFF, 0xD8))),
+            [SlotAccentColor.Emerald] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x0F, 0x28, 0x1D)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x8B, 0x5B)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xE3, 0xFF, 0xF2))),
             [SlotAccentColor.Crimson] = new(
                 CreateFrozenBrush(MediaColor.FromRgb(0x2B, 0x11, 0x16)),
                 CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x45, 0x4F)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE3, 0xE7)))
+                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE3, 0xE7))),
+            [SlotAccentColor.Magenta] = new(
+                CreateFrozenBrush(MediaColor.FromRgb(0x2A, 0x0F, 0x2B)),
+                CreateFrozenBrush(MediaColor.FromRgb(0x9B, 0x3E, 0xA8)),
+                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE6, 0xFF)))
         };
     }
 

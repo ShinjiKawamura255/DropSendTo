@@ -33,6 +33,10 @@ public partial class RegisterDialog : Window
             System.Windows.Media.Color.FromRgb(0x16, 0x15, 0x2E),
             System.Windows.Media.Color.FromRgb(0x4E, 0x52, 0xA6),
             System.Windows.Media.Color.FromRgb(0xF4, 0xF2, 0xFF)),
+        CreateColorOption(SlotAccentColor.Azure, "Azure",
+            System.Windows.Media.Color.FromRgb(0x0F, 0x1B, 0x33),
+            System.Windows.Media.Color.FromRgb(0x2B, 0x78, 0xC4),
+            System.Windows.Media.Color.FromRgb(0xE2, 0xF1, 0xFF)),
         CreateColorOption(SlotAccentColor.Amber, "Amber",
             System.Windows.Media.Color.FromRgb(0x2D, 0x1F, 0x0F),
             System.Windows.Media.Color.FromRgb(0xB5, 0x6B, 0x17),
@@ -41,10 +45,18 @@ public partial class RegisterDialog : Window
             System.Windows.Media.Color.FromRgb(0x20, 0x27, 0x12),
             System.Windows.Media.Color.FromRgb(0x6E, 0x8C, 0x23),
             System.Windows.Media.Color.FromRgb(0xF0, 0xFF, 0xD8)),
+        CreateColorOption(SlotAccentColor.Emerald, "Emerald",
+            System.Windows.Media.Color.FromRgb(0x0F, 0x28, 0x1D),
+            System.Windows.Media.Color.FromRgb(0x1E, 0x8B, 0x5B),
+            System.Windows.Media.Color.FromRgb(0xE3, 0xFF, 0xF2)),
         CreateColorOption(SlotAccentColor.Crimson, "Crimson",
             System.Windows.Media.Color.FromRgb(0x2B, 0x11, 0x16),
             System.Windows.Media.Color.FromRgb(0xB5, 0x45, 0x4F),
-            System.Windows.Media.Color.FromRgb(0xFF, 0xE3, 0xE7))
+            System.Windows.Media.Color.FromRgb(0xFF, 0xE3, 0xE7)),
+        CreateColorOption(SlotAccentColor.Magenta, "Magenta",
+            System.Windows.Media.Color.FromRgb(0x2A, 0x0F, 0x2B),
+            System.Windows.Media.Color.FromRgb(0x9B, 0x3E, 0xA8),
+            System.Windows.Media.Color.FromRgb(0xFF, 0xE6, 0xFF))
     };
 
     public string AppTitle => TitleBox.Text.Trim();
