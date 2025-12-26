@@ -58,6 +58,8 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _notifyIcon;
     private DrawingIcon? _notifyIconDefault;
     private DrawingIcon? _notifyIconActive;
+    private Window? _trayMenuHost;
+    private bool _trayMenuActive;
     private bool _isMinimizedToTray;
     private bool _suppressFixedCapture;
     private bool _suppressFixedCaptureDuringSearch;
@@ -632,14 +634,71 @@ public partial class MainWindow : Window
             }
             else if (e.Button == Forms.MouseButtons.Right)
             {
-                if (ContextMenu != null)
-                {
-                    ContextMenu.PlacementTarget = this;
-                    ContextMenu.Placement = PlacementMode.MousePoint;
-                    ContextMenu.IsOpen = true;
-                }
+                OpenTrayContextMenu();
             }
         });
+    }
+
+    private void OpenTrayContextMenu()
+    {
+        if (ContextMenu == null)
+        {
+            return;
+        }
+
+        var host = EnsureTrayMenuHost();
+        if (!host.IsVisible)
+        {
+            host.Show();
+        }
+        host.Activate();
+
+        UpdateContextMenuState();
+        ContextMenu.PlacementTarget = host;
+        ContextMenu.Placement = PlacementMode.MousePoint;
+        ContextMenu.StaysOpen = false;
+        ContextMenu.PreviewKeyDown -= OnContextMenuPreviewKeyDown;
+        ContextMenu.PreviewKeyDown += OnContextMenuPreviewKeyDown;
+        ContextMenu.Closed -= OnContextMenuClosed;
+        ContextMenu.Closed += OnContextMenuClosed;
+        _trayMenuActive = true;
+        ContextMenu.IsOpen = true;
+        ContextMenu.Dispatcher.BeginInvoke(new Action(() =>
+        {
+            FindFirstMenuItem(ContextMenu)?.Focus();
+        }), DispatcherPriority.Input);
+    }
+
+    private Window EnsureTrayMenuHost()
+    {
+        if (_trayMenuHost != null)
+        {
+            return _trayMenuHost;
+        }
+
+        _trayMenuHost = new Window
+        {
+            Width = 0,
+            Height = 0,
+            Left = -10000,
+            Top = -10000,
+            WindowStyle = WindowStyle.None,
+            AllowsTransparency = true,
+            ShowInTaskbar = false,
+            Topmost = true,
+            ShowActivated = true,
+            Background = System.Windows.Media.Brushes.Transparent,
+            Opacity = 0
+        };
+        _trayMenuHost.Deactivated += (_, _) =>
+        {
+            if (_trayMenuActive && ContextMenu?.IsOpen == true)
+            {
+                ContextMenu.IsOpen = false;
+            }
+        };
+        _trayMenuHost.Closed += (_, _) => _trayMenuHost = null;
+        return _trayMenuHost;
     }
 
     private void MinimizeWindowToTray()
@@ -2758,6 +2817,11 @@ public partial class MainWindow : Window
         {
             menu.PreviewKeyDown -= OnContextMenuPreviewKeyDown;
             menu.Closed -= OnContextMenuClosed;
+        }
+        if (_trayMenuActive)
+        {
+            _trayMenuActive = false;
+            _trayMenuHost?.Hide();
         }
     }
 
@@ -6262,6 +6326,11 @@ public partial class MainWindow : Window
             _searchOverlayWindow.SlotNavigationRequested -= OnSearchOverlaySlotNavigationRequested;
             _searchOverlayWindow.Close();
             _searchOverlayWindow = null;
+        }
+        if (_trayMenuHost != null)
+        {
+            _trayMenuHost.Close();
+            _trayMenuHost = null;
         }
     }
 
