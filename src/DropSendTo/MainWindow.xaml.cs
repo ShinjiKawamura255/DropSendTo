@@ -1772,8 +1772,8 @@ public partial class MainWindow : Window
                     continue;
                 }
 
-                var haystack = BuildSlotSearchText(slot);
-                if (MatchesAllTokens(haystack, tokens))
+                var haystacks = BuildSlotSearchTargets(slot);
+                if (MatchesAllTokens(haystacks, tokens))
                 {
                     _searchResults.Add(new SearchResult(layerIndex, slotIndex));
                 }
@@ -1781,14 +1781,21 @@ public partial class MainWindow : Window
         }
     }
 
-    private static string BuildSlotSearchText(SlotModel slot)
+    private static IReadOnlyList<string> BuildSlotSearchTargets(SlotModel slot)
     {
         var title = slot.Title ?? string.Empty;
         var keywords = slot.SearchKeywords ?? string.Empty;
-        var baseText = (title + " " + keywords).ReplaceLineEndings(" ");
+        var baseText = (title + " " + keywords).ReplaceLineEndings(" ").Trim();
+        if (string.IsNullOrWhiteSpace(baseText))
+        {
+            return Array.Empty<string>();
+        }
         var normalized = NormalizeForSearch(baseText);
         var romaji = ConvertKanaToRomaji(baseText);
-        return string.Join(" ", baseText, normalized, romaji);
+        return new[] { baseText, normalized, romaji }
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string NormalizeTokenForSearch(string token)
@@ -1804,16 +1811,26 @@ public partial class MainWindow : Window
         return NormalizeForSearch(cleaned);
     }
 
-    private static bool MatchesAllTokens(string haystack, IReadOnlyList<string> tokens)
+    private static bool MatchesAllTokens(IReadOnlyList<string> haystacks, IReadOnlyList<string> tokens)
     {
-        if (tokens.Count == 0)
+        if (tokens.Count == 0 || haystacks.Count == 0)
         {
             return false;
         }
 
         foreach (var token in tokens)
         {
-            if (!IsFuzzyMatch(haystack, token))
+            bool matched = false;
+            foreach (var haystack in haystacks)
+            {
+                if (IsFuzzyMatch(haystack, token))
+                {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched)
             {
                 return false;
             }
