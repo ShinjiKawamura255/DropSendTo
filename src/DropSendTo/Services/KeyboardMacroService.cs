@@ -728,7 +728,7 @@ public sealed class KeyboardMacroService : IDisposable
                     if (operandText.Length > 0 && operandText[0] == '"')
                     {
                         int argIndex = 0;
-                        if (!TryParseQuotedArgument(operandText, ref argIndex, "TESTPATH", "パス", out rawPathLiteral, out var quotedError))
+                        if (!TryParseQuotedPathArgument(operandText, ref argIndex, "TESTPATH", "パス", out rawPathLiteral, out var quotedError))
                         {
                             var message = quotedError ?? "TESTPATH のパス指定が不正です。";
                             return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
@@ -2741,7 +2741,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         if (input[index] == '"')
         {
-            if (!TryParseQuotedArgument(input, ref index, command, operandName, out operand, out error))
+            if (!TryParseQuotedPathArgument(input, ref index, command, operandName, out operand, out error))
             {
                 return false;
             }
@@ -3427,6 +3427,37 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
+    private static bool TryParseQuotedPathArgument(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
+    {
+        value = string.Empty;
+        error = null;
+        if (input == null)
+        {
+            error = "引数が不足しています。";
+            return false;
+        }
+
+        while (index < input.Length && char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        if (index >= input.Length || input[index] != '"')
+        {
+            error = $"{commandName} の {argumentName} は \"\" で囲んでください。";
+            return false;
+        }
+
+        if (!TryReadQuotedPathContent(input, ref index, commandName, argumentName, out var literal, out error))
+        {
+            value = string.Empty;
+            return false;
+        }
+
+        value = literal;
+        return true;
+    }
+
     private static string ExtractCommandName(string line)
     {
         int idx = FindFirstWhitespace(line);
@@ -3523,6 +3554,43 @@ public sealed class KeyboardMacroService : IDisposable
             {
                 closed = true;
                 break;
+            }
+
+            sb.Append(ch);
+        }
+
+        if (!closed)
+        {
+            error = $"{commandName} の {argumentName} が閉じられていません。";
+            value = string.Empty;
+            return false;
+        }
+
+        value = sb.ToString();
+        return true;
+    }
+
+    private static bool TryReadQuotedPathContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
+    {
+        index++; // skip opening quote
+        var sb = new StringBuilder();
+        error = null;
+        bool closed = false;
+
+        while (index < input.Length)
+        {
+            char ch = input[index++];
+            if (ch == '"')
+            {
+                closed = true;
+                break;
+            }
+
+            if (ch == '\\' && index < input.Length && input[index] == '"')
+            {
+                sb.Append('"');
+                index++;
+                continue;
             }
 
             sb.Append(ch);
