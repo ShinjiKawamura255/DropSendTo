@@ -70,6 +70,7 @@ public partial class MainWindow : Window
     private bool _blockLocationSave;
     private bool _suppressFixedCaptureFromTransientShow;
     private bool _minimizeOnLoaded;
+    private bool _shutdownMacroCancellationInProgress;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
     private SearchOverlayWindow? _searchOverlayWindow;
@@ -81,10 +82,8 @@ public partial class MainWindow : Window
     private PrefixSearchRestoreContext? _prefixSearchRestoreContext;
     private readonly List<SearchResult> _searchResults = new();
     private readonly List<VisibleSlotMapping> _visibleSlotMappings = new();
-    private static readonly SolidColorBrush PrefixArmedBackgroundBrush;
-    private static readonly SolidColorBrush PrefixArmedBorderBrush;
-    private static readonly SolidColorBrush PrefixArmedForegroundBrush;
-    private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemes;
+    private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemesDark;
+    private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemesLight;
     private const int MinSlotRows = 2;
     private const int MaxSlotRows = 8;
     private const int MinSlotColumns = 2;
@@ -143,6 +142,9 @@ public partial class MainWindow : Window
         string PlacementScreenCenter,
         string MinimizeTriggers,
         string ShortcutList,
+        string ThemeMenu,
+        string ThemeDark,
+        string ThemeLight,
         string LanguageMenu,
         string LanguageJapanese,
         string LanguageEnglish,
@@ -188,6 +190,9 @@ public partial class MainWindow : Window
         PlacementScreenCenter: "画面中央 (マウスがある画面)",
         MinimizeTriggers: "最小化トリガー...",
         ShortcutList: "ショートカット一覧...",
+        ThemeMenu: "テーマ",
+        ThemeDark: "ダーク",
+        ThemeLight: "ライト",
         LanguageMenu: "Language",
         LanguageJapanese: "日本語",
         LanguageEnglish: "English",
@@ -233,6 +238,9 @@ public partial class MainWindow : Window
         PlacementScreenCenter: "Screen center (cursor screen)",
         MinimizeTriggers: "Minimize triggers...",
         ShortcutList: "Shortcut list...",
+        ThemeMenu: "Theme",
+        ThemeDark: "Dark",
+        ThemeLight: "Light",
         LanguageMenu: "Language",
         LanguageJapanese: "Japanese",
         LanguageEnglish: "English",
@@ -299,48 +307,8 @@ public partial class MainWindow : Window
 
     static MainWindow()
     {
-        PrefixArmedBackgroundBrush = CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x82, 0x4C));
-        PrefixArmedBorderBrush = CreateFrozenBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
-        PrefixArmedForegroundBrush = CreateFrozenBrush(System.Windows.Media.Colors.White);
-        SlotColorSchemes = new Dictionary<SlotAccentColor, SlotColorScheme>
-        {
-            [SlotAccentColor.Default] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x11, 0x11, 0x11)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x33, 0x33, 0x33)),
-                CreateFrozenBrush(System.Windows.Media.Colors.White)),
-            [SlotAccentColor.Teal] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x10, 0x2A, 0x30)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x1F, 0x76, 0x7D)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xE4, 0xFD, 0xFF))),
-            [SlotAccentColor.Indigo] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x16, 0x15, 0x2E)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x4E, 0x52, 0xA6)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xF4, 0xF2, 0xFF))),
-            [SlotAccentColor.Azure] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x0F, 0x1B, 0x33)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x2B, 0x78, 0xC4)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xE2, 0xF1, 0xFF))),
-            [SlotAccentColor.Amber] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x2D, 0x1F, 0x0F)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x6B, 0x17)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE8, 0xC2))),
-            [SlotAccentColor.Olive] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x20, 0x27, 0x12)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x6E, 0x8C, 0x23)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xF0, 0xFF, 0xD8))),
-            [SlotAccentColor.Emerald] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x0F, 0x28, 0x1D)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x1E, 0x8B, 0x5B)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xE3, 0xFF, 0xF2))),
-            [SlotAccentColor.Crimson] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x2B, 0x11, 0x16)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xB5, 0x45, 0x4F)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE3, 0xE7))),
-            [SlotAccentColor.Magenta] = new(
-                CreateFrozenBrush(MediaColor.FromRgb(0x2A, 0x0F, 0x2B)),
-                CreateFrozenBrush(MediaColor.FromRgb(0x9B, 0x3E, 0xA8)),
-                CreateFrozenBrush(MediaColor.FromRgb(0xFF, 0xE6, 0xFF)))
-        };
+        SlotColorSchemesDark = BuildSlotColorSchemes(AppTheme.Dark);
+        SlotColorSchemesLight = BuildSlotColorSchemes(AppTheme.Light);
     }
 
     private static SolidColorBrush CreateFrozenBrush(MediaColor color)
@@ -348,6 +316,20 @@ public partial class MainWindow : Window
         var brush = new SolidColorBrush(color);
         brush.Freeze();
         return brush;
+    }
+
+    private static IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> BuildSlotColorSchemes(AppTheme theme)
+    {
+        var schemes = new Dictionary<SlotAccentColor, SlotColorScheme>();
+        foreach (SlotAccentColor accent in Enum.GetValues(typeof(SlotAccentColor)))
+        {
+            var palette = SlotAccentPalette.GetScheme(accent, theme);
+            schemes[accent] = new SlotColorScheme(
+                CreateFrozenBrush(palette.Background),
+                CreateFrozenBrush(palette.Border),
+                CreateFrozenBrush(palette.Foreground));
+        }
+        return schemes;
     }
 
     private int _hoverTargetLayer = -1;
@@ -425,8 +407,38 @@ public partial class MainWindow : Window
         UpdateTrayMenuState();
         ApplyLanguageToUi();
         LocationChanged += OnWindowLocationChanged;
-        this.Closing += (_, _) =>
+        this.Closing += async (_, e) =>
         {
+            if (_shutdownMacroCancellationInProgress)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (_macroService.IsMacroRunning)
+            {
+                e.Cancel = true;
+                _shutdownMacroCancellationInProgress = true;
+                try
+                {
+                    bool canceled = await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
+                    if (canceled)
+                    {
+                        _logger.Info("Canceled running macros because application is closing.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"Failed to cancel macros on shutdown: {ex.Message}");
+                }
+                finally
+                {
+                    _shutdownMacroCancellationInProgress = false;
+                }
+
+                _ = Dispatcher.BeginInvoke(new Action(Close));
+                return;
+            }
             if (_keyboardPlacementMode == WindowPlacementMode.Fixed)
             {
                 CaptureFixedWindowPosition(clampBeforeStoring: true);
@@ -513,10 +525,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void UpdateSlotStatusVisual(SlotVisual visual, string text, MediaColor color, bool isVisible)
+    private static void UpdateSlotStatusVisual(SlotVisual visual, string text, string foregroundResourceKey, bool isVisible)
     {
         visual.Status.Text = text;
-        visual.Status.Foreground = new System.Windows.Media.SolidColorBrush(color);
+        visual.Status.SetResourceReference(TextBlock.ForegroundProperty, foregroundResourceKey);
         visual.Status.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
         if (visual.OverlayStatus)
         {
@@ -524,14 +536,46 @@ public partial class MainWindow : Window
         }
     }
 
-    private static SlotColorScheme GetSlotColorScheme(SlotAccentColor accent)
+    private SlotColorScheme GetSlotColorScheme(SlotAccentColor accent)
     {
-        if (SlotColorSchemes.TryGetValue(accent, out var scheme))
+        if (accent == SlotAccentColor.Default && TryGetDefaultSlotScheme(out var themeScheme))
+        {
+            return themeScheme;
+        }
+
+        var theme = _config?.Theme ?? AppTheme.Dark;
+        var schemes = theme == AppTheme.Light ? SlotColorSchemesLight : SlotColorSchemesDark;
+        if (schemes.TryGetValue(accent, out var scheme))
         {
             return scheme;
         }
 
-        return SlotColorSchemes[SlotAccentColor.Default];
+        return schemes[SlotAccentColor.Default];
+    }
+
+    private static bool TryGetDefaultSlotScheme(out SlotColorScheme scheme)
+    {
+        scheme = SlotColorSchemesDark[SlotAccentColor.Default];
+        if (System.Windows.Application.Current == null)
+        {
+            return false;
+        }
+
+        if (System.Windows.Application.Current.TryFindResource("Theme.SlotBackgroundBrush") is not SolidColorBrush background)
+        {
+            return false;
+        }
+        if (System.Windows.Application.Current.TryFindResource("Theme.SlotBorderBrush") is not SolidColorBrush border)
+        {
+            return false;
+        }
+        if (System.Windows.Application.Current.TryFindResource("Theme.PrimaryTextBrush") is not SolidColorBrush title)
+        {
+            return false;
+        }
+
+        scheme = new SlotColorScheme(background, border, title);
+        return true;
     }
 
     private void RenderEmptySlot(int slotIndex)
@@ -544,7 +588,7 @@ public partial class MainWindow : Window
         var visual = _slotVisuals[slotIndex];
         visual.Title.Text = string.Empty;
         visual.DragPreviewHost.Visibility = Visibility.Collapsed;
-        UpdateSlotStatusVisual(visual, string.Empty, MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
+        UpdateSlotStatusVisual(visual, string.Empty, "Theme.SlotStatusTextBrush", false);
         ApplySlotColor(slotIndex);
     }
 
@@ -559,12 +603,13 @@ public partial class MainWindow : Window
 
         if (!TryGetVisibleSlotModel(slotIndex, out _, out _, out var slot))
         {
-            var defaultScheme = GetSlotColorScheme(SlotAccentColor.Default);
-            visual.Border.Background = defaultScheme.Background;
-            visual.Border.BorderBrush = defaultScheme.Border;
-            visual.Title.Foreground = defaultScheme.Title;
-            visual.Border.IsEnabled = false;
-            visual.Border.Opacity = 0.7;
+            ApplySlotDefaultScheme(visual, enabled: false);
+            return;
+        }
+
+        if (slot.AccentColor == SlotAccentColor.Default)
+        {
+            ApplySlotDefaultScheme(visual, enabled: true);
             return;
         }
 
@@ -574,6 +619,15 @@ public partial class MainWindow : Window
         visual.Title.Foreground = scheme.Title;
         visual.Border.IsEnabled = true;
         visual.Border.Opacity = 1;
+    }
+
+    private static void ApplySlotDefaultScheme(SlotVisual visual, bool enabled)
+    {
+        visual.Border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotBackgroundBrush");
+        visual.Border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotBorderBrush");
+        visual.Title.SetResourceReference(TextBlock.ForegroundProperty, "Theme.PrimaryTextBrush");
+        visual.Border.IsEnabled = enabled;
+        visual.Border.Opacity = enabled ? 1.0 : 0.7;
     }
 
     private void UpdateKeyboardSelectionVisual()
@@ -816,6 +870,9 @@ public partial class MainWindow : Window
         if (SearchPlacementScreenCenterMenuItem != null) SearchPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
         if (MinimizeTriggersMenuItem != null) MinimizeTriggersMenuItem.Header = text.MinimizeTriggers;
         if (ShortcutListMenuItem != null) ShortcutListMenuItem.Header = text.ShortcutList;
+        if (ThemeMenuItem != null) ThemeMenuItem.Header = text.ThemeMenu;
+        if (ThemeDarkMenuItem != null) ThemeDarkMenuItem.Header = text.ThemeDark;
+        if (ThemeLightMenuItem != null) ThemeLightMenuItem.Header = text.ThemeLight;
         if (LanguageMenuItem != null) LanguageMenuItem.Header = text.LanguageMenu;
         if (LanguageJapaneseMenuItem != null) LanguageJapaneseMenuItem.Header = text.LanguageJapanese;
         if (LanguageEnglishMenuItem != null) LanguageEnglishMenuItem.Header = text.LanguageEnglish;
@@ -840,6 +897,19 @@ public partial class MainWindow : Window
         if (LanguageEnglishMenuItem != null)
         {
             LanguageEnglishMenuItem.IsChecked = _currentLanguage == AppLanguage.English;
+        }
+    }
+
+    private void UpdateThemeMenuState()
+    {
+        var theme = _config?.Theme ?? AppTheme.Dark;
+        if (ThemeDarkMenuItem != null)
+        {
+            ThemeDarkMenuItem.IsChecked = theme == AppTheme.Dark;
+        }
+        if (ThemeLightMenuItem != null)
+        {
+            ThemeLightMenuItem.IsChecked = theme == AppTheme.Light;
         }
     }
 
@@ -1045,14 +1115,14 @@ public partial class MainWindow : Window
         var border = new Border
         {
             Margin = new Thickness(metrics.SlotMargin),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x33, 0x33, 0x33)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
-            Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11)),
             Height = metrics.SlotHeight,
             AllowDrop = true,
             Tag = index
         };
+        border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotBackgroundBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotBorderBrush");
 
         UIElement content;
         StackPanel? stackingPanel = null;
@@ -1099,13 +1169,13 @@ public partial class MainWindow : Window
         {
             Text = "マクロ実行中...",
             FontSize = metrics.StatusFontSize,
-            Foreground = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0)),
             TextAlignment = TextAlignment.Center,
             HorizontalAlignment = WpfHorizontalAlignment.Center,
             VerticalAlignment = WpfVerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
             Tag = index
         };
+        status.SetResourceReference(TextBlock.ForegroundProperty, "Theme.SlotStatusTextBrush");
 
         if (metrics.OverlayStatus && overlayGrid != null)
         {
@@ -1126,23 +1196,23 @@ public partial class MainWindow : Window
 
         var previewBorder = new Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromArgb(0xBB, 0x10, 0x24, 0x10)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x66, 0xFF, 0xCC)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(4),
             Visibility = Visibility.Collapsed,
             Tag = index
         };
+        previewBorder.SetResourceReference(Border.BackgroundProperty, "Theme.SlotPreviewBackgroundBrush");
+        previewBorder.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotPreviewBorderBrush");
         var previewText = new TextBlock
         {
             FontSize = Math.Max(metrics.StatusFontSize - 1, 9),
             TextWrapping = TextWrapping.Wrap,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextAlignment = TextAlignment.Center,
-            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White),
             Tag = index
         };
+        previewText.SetResourceReference(TextBlock.ForegroundProperty, "Theme.SlotPreviewTextBrush");
         previewBorder.Child = previewText;
         container.Children.Add(previewBorder);
 
@@ -3277,24 +3347,24 @@ public partial class MainWindow : Window
         switch (state)
         {
             case SlotMacroState.Running:
-                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1A, 0x2E, 0x1A));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x5A, 0xD6, 0x6B));
-                UpdateSlotStatusVisual(visual, "マクロ実行中...", MediaColor.FromRgb(0x7C, 0xFF, 0xB0), true);
+                border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotRunningBackgroundBrush");
+                border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotRunningBorderBrush");
+                UpdateSlotStatusVisual(visual, "マクロ実行中...", "Theme.SlotRunningTextBrush", true);
                 break;
             case SlotMacroState.Cancelling:
-                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x2E, 0x28, 0x1A));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0xFF, 0xC6, 0x4D));
-                UpdateSlotStatusVisual(visual, "キャンセル中...", MediaColor.FromRgb(0xFF, 0xD7, 0x66), true);
+                border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotCancellingBackgroundBrush");
+                border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotCancellingBorderBrush");
+                UpdateSlotStatusVisual(visual, "キャンセル中...", "Theme.SlotCancellingTextBrush", true);
                 break;
             case SlotMacroState.Paused:
-                border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1E, 0x1A, 0x2E));
-                border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x98, 0x7C, 0xFF));
-                UpdateSlotStatusVisual(visual, "一時停止中...", MediaColor.FromRgb(0xC9, 0xB6, 0xFF), true);
+                border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotPausedBackgroundBrush");
+                border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotPausedBorderBrush");
+                UpdateSlotStatusVisual(visual, "一時停止中...", "Theme.SlotPausedTextBrush", true);
                 break;
             default:
                 ApplySlotColor(index);
                 var statusText = TryGetVisibleSlot(index, out _, out _) ? "マクロ実行中..." : string.Empty;
-                UpdateSlotStatusVisual(visual, statusText, MediaColor.FromRgb(0x7C, 0xFF, 0xB0), false);
+                UpdateSlotStatusVisual(visual, statusText, "Theme.SlotStatusTextBrush", false);
                 break;
         }
     }
@@ -3647,8 +3717,8 @@ public partial class MainWindow : Window
         var border = _slotVisuals[index].Border;
         if (isActive)
         {
-            border.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
-            border.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x1A, 0x35, 0x1A));
+            border.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotDragSourceBorderBrush");
+            border.SetResourceReference(Border.BackgroundProperty, "Theme.SlotDragSourceBackgroundBrush");
         }
         else
         {
@@ -4408,6 +4478,7 @@ public partial class MainWindow : Window
 
             var imported = _configTransferService.ImportConfig(payload, password);
             _config = imported;
+            ThemeService.ApplyTheme(_config.Theme);
             int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
             _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
             _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
@@ -4421,6 +4492,7 @@ public partial class MainWindow : Window
             RefreshUi();
             UpdateTrayMenuState();
             ApplyLanguageToUi();
+            UpdateThemeMenuState();
             _configService.Save(_config);
             WpfMessageBox.Show("コンフィグのインポートが完了しました。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -4786,6 +4858,10 @@ public partial class MainWindow : Window
 
     private void OnLanguageEnglish(object sender, RoutedEventArgs e) => SetLanguage(AppLanguage.English);
 
+    private void OnThemeDark(object sender, RoutedEventArgs e) => SetTheme(AppTheme.Dark);
+
+    private void OnThemeLight(object sender, RoutedEventArgs e) => SetTheme(AppTheme.Light);
+
     private void SetLanguage(AppLanguage language)
     {
         if (_config == null)
@@ -4802,6 +4878,26 @@ public partial class MainWindow : Window
         _config.Language = language;
         _currentLanguage = language;
         ApplyLanguageToUi();
+        _configService.Save(_config);
+    }
+
+    private void SetTheme(AppTheme theme)
+    {
+        if (_config == null)
+        {
+            return;
+        }
+
+        if (_config.Theme == theme)
+        {
+            UpdateThemeMenuState();
+            return;
+        }
+
+        _config.Theme = theme;
+        ThemeService.ApplyTheme(theme);
+        UpdateThemeMenuState();
+        RefreshUi();
         _configService.Save(_config);
     }
 
@@ -4912,6 +5008,7 @@ public partial class MainWindow : Window
         UpdateMacroModeMenu(null);
         UpdatePlacementMenuState();
         PopulateSlotSizeMenu(SlotSizeMenuItem);
+        UpdateThemeMenuState();
         UpdateTrayMenuState();
     }
 
@@ -5251,8 +5348,8 @@ public partial class MainWindow : Window
         if (sender is not Border b) return;
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(32, 32, 32));
-        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Gray);
+        b.SetResourceReference(Border.BackgroundProperty, "Theme.SlotHoverBackgroundBrush");
+        b.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotHoverBorderBrush");
     }
     private void OnSlotMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
@@ -5279,8 +5376,8 @@ public partial class MainWindow : Window
 
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
-        b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(200, 200, 200));
+        b.SetResourceReference(Border.BackgroundProperty, "Theme.SlotPressedBackgroundBrush");
+        b.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotPressedBorderBrush");
     }
 
     private void OnSlotDragEnter(object sender, DragEventArgs e)
@@ -5290,8 +5387,8 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             e.Effects = WpfDragDropEffects.Move;
-            b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(40, 48, 56));
-            b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x7C, 0xFF, 0xB0));
+            b.SetResourceReference(Border.BackgroundProperty, "Theme.SlotDragBackgroundBrush");
+            b.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotDragBorderBrush");
             UpdateSlotLayoutPreview(_currentLayer, GetSlotIndex(b));
             return;
         }
@@ -5308,8 +5405,8 @@ public partial class MainWindow : Window
 
         int idx = GetSlotIndex(b);
         if (GetSlotMacroState(idx) != SlotMacroState.Idle) return;
-        b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(48, 48, 48));
-        b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+        b.SetResourceReference(Border.BackgroundProperty, "Theme.SlotPressedBackgroundBrush");
+        b.SetResourceReference(Border.BorderBrushProperty, "Theme.SlotPressedBorderBrush");
     }
     private void OnSlotDragLeave(object sender, DragEventArgs e)
     {
@@ -6026,9 +6123,9 @@ public partial class MainWindow : Window
         if (e.IsArmed)
         {
             PrefixIndicator.Visibility = Visibility.Visible;
-            PrefixIndicator.Background = PrefixArmedBackgroundBrush;
-            PrefixIndicator.BorderBrush = PrefixArmedBorderBrush;
-            PrefixIndicatorText.Foreground = PrefixArmedForegroundBrush;
+            PrefixIndicator.SetResourceReference(Border.BackgroundProperty, "Theme.PrefixArmedBackgroundBrush");
+            PrefixIndicator.SetResourceReference(Border.BorderBrushProperty, "Theme.PrefixArmedBorderBrush");
+            PrefixIndicatorText.SetResourceReference(TextBlock.ForegroundProperty, "Theme.PrefixArmedTextBrush");
             PrefixIndicatorText.Text = "PREFIX";
         }
         else
@@ -6202,19 +6299,18 @@ public partial class MainWindow : Window
         {
             if (active)
             {
-                // Black-based emphasis: brighter gray background and strong border
                 b.Opacity = 1.0;
-                b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x22, 0x22, 0x22));
-                b.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
-                b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                b.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "Theme.LayerButtonActiveBackgroundBrush");
+                b.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "Theme.LayerButtonActiveBorderBrush");
+                b.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "Theme.LayerButtonActiveTextBrush");
                 b.FontWeight = System.Windows.FontWeights.SemiBold;
             }
             else
             {
                 b.Opacity = 0.9;
-                b.Background = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x11, 0x11, 0x11));
-                b.BorderBrush = new System.Windows.Media.SolidColorBrush(MediaColor.FromRgb(0x44, 0x44, 0x44));
-                b.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.White);
+                b.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, "Theme.LayerButtonInactiveBackgroundBrush");
+                b.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, "Theme.LayerButtonInactiveBorderBrush");
+                b.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "Theme.LayerButtonInactiveTextBrush");
                 b.FontWeight = System.Windows.FontWeights.Normal;
             }
         }
