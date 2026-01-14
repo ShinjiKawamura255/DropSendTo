@@ -951,7 +951,13 @@ internal sealed class ShortcutService : IDisposable
         bool presentationBlocked = options.SuppressDuringPresentation && IsPresentationModeLikelyActive();
         var point = new Point(data.pt.x, data.pt.y);
         TrackMouseGestureMovement();
-        return _mouseGestureDetector.HandleMove(point, ctrlPressed, presentationBlocked);
+        // Allow hide gestures even during presentation suppression; ignore show if blocked.
+        var action = _mouseGestureDetector.HandleMove(point, ctrlPressed, false);
+        if (presentationBlocked && action == MouseGestureAction.ShowWindow)
+        {
+            return MouseGestureAction.None;
+        }
+        return action;
     }
 
     private void DispatchMouseGestureAction(MouseGestureAction action)
