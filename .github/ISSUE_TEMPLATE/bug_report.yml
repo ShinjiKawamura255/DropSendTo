@@ -1,0 +1,54 @@
+name: バグ報告 / Bug report
+description: 不具合の報告
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 概要 / Summary
+      description: 何が起きているかを簡潔に書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順 / Steps to reproduce
+      placeholder: "1. ...\n2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動作 / Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の動作 / Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: バージョン / Version
+      placeholder: "vX.Y.Z"
+    validations:
+      required: false
+  - type: textarea
+    id: env
+    attributes:
+      label: 環境 / Environment
+      description: OS バージョン、言語設定など
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: ログ / Logs
+      description: `%AppData%/DropSendTo/logs/app.log` の該当箇所を貼り付けてください。
+      render: shell
+    validations:
+      required: false
