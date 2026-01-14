@@ -1,5 +1,8 @@
 # DropSendTo
 
+[![CI](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml/badge.svg)](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 DropSendTo は .NET 8 (WPF) 製の常駐ランチャです。ファイル/フォルダをドラッグ＆ドロップするだけで、登録済みコマンドやマクロを実行できます。CLI 引数でも起動でき、グローバル Prefix+ショートカットで任意スロットを呼び出せます。
 
 DropSendTo is a resident launcher built with .NET 8 (WPF). Drag and drop files/folders to run registered commands or macros. It also supports CLI arguments and global prefix shortcuts.
@@ -19,6 +22,9 @@ DropSendTo is a resident launcher built with .NET 8 (WPF). Drag and drop files/f
 
 ## クイックスタート / Quickstart
 1. リポジトリをクローン / Clone the repo
+   ```
+   git clone git@github.com:ShinjiKawamura255/DropSendTo.git
+   ```
 2. ビルド / Build
    ```
    dotnet build
