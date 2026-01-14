@@ -4,7 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="表示レイヤー設定" Height="280" Width="420"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -18,13 +18,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"

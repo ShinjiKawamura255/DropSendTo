@@ -10,33 +10,33 @@ internal static class ThemeHelper
     private const int DarkModeBefore20H1 = 19;
     private const int DarkModeSince20H1 = 20;
 
-    public static void EnableDarkTitleBar(Window window)
+    public static void SetDarkTitleBar(Window window, bool useDark)
     {
         if (window == null) return;
 
         if (window.IsInitialized)
         {
-            Apply(window);
+            Apply(window, useDark);
         }
         else
         {
-            window.SourceInitialized += (_, _) => Apply(window);
+            window.SourceInitialized += (_, _) => Apply(window, useDark);
         }
     }
 
-    private static void Apply(Window window)
+    private static void Apply(Window window, bool useDark)
     {
         try
         {
             var handle = new WindowInteropHelper(window).Handle;
             if (handle == IntPtr.Zero) return;
 
-            var useDark = 1;
+            var useDarkValue = useDark ? 1 : 0;
             var attribute = Environment.OSVersion.Version.Build >= 18985
                 ? DarkModeSince20H1
                 : DarkModeBefore20H1;
 
-            _ = DwmSetWindowAttribute(handle, attribute, ref useDark, Marshal.SizeOf<int>());
+            _ = DwmSetWindowAttribute(handle, attribute, ref useDarkValue, Marshal.SizeOf<int>());
         }
         catch
         {
@@ -66,9 +66,9 @@ internal static class WindowThemeExtensions
     private static void OnUseDarkTitleBarChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not Window window) return;
-        if (e.NewValue is bool useDark && useDark)
+        if (e.NewValue is bool useDark)
         {
-            ThemeHelper.EnableDarkTitleBar(window);
+            ThemeHelper.SetDarkTitleBar(window, useDark);
         }
     }
 }

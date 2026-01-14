@@ -12,7 +12,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         ShowInTaskbar="False"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -26,13 +26,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"
@@ -65,32 +65,32 @@
                       IsReadOnly="True"
                       SelectionMode="Extended"
                       Margin="0 0 0 8"
-                      Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                      Foreground="{StaticResource Theme.PrimaryTextBrush}"
-                      BorderBrush="{StaticResource Theme.BorderBrush}">
+                      Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                      Foreground="{DynamicResource Theme.PrimaryTextBrush}"
+                      BorderBrush="{DynamicResource Theme.BorderBrush}">
                 <DataGrid.Resources>
                     <Style TargetType="DataGridColumnHeader">
-                        <Setter Property="Background" Value="{StaticResource Theme.DataGridHeaderBackgroundBrush}"/>
-                        <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.DataGridHeaderBackgroundBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                         <Setter Property="HorizontalContentAlignment" Value="Center"/>
                     </Style>
                 </DataGrid.Resources>
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
-                        <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
                         <Style.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.DataGridRowSelectedBrush}"/>
                             </Trigger>
                             <DataTrigger Binding="{Binding HasParseError}" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Theme.RowErrorBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.RowErrorBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding HasConflict}" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Theme.RowWarningBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.RowWarningBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsShadowed}" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Theme.RowShadowedBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.RowShadowedBrush}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -123,7 +123,7 @@
                        Text="ショートカットが登録されたスロットはありません。"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Foreground="{StaticResource Theme.PlaceholderTextBrush}"
+                       Foreground="{DynamicResource Theme.PlaceholderTextBrush}"
                        Visibility="Collapsed"/>
         </Grid>
 

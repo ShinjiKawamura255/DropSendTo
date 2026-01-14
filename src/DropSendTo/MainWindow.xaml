@@ -7,7 +7,7 @@
         Topmost="True"
         AllowsTransparency="True"
         Background="Transparent"
-        Foreground="{StaticResource Theme.PrimaryTextBrush}"
+        Foreground="{DynamicResource Theme.PrimaryTextBrush}"
         WindowStyle="None"
         ResizeMode="NoResize"
         PreviewMouseWheel="OnMouseWheel"
@@ -134,6 +134,16 @@
                       Click="OnConfigureMinimizeTriggers"/>
             <MenuItem x:Name="ShortcutListMenuItem" Header="ショートカット一覧..."
                       Click="OnShowShortcutList"/>
+            <MenuItem x:Name="ThemeMenuItem" Header="Theme">
+                <MenuItem x:Name="ThemeDarkMenuItem"
+                          Header="Dark"
+                          IsCheckable="True"
+                          Click="OnThemeDark"/>
+                <MenuItem x:Name="ThemeLightMenuItem"
+                          Header="Light"
+                          IsCheckable="True"
+                          Click="OnThemeLight"/>
+            </MenuItem>
             <MenuItem x:Name="LanguageMenuItem" Header="Language">
                 <MenuItem x:Name="LanguageJapaneseMenuItem"
                           Header="日本語"
@@ -156,7 +166,7 @@
             <MenuItem x:Name="ExitMenuItem" Header="Exit" Click="OnExit"/>
         </ContextMenu>
     </Window.ContextMenu>
-    <Border CornerRadius="12" Background="{StaticResource Theme.OverlayScrimBrush}" Padding="6">
+    <Border CornerRadius="12" Background="{DynamicResource Theme.OverlayScrimBrush}" Padding="6">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -169,8 +179,8 @@
                 Margin="0"
                 Padding="8,2"
                 CornerRadius="8"
-                Background="{StaticResource Theme.BadgeBackgroundBrush}"
-                BorderBrush="{StaticResource Theme.BadgeBorderBrush}"
+                Background="{DynamicResource Theme.BadgeBackgroundBrush}"
+                BorderBrush="{DynamicResource Theme.BadgeBorderBrush}"
                 BorderThickness="1"
                 Visibility="Collapsed"
                 Panel.ZIndex="10"
@@ -179,7 +189,7 @@
                        Text="PREFIX"
                        FontSize="12"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                       Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
         </Border>
         <Border x:Name="EditModeIndicator"
                 Grid.Row="1"
@@ -188,8 +198,8 @@
                 Margin="0,4,0,0"
                 Padding="8,2"
                 CornerRadius="8"
-                Background="{StaticResource Theme.EditBadgeBackgroundBrush}"
-                BorderBrush="{StaticResource Theme.EditBadgeBorderBrush}"
+                Background="{DynamicResource Theme.EditBadgeBackgroundBrush}"
+                BorderBrush="{DynamicResource Theme.EditBadgeBorderBrush}"
                 BorderThickness="1"
                 Visibility="Collapsed"
                 Panel.ZIndex="11"
@@ -198,7 +208,7 @@
                        Text="SLOT SETUP MODE"
                        FontSize="12"
                        FontWeight="SemiBold"
-                       Foreground="{StaticResource Theme.EditBadgeTextBrush}"/>
+                       Foreground="{DynamicResource Theme.EditBadgeTextBrush}"/>
         </Border>
         <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
         <DockPanel Grid.Row="0" LastChildFill="False" Background="Transparent" MouseLeftButtonDown="OnDragMoveArea">

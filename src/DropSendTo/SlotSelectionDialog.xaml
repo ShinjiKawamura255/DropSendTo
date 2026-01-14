@@ -10,7 +10,7 @@
         ResizeMode="NoResize"
         WindowStyle="None"
         ShowInTaskbar="False"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -24,13 +24,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"
@@ -56,18 +56,18 @@
             <ListBox x:Name="SlotList"
                      Grid.Row="1"
                      BorderThickness="1"
-                     BorderBrush="{StaticResource Theme.BorderBrush}"
-                     Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                     Foreground="{StaticResource Theme.PrimaryTextBrush}"
+                     BorderBrush="{DynamicResource Theme.BorderBrush}"
+                     Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                     Foreground="{DynamicResource Theme.PrimaryTextBrush}"
                      DisplayMemberPath="DisplayName"
                      SelectionMode="Single"
                      MouseDoubleClick="OnSlotDoubleClick"
                      SelectionChanged="OnSelectionChanged">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="ListBoxItem">
-                        <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                        <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                         <Setter Property="BorderThickness" Value="1"/>
                         <Setter Property="Margin" Value="0,0,0,6"/>
                         <Setter Property="Padding" Value="10,6"/>
@@ -83,12 +83,12 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.DataGridRowSelectedBrush}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsEnabled" Value="False">
                                             <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>

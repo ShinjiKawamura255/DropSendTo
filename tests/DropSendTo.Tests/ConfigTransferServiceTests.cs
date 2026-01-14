@@ -39,7 +39,8 @@ public class ConfigTransferServiceTests
             SearchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter,
             SearchPlacementFollowsKeyboard = true,
             KeyboardPlacementMode = WindowPlacementMode.CursorScreenCenter,
-            Language = AppLanguage.English
+            Language = AppLanguage.English,
+            Theme = AppTheme.Light
         };
 
         config.Layers[0].Slots[0].Title = "Test Slot";
@@ -75,6 +76,7 @@ public class ConfigTransferServiceTests
         imported.SearchPlacementMode.Should().Be(SearchOverlayPlacementMode.CursorScreenCenter);
         imported.SearchPlacementFollowsKeyboard.Should().BeTrue();
         imported.Language.Should().Be(AppLanguage.English);
+        imported.Theme.Should().Be(AppTheme.Light);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
         imported.Layers[0].Slots[0].KeyboardMacroScript.Should().Be("KEY A");
         imported.Layers[0].Slots[0].AccentColor.Should().Be(SlotAccentColor.Amber);

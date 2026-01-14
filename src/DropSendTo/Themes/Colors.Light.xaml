@@ -1,0 +1,105 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <!-- Base surfaces -->
+    <SolidColorBrush x:Key="Theme.WindowBackgroundBrush" Color="#FFF4F4F4"/>
+    <SolidColorBrush x:Key="Theme.SurfaceBackgroundBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Theme.SurfaceAltBackgroundBrush" Color="#FFF0F0F0"/>
+    <SolidColorBrush x:Key="Theme.CardBackgroundBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Theme.OverlayScrimBrush" Color="#CCFFFFFF"/>
+    <SolidColorBrush x:Key="Theme.OverlayBackgroundBrush" Color="#E6FFFFFF"/>
+
+    <!-- Borders -->
+    <SolidColorBrush x:Key="Theme.BorderBrush" Color="#FFD0D0D0"/>
+    <SolidColorBrush x:Key="Theme.SubtleBorderBrush" Color="#FFE6E6E6"/>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="Theme.PrimaryTextBrush" Color="#FF111111"/>
+    <SolidColorBrush x:Key="Theme.SecondaryTextBrush" Color="#FF333333"/>
+    <SolidColorBrush x:Key="Theme.MutedTextBrush" Color="#FF555555"/>
+    <SolidColorBrush x:Key="Theme.SubtleTextBrush" Color="#FF777777"/>
+    <SolidColorBrush x:Key="Theme.PlaceholderTextBrush" Color="#FF999999"/>
+    <SolidColorBrush x:Key="Theme.CodeTextBrush" Color="#FF1E1E1E"/>
+
+    <!-- Controls -->
+    <SolidColorBrush x:Key="Theme.ControlBackgroundBrush" Color="#FFF5F5F5"/>
+    <SolidColorBrush x:Key="Theme.ControlHoverBackgroundBrush" Color="#FFEAEAEA"/>
+    <SolidColorBrush x:Key="Theme.ControlPressedBackgroundBrush" Color="#FFDADADA"/>
+    <SolidColorBrush x:Key="Theme.ControlBorderBrush" Color="#FFCCCCCC"/>
+    <SolidColorBrush x:Key="Theme.ControlHoverBorderBrush" Color="#FF999999"/>
+    <SolidColorBrush x:Key="Theme.ControlPressedBorderBrush" Color="#FF444444"/>
+    <SolidColorBrush x:Key="Theme.InputBackgroundBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Theme.InputBorderBrush" Color="#FFBBBBBB"/>
+
+    <!-- Accents / badges -->
+    <SolidColorBrush x:Key="Theme.BadgeBackgroundBrush" Color="#FFE7F5EE"/>
+    <SolidColorBrush x:Key="Theme.BadgeBorderBrush" Color="#FF7BCFA5"/>
+    <SolidColorBrush x:Key="Theme.EditBadgeBackgroundBrush" Color="#FFF9F1DE"/>
+    <SolidColorBrush x:Key="Theme.EditBadgeBorderBrush" Color="#FFC79B3A"/>
+    <SolidColorBrush x:Key="Theme.EditBadgeTextBrush" Color="#FF5F4A1E"/>
+
+    <!-- Status -->
+    <SolidColorBrush x:Key="Theme.WarningTextBrush" Color="#FFB26A00"/>
+    <SolidColorBrush x:Key="Theme.AlertTextBrush" Color="#FFCC3333"/>
+    <SolidColorBrush x:Key="Theme.ValidationTextBrush" Color="#FFCC3333"/>
+    <SolidColorBrush x:Key="Theme.AlertBackgroundBrush" Color="#33FF3333"/>
+    <SolidColorBrush x:Key="Theme.AlertBorderBrush" Color="#FFFF6666"/>
+
+    <!-- Tables -->
+    <SolidColorBrush x:Key="Theme.DataGridHeaderBackgroundBrush" Color="#FFF2F2F2"/>
+    <SolidColorBrush x:Key="Theme.DataGridRowBackgroundBrush" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Theme.DataGridRowHoverBackgroundBrush" Color="#FFF0F0F0"/>
+    <SolidColorBrush x:Key="Theme.DataGridRowSelectedBrush" Color="#FFD4E5F7"/>
+    <SolidColorBrush x:Key="Theme.RowErrorBrush" Color="#33FF5555"/>
+    <SolidColorBrush x:Key="Theme.RowWarningBrush" Color="#33FFA500"/>
+    <SolidColorBrush x:Key="Theme.RowShadowedBrush" Color="#333366FF"/>
+
+    <!-- Slot visuals -->
+    <SolidColorBrush x:Key="Theme.SlotBackgroundBrush" Color="#FFF5F5F5"/>
+    <SolidColorBrush x:Key="Theme.SlotBorderBrush" Color="#FFCCCCCC"/>
+    <SolidColorBrush x:Key="Theme.SlotHoverBackgroundBrush" Color="#FFEAEAEA"/>
+    <SolidColorBrush x:Key="Theme.SlotHoverBorderBrush" Color="#FF999999"/>
+    <SolidColorBrush x:Key="Theme.SlotPressedBackgroundBrush" Color="#FFDADADA"/>
+    <SolidColorBrush x:Key="Theme.SlotPressedBorderBrush" Color="#FF444444"/>
+    <SolidColorBrush x:Key="Theme.SlotDragBackgroundBrush" Color="#FFE5F2F7"/>
+    <SolidColorBrush x:Key="Theme.SlotDragBorderBrush" Color="#FF4CA3C7"/>
+    <SolidColorBrush x:Key="Theme.SlotDragSourceBackgroundBrush" Color="#FFE5F6EA"/>
+    <SolidColorBrush x:Key="Theme.SlotDragSourceBorderBrush" Color="#FF4FAE6D"/>
+    <SolidColorBrush x:Key="Theme.SlotPreviewBackgroundBrush" Color="#FFF0F7F2"/>
+    <SolidColorBrush x:Key="Theme.SlotPreviewBorderBrush" Color="#FF78CFA2"/>
+    <SolidColorBrush x:Key="Theme.SlotPreviewTextBrush" Color="#FF1F4D33"/>
+    <SolidColorBrush x:Key="Theme.SlotStatusTextBrush" Color="#FF1E6B3A"/>
+    <SolidColorBrush x:Key="Theme.SlotRunningBackgroundBrush" Color="#FFE5F6EA"/>
+    <SolidColorBrush x:Key="Theme.SlotRunningBorderBrush" Color="#FF6BB883"/>
+    <SolidColorBrush x:Key="Theme.SlotRunningTextBrush" Color="#FF1E6B3A"/>
+    <SolidColorBrush x:Key="Theme.SlotCancellingBackgroundBrush" Color="#FFFFF2DD"/>
+    <SolidColorBrush x:Key="Theme.SlotCancellingBorderBrush" Color="#FFE0A64B"/>
+    <SolidColorBrush x:Key="Theme.SlotCancellingTextBrush" Color="#FF8B5A00"/>
+    <SolidColorBrush x:Key="Theme.SlotPausedBackgroundBrush" Color="#FFEEE9FF"/>
+    <SolidColorBrush x:Key="Theme.SlotPausedBorderBrush" Color="#FF9A86E8"/>
+    <SolidColorBrush x:Key="Theme.SlotPausedTextBrush" Color="#FF4A3A8C"/>
+
+    <!-- Layer buttons -->
+    <SolidColorBrush x:Key="Theme.LayerButtonActiveBackgroundBrush" Color="#FFE7E7E7"/>
+    <SolidColorBrush x:Key="Theme.LayerButtonActiveBorderBrush" Color="#FF444444"/>
+    <SolidColorBrush x:Key="Theme.LayerButtonActiveTextBrush" Color="#FF111111"/>
+    <SolidColorBrush x:Key="Theme.LayerButtonInactiveBackgroundBrush" Color="#FFF5F5F5"/>
+    <SolidColorBrush x:Key="Theme.LayerButtonInactiveBorderBrush" Color="#FFCCCCCC"/>
+    <SolidColorBrush x:Key="Theme.LayerButtonInactiveTextBrush" Color="#FF333333"/>
+
+    <!-- Prefix indicator -->
+    <SolidColorBrush x:Key="Theme.PrefixArmedBackgroundBrush" Color="#FFCDF1DC"/>
+    <SolidColorBrush x:Key="Theme.PrefixArmedBorderBrush" Color="#FF4FAE6D"/>
+    <SolidColorBrush x:Key="Theme.PrefixArmedTextBrush" Color="#FF1F4D33"/>
+
+    <!-- System color overrides (light theme) -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FFF6F6F6"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FF111111"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FFDCEBFA"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FF111111"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FFF5F5F5"/>
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF111111"/>
+
+    <sys:Boolean x:Key="Theme.UseDarkTitleBar">False</sys:Boolean>
+</ResourceDictionary>

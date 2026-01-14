@@ -8,7 +8,7 @@
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         WindowStyle="None"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -23,13 +23,13 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         Width="32"
                         Height="24"
@@ -56,19 +56,19 @@
                       Grid.Row="1"
                       MouseDoubleClick="OnSnippetDoubleClick"
                       SelectionMode="Single"
-                      Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                      Foreground="{StaticResource Theme.PrimaryTextBrush}"
-                      BorderBrush="{StaticResource Theme.BorderBrush}">
+                      Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                      Foreground="{DynamicResource Theme.PrimaryTextBrush}"
+                      BorderBrush="{DynamicResource Theme.BorderBrush}">
                 <ListView.Resources>
                     <Style TargetType="GridViewColumnHeader">
-                        <Setter Property="Background" Value="{StaticResource Theme.DataGridHeaderBackgroundBrush}"/>
-                        <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.DataGridHeaderBackgroundBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                         <Setter Property="HorizontalContentAlignment" Value="Center"/>
                     </Style>
                     <Style TargetType="ListViewItem">
-                        <Setter Property="Background" Value="{StaticResource Theme.DataGridRowBackgroundBrush}"/>
-                        <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.DataGridRowBackgroundBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
                         <Setter Property="BorderThickness" Value="0"/>
                         <Setter Property="Padding" Value="4,2"/>
                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -84,10 +84,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.DataGridRowSelectedBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsEnabled" Value="False">
                                             <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>

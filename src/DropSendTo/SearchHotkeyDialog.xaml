@@ -4,7 +4,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Search Hotkey" Height="280" Width="420" WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize" WindowStyle="None"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -18,13 +18,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"
@@ -65,28 +65,28 @@
                  Margin="0,0,0,8"/>
 
         <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
-                   Foreground="{StaticResource Theme.MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
+                   Foreground="{DynamicResource Theme.MutedTextBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
                    Text="例: Alt+Space / Ctrl+Shift+F / Win+1（単一キーまたは修飾付き）。Prefix+Alt+Space でも検索レイヤーは呼び出せます。"/>
 
         <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
-                Background="{StaticResource Theme.AlertBackgroundBrush}" BorderBrush="{StaticResource Theme.AlertBorderBrush}" BorderThickness="1.5" CornerRadius="6"
+                Background="{DynamicResource Theme.AlertBackgroundBrush}" BorderBrush="{DynamicResource Theme.AlertBorderBrush}" BorderThickness="1.5" CornerRadius="6"
                 Padding="10" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="⚠" Margin="0,0,6,0" Foreground="{StaticResource Theme.PrimaryTextBrush}" FontWeight="Bold" VerticalAlignment="Top"/>
+                <TextBlock Text="⚠" Margin="0,0,6,0" Foreground="{DynamicResource Theme.PrimaryTextBrush}" FontWeight="Bold" VerticalAlignment="Top"/>
                 <TextBlock Grid.Column="1"
                            TextWrapping="Wrap"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"
                            Text="Alt+Space などは他のランチャーや OS のショートカットと競合しやすいので慎重に設定してください。"/>
             </Grid>
         </Border>
 
         <TextBlock x:Name="ErrorBlock"
                    Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
-                   Foreground="{StaticResource Theme.AlertTextBrush}" FontSize="12" Visibility="Collapsed" TextWrapping="Wrap"/>
+                   Foreground="{DynamicResource Theme.AlertTextBrush}" FontSize="12" Visibility="Collapsed" TextWrapping="Wrap"/>
 
         <StackPanel Orientation="Horizontal"
                     Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"

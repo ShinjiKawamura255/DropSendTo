@@ -171,6 +171,7 @@ internal sealed class ConfigTransferService
         public CustomSlotSizeOptions? CustomSlotSize { get; set; }
         public bool PreferRemoteSessions { get; set; } = true;
         public AppLanguage Language { get; set; } = AppLanguage.Japanese;
+        public AppTheme Theme { get; set; } = AppTheme.Dark;
         public List<ExportLayerSnapshot> Layers { get; set; } = new();
 
         public static ExportConfigSnapshot FromAppConfig(AppConfig config)
@@ -217,7 +218,8 @@ internal sealed class ConfigTransferService
                 MousePlacementFollowsKeyboard = config.MousePlacementFollowsKeyboard,
                 CustomSlotSize = config.CustomSlotSize?.Clone(),
                 Layers = config.Layers.Select(ExportLayerSnapshot.FromLayer).ToList(),
-                Language = config.Language
+                Language = config.Language,
+                Theme = config.Theme
             };
         }
 
@@ -274,7 +276,8 @@ internal sealed class ConfigTransferService
                 MousePlacementFollowsKeyboard = MousePlacementFollowsKeyboard,
                 CustomSlotSize = CustomSlotSize?.Clone() ?? CustomSlotSizeOptions.CreateDefault(),
                 Layers = normalizedLayers,
-                Language = Language
+                Language = Language,
+                Theme = Theme
             };
         }
     }

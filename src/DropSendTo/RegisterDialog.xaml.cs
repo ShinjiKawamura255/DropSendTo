@@ -19,45 +19,20 @@ namespace DropSendTo;
 
 public partial class RegisterDialog : Window
 {
-    private static readonly IReadOnlyList<SlotColorOption> AccentColorOptions = new[]
+    private static readonly (SlotAccentColor Color, string Name)[] AccentColorNames =
     {
-        CreateColorOption(SlotAccentColor.Default, "Default",
-            System.Windows.Media.Color.FromRgb(0x11, 0x11, 0x11),
-            System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33),
-            System.Windows.Media.Colors.White),
-        CreateColorOption(SlotAccentColor.Teal, "Teal",
-            System.Windows.Media.Color.FromRgb(0x10, 0x2A, 0x30),
-            System.Windows.Media.Color.FromRgb(0x1F, 0x76, 0x7D),
-            System.Windows.Media.Color.FromRgb(0xE4, 0xFD, 0xFF)),
-        CreateColorOption(SlotAccentColor.Indigo, "Indigo",
-            System.Windows.Media.Color.FromRgb(0x16, 0x15, 0x2E),
-            System.Windows.Media.Color.FromRgb(0x4E, 0x52, 0xA6),
-            System.Windows.Media.Color.FromRgb(0xF4, 0xF2, 0xFF)),
-        CreateColorOption(SlotAccentColor.Azure, "Azure",
-            System.Windows.Media.Color.FromRgb(0x0F, 0x1B, 0x33),
-            System.Windows.Media.Color.FromRgb(0x2B, 0x78, 0xC4),
-            System.Windows.Media.Color.FromRgb(0xE2, 0xF1, 0xFF)),
-        CreateColorOption(SlotAccentColor.Amber, "Amber",
-            System.Windows.Media.Color.FromRgb(0x2D, 0x1F, 0x0F),
-            System.Windows.Media.Color.FromRgb(0xB5, 0x6B, 0x17),
-            System.Windows.Media.Color.FromRgb(0xFF, 0xE8, 0xC2)),
-        CreateColorOption(SlotAccentColor.Olive, "Olive",
-            System.Windows.Media.Color.FromRgb(0x20, 0x27, 0x12),
-            System.Windows.Media.Color.FromRgb(0x6E, 0x8C, 0x23),
-            System.Windows.Media.Color.FromRgb(0xF0, 0xFF, 0xD8)),
-        CreateColorOption(SlotAccentColor.Emerald, "Emerald",
-            System.Windows.Media.Color.FromRgb(0x0F, 0x28, 0x1D),
-            System.Windows.Media.Color.FromRgb(0x1E, 0x8B, 0x5B),
-            System.Windows.Media.Color.FromRgb(0xE3, 0xFF, 0xF2)),
-        CreateColorOption(SlotAccentColor.Crimson, "Crimson",
-            System.Windows.Media.Color.FromRgb(0x2B, 0x11, 0x16),
-            System.Windows.Media.Color.FromRgb(0xB5, 0x45, 0x4F),
-            System.Windows.Media.Color.FromRgb(0xFF, 0xE3, 0xE7)),
-        CreateColorOption(SlotAccentColor.Magenta, "Magenta",
-            System.Windows.Media.Color.FromRgb(0x2A, 0x0F, 0x2B),
-            System.Windows.Media.Color.FromRgb(0x9B, 0x3E, 0xA8),
-            System.Windows.Media.Color.FromRgb(0xFF, 0xE6, 0xFF))
+        (SlotAccentColor.Default, "Default"),
+        (SlotAccentColor.Teal, "Teal"),
+        (SlotAccentColor.Indigo, "Indigo"),
+        (SlotAccentColor.Azure, "Azure"),
+        (SlotAccentColor.Amber, "Amber"),
+        (SlotAccentColor.Olive, "Olive"),
+        (SlotAccentColor.Emerald, "Emerald"),
+        (SlotAccentColor.Crimson, "Crimson"),
+        (SlotAccentColor.Magenta, "Magenta")
     };
+
+    private readonly IReadOnlyList<SlotColorOption> _accentColorOptions;
 
     public string AppTitle => TitleBox.Text.Trim();
     public string CommandPath => ExecutionMode == SlotExecutionMode.MacroScript
@@ -201,6 +176,8 @@ public partial class RegisterDialog : Window
 
     public RegisterDialog()
     {
+        var theme = ThemeService.GetCurrentTheme();
+        _accentColorOptions = BuildAccentColorOptions(theme);
         InitializeComponent();
         _recordingService.LineRecorded += OnRecordingLineGenerated;
         if (RecordStartButton != null)
@@ -225,7 +202,7 @@ public partial class RegisterDialog : Window
         }
         if (ColorComboBox != null)
         {
-            ColorComboBox.ItemsSource = AccentColorOptions;
+            ColorComboBox.ItemsSource = _accentColorOptions;
             ColorComboBox.SelectedValue = SlotAccentColor.Default;
         }
         if (MacroBox != null)
@@ -773,17 +750,33 @@ public partial class RegisterDialog : Window
         EnableOnKeyboard = MinimizeOnKeyboardCheckBox.IsChecked == true
     };
 
-    private static SlotColorOption CreateColorOption(SlotAccentColor color, string name, System.Windows.Media.Color background, System.Windows.Media.Color accent, System.Windows.Media.Color foreground) =>
+    private static IReadOnlyList<SlotColorOption> BuildAccentColorOptions(AppTheme theme)
+    {
+        var options = new List<SlotColorOption>(AccentColorNames.Length);
+        foreach (var entry in AccentColorNames)
+        {
+            var palette = SlotAccentPalette.GetScheme(entry.Color, theme);
+            options.Add(CreateColorOption(entry.Color, entry.Name, palette, theme));
+        }
+        return options;
+    }
+
+    private static SlotColorOption CreateColorOption(
+        SlotAccentColor color,
+        string name,
+        SlotAccentPaletteEntry palette,
+        AppTheme theme) =>
         new(
             color,
             name,
-            CreatePreviewBackgroundBrush(background),
-            CreateFrozenBrush(accent),
-            CreateFrozenBrush(foreground));
+            CreatePreviewBackgroundBrush(palette.Background, theme),
+            CreateFrozenBrush(palette.Border),
+            CreateFrozenBrush(palette.Foreground));
 
-    private static System.Windows.Media.Brush CreatePreviewBackgroundBrush(System.Windows.Media.Color baseColor)
+    private static System.Windows.Media.Brush CreatePreviewBackgroundBrush(System.Windows.Media.Color baseColor, AppTheme theme)
     {
-        var tinted = BlendWithWhite(baseColor, 0.55);
+        double ratio = theme == AppTheme.Dark ? 0.55 : 0.12;
+        var tinted = BlendWithWhite(baseColor, ratio);
         var brush = new SolidColorBrush(tinted);
         brush.Freeze();
         return brush;
@@ -940,33 +933,29 @@ public partial class RegisterDialog : Window
         if (control == null) return;
         control.IsEnabled = enabled;
 
-        var enabledText = (System.Windows.Media.Brush)FindResource("Theme.PrimaryTextBrush");
-        var disabledText = (System.Windows.Media.Brush)FindResource("Theme.SubtleTextBrush");
-        var enabledInputBg = (System.Windows.Media.Brush)FindResource("Theme.InputBackgroundBrush");
-        var disabledInputBg = (System.Windows.Media.Brush)FindResource("Theme.SurfaceAltBackgroundBrush");
-        var enabledBtnBg = (System.Windows.Media.Brush)FindResource("Theme.ControlBackgroundBrush");
-        var disabledBtnBg = (System.Windows.Media.Brush)FindResource("Theme.SurfaceAltBackgroundBrush");
-        var enabledBorder = (System.Windows.Media.Brush)FindResource("Theme.ControlBorderBrush");
-        var disabledBorder = (System.Windows.Media.Brush)FindResource("Theme.SubtleBorderBrush");
+        var textKey = enabled ? "Theme.PrimaryTextBrush" : "Theme.SubtleTextBrush";
+        var inputBgKey = enabled ? "Theme.InputBackgroundBrush" : "Theme.SurfaceAltBackgroundBrush";
+        var buttonBgKey = enabled ? "Theme.ControlBackgroundBrush" : "Theme.SurfaceAltBackgroundBrush";
+        var borderKey = enabled ? "Theme.ControlBorderBrush" : "Theme.SubtleBorderBrush";
 
         switch (control)
         {
             case System.Windows.Controls.Primitives.TextBoxBase tb:
-                tb.Background = enabled ? enabledInputBg : disabledInputBg;
-                tb.Foreground = enabled ? enabledText : disabledText;
-                tb.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                tb.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, inputBgKey);
+                tb.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, textKey);
+                tb.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, borderKey);
                 tb.Opacity = 1.0;
                 break;
             case System.Windows.Controls.PasswordBox pw:
-                pw.Background = enabled ? enabledInputBg : disabledInputBg;
-                pw.Foreground = enabled ? enabledText : disabledText;
-                pw.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                pw.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, inputBgKey);
+                pw.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, textKey);
+                pw.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, borderKey);
                 pw.Opacity = 1.0;
                 break;
             case System.Windows.Controls.Primitives.ButtonBase btn:
-                btn.Background = enabled ? enabledBtnBg : disabledBtnBg;
-                btn.Foreground = enabled ? enabledText : disabledText;
-                btn.BorderBrush = enabled ? enabledBorder : disabledBorder;
+                btn.SetResourceReference(System.Windows.Controls.Control.BackgroundProperty, buttonBgKey);
+                btn.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, textKey);
+                btn.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, borderKey);
                 btn.Opacity = 1.0;
                 break;
         }

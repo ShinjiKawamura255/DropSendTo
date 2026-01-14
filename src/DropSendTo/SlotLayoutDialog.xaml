@@ -5,11 +5,11 @@
         Title="Slot Layout"
         WindowStyle="None"
         ResizeMode="NoResize"
-        Background="{StaticResource Theme.WindowBackgroundBrush}"
+        Background="{DynamicResource Theme.WindowBackgroundBrush}"
         Height="210"
         Width="340"
         WindowStartupLocation="CenterOwner">
-    <Border Padding="12" Background="{StaticResource Theme.WindowBackgroundBrush}">
+    <Border Padding="12" Background="{DynamicResource Theme.WindowBackgroundBrush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -22,7 +22,7 @@
                            FontWeight="SemiBold"
                            FontSize="14"
                            VerticalAlignment="Center"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         Width="28"
                         Height="24"
@@ -34,7 +34,7 @@
 
             <StackPanel Grid.Row="1" Margin="0,12,0,12">
                 <TextBlock x:Name="ErrorBlock"
-                           Foreground="{StaticResource Theme.AlertTextBrush}"
+                           Foreground="{DynamicResource Theme.AlertTextBrush}"
                            Visibility="Collapsed"
                            Margin="0,0,0,8"
                            TextWrapping="Wrap"/>
@@ -50,7 +50,7 @@
                 </UniformGrid>
                 <TextBlock Text="プルダウンから 2〜8 の行と列を選択してください。変更後は即時反映され、全レイヤーのスロット容量が拡張されます。"
                            FontSize="11"
-                           Foreground="{StaticResource Theme.SubtleTextBrush}"
+                           Foreground="{DynamicResource Theme.SubtleTextBrush}"
                            TextWrapping="Wrap"/>
             </StackPanel>
 

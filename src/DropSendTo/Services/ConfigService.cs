@@ -177,6 +177,10 @@ public class ConfigService
         {
             cfg.Language = AppLanguage.Japanese;
         }
+        if (!Enum.IsDefined(typeof(AppTheme), cfg.Theme))
+        {
+            cfg.Theme = AppTheme.Dark;
+        }
         if (!Enum.IsDefined(typeof(MacroConcurrencyMode), cfg.MacroConcurrencyMode))
         {
             cfg.MacroConcurrencyMode = MacroConcurrencyMode.Exclusive;
@@ -719,6 +723,16 @@ public class ConfigService
         if (cfg.Version < 35)
         {
             cfg.Version = 35;
+            changed = true;
+        }
+
+        if (cfg.Version < 36)
+        {
+            if (!Enum.IsDefined(typeof(AppTheme), cfg.Theme))
+            {
+                cfg.Theme = AppTheme.Dark;
+            }
+            cfg.Version = 36;
             changed = true;
         }
 

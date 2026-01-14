@@ -5,7 +5,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="Edit Slot" Height="560" Width="560" WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize" WindowStyle="None"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -19,13 +19,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"
@@ -130,7 +130,7 @@
 
         <TextBlock Text="実行後に最小化" Grid.Row="7" Grid.Column="0" VerticalAlignment="Top" Margin="0,6,0,0"/>
         <StackPanel Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Margin="6,2" Orientation="Vertical">
-            <TextBlock Text="トリガー" Margin="0,0,0,4" Foreground="{StaticResource Theme.SecondaryTextBrush}" FontSize="11"/>
+            <TextBlock Text="トリガー" Margin="0,0,0,4" Foreground="{DynamicResource Theme.SecondaryTextBrush}" FontSize="11"/>
             <UniformGrid Columns="4">
                 <CheckBox x:Name="MinimizeOnClickCheckBox" Content="クリック時" Margin="0,0,12,0"/>
                 <CheckBox x:Name="MinimizeOnShortcutCheckBox" Content="ショートカット時" Margin="0,0,12,0"/>
@@ -179,14 +179,14 @@
                    Grid.Column="0"
                    Grid.ColumnSpan="3"
                    Margin="6,2,6,0"
-                   Foreground="{StaticResource Theme.SecondaryTextBrush}"
+                   Foreground="{DynamicResource Theme.SecondaryTextBrush}"
                    FontSize="11"
                    TextWrapping="Wrap"
                    Text=""/>
 
         <TextBlock Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="3"
                    Margin="6,8,0,0"
-                   Foreground="{StaticResource Theme.MutedTextBrush}"
+                   Foreground="{DynamicResource Theme.MutedTextBrush}"
                    FontSize="11"
                    TextWrapping="Wrap"
                    Text="ヒント: マクロの詳細は「?」から開く Tips で確認できます。行頭が # の行と空行はスキップされます。"/>

@@ -9,8 +9,8 @@
         ResizeMode="CanResize"
         SizeToContent="Height"
         MinWidth="640"
-        Background="{StaticResource Theme.WindowBackgroundBrush}"
-        Foreground="{StaticResource Theme.PrimaryTextBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}"
+        Foreground="{DynamicResource Theme.PrimaryTextBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -18,15 +18,15 @@
                             ResizeBorderThickness="6"
                             UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
-    <Border Padding="0" Background="{StaticResource Theme.WindowBackgroundBrush}" BorderBrush="{StaticResource Theme.BorderBrush}" BorderThickness="1">
+    <Border Padding="0" Background="{DynamicResource Theme.WindowBackgroundBrush}" BorderBrush="{DynamicResource Theme.BorderBrush}" BorderThickness="1">
         <DockPanel LastChildFill="True">
-            <Border DockPanel.Dock="Top" Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+            <Border DockPanel.Dock="Top" Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
                 <DockPanel LastChildFill="False">
                     <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                                Margin="12,0"
                                VerticalAlignment="Center"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                               Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                     <Button Content="✕"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True"
                             Width="32"
@@ -37,7 +37,7 @@
                             Click="OnCloseClicked"/>
                 </DockPanel>
             </Border>
-            <Border Padding="16" Background="{StaticResource Theme.WindowBackgroundBrush}">
+            <Border Padding="16" Background="{DynamicResource Theme.WindowBackgroundBrush}">
                 <DockPanel LastChildFill="True">
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                         <Button Content="Cancel" Width="96" Margin="4,0" Click="OnCancel"/>
@@ -47,17 +47,17 @@
                     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                         <TextBlock Text="デフォルトの最小化トリガー（新規スロットの初期値）" FontWeight="SemiBold" Margin="0,0,0,6"/>
                         <UniformGrid Columns="4" Rows="1" Margin="0,0,0,8">
-                            <CheckBox IsChecked="{Binding DefaultOnClick}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
-                                <TextBlock Text="Click（スロットクリック実行後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            <CheckBox IsChecked="{Binding DefaultOnClick}" Foreground="{DynamicResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Click（スロットクリック実行後）" TextWrapping="Wrap" Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                             </CheckBox>
-                            <CheckBox IsChecked="{Binding DefaultOnShortcut}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
-                                <TextBlock Text="Shortcut（ショートカット起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            <CheckBox IsChecked="{Binding DefaultOnShortcut}" Foreground="{DynamicResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Shortcut（ショートカット起動後）" TextWrapping="Wrap" Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                             </CheckBox>
-                            <CheckBox IsChecked="{Binding DefaultOnDrop}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
-                                <TextBlock Text="Drop（ファイルドロップ起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            <CheckBox IsChecked="{Binding DefaultOnDrop}" Foreground="{DynamicResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Drop（ファイルドロップ起動後）" TextWrapping="Wrap" Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                             </CheckBox>
-                            <CheckBox IsChecked="{Binding DefaultOnKeyboard}" Foreground="{StaticResource Theme.PrimaryTextBrush}">
-                                <TextBlock Text="Keyboard（検索レイヤー等のキーボード起動後）" TextWrapping="Wrap" Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                            <CheckBox IsChecked="{Binding DefaultOnKeyboard}" Foreground="{DynamicResource Theme.PrimaryTextBrush}">
+                                <TextBlock Text="Keyboard（検索レイヤー等のキーボード起動後）" TextWrapping="Wrap" Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                             </CheckBox>
                         </UniformGrid>
                         <TextBlock Text="スロットごとの最小化トリガーを一覧で編集できます。" FontSize="12" Opacity="0.8"/>
@@ -71,11 +71,11 @@
                               HeadersVisibility="Column"
                               GridLinesVisibility="All"
                               RowHeaderWidth="0"
-                              Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                              BorderBrush="{StaticResource Theme.BorderBrush}"
-                              Foreground="{StaticResource Theme.PrimaryTextBrush}"
-                              HorizontalGridLinesBrush="{StaticResource Theme.BorderBrush}"
-                              VerticalGridLinesBrush="{StaticResource Theme.BorderBrush}"
+                              Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                              BorderBrush="{DynamicResource Theme.BorderBrush}"
+                              Foreground="{DynamicResource Theme.PrimaryTextBrush}"
+                              HorizontalGridLinesBrush="{DynamicResource Theme.BorderBrush}"
+                              VerticalGridLinesBrush="{DynamicResource Theme.BorderBrush}"
                               ColumnHeaderHeight="32"
                               RowHeight="32"
                               SelectionMode="Extended"
@@ -83,22 +83,22 @@
                               Margin="0,0,0,4">
                         <DataGrid.Resources>
                             <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="{StaticResource Theme.DataGridHeaderBackgroundBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.DataGridHeaderBackgroundBrush}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                                 <Setter Property="HorizontalContentAlignment" Value="Center"/>
                             </Style>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Background" Value="{StaticResource Theme.DataGridRowBackgroundBrush}"/>
+                                <Setter Property="Background" Value="{DynamicResource Theme.DataGridRowBackgroundBrush}"/>
                                 <Setter Property="SnapsToDevicePixels" Value="True"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                                 <Setter Property="BorderThickness" Value="0,0,0,1"/>
                                 <Style.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource Theme.DataGridRowHoverBackgroundBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource Theme.DataGridRowHoverBackgroundBrush}"/>
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
+                                        <Setter Property="Background" Value="{DynamicResource Theme.DataGridRowSelectedBrush}"/>
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -111,13 +111,13 @@
                                             <Border x:Name="Bd"
                                                     Width="18"
                                                     Height="18"
-                                                    Background="{StaticResource Theme.SurfaceAltBackgroundBrush}"
-                                                    BorderBrush="{StaticResource Theme.BorderBrush}"
+                                                    Background="{DynamicResource Theme.SurfaceAltBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource Theme.BorderBrush}"
                                                     BorderThickness="1"
                                                     CornerRadius="3">
                                                 <Path x:Name="Mark"
                                                       Data="M 2 8 L 7 13 L 14 3"
-                                                      Stroke="{StaticResource Theme.PrimaryTextBrush}"
+                                                      Stroke="{DynamicResource Theme.PrimaryTextBrush}"
                                                       StrokeThickness="2"
                                                       StrokeStartLineCap="Round"
                                                       StrokeEndLineCap="Round"
@@ -125,17 +125,17 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
-                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
-                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlPressedBackgroundBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsChecked" Value="True">
                                                     <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
-                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>

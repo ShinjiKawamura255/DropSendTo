@@ -8,37 +8,28 @@
                 <ResourceDictionary Source="Themes/Colors.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- System color overrides to keep menus/dropdowns dark -->
-            <SolidColorBrush x:Key="{x:Static SystemColors.MenuBrushKey}" Color="#FF1A1A1A"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.MenuTextBrushKey}" Color="#FFFFFFFF"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF202020"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FF111111"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FF111111"/>
-            <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FFFFFFFF"/>
-
             <Style TargetType="Window">
-                <Setter Property="Background" Value="{StaticResource Theme.WindowBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="services:WindowThemeExtensions.UseDarkTitleBar" Value="True"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.WindowBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="services:WindowThemeExtensions.UseDarkTitleBar" Value="{DynamicResource Theme.UseDarkTitleBar}"/>
             </Style>
 
             <Style TargetType="TextBlock">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
             </Style>
 
             <Style TargetType="Label">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
             </Style>
 
             <Style TargetType="CheckBox">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
             </Style>
 
             <Style TargetType="ToolTip">
-                <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="8,6"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
@@ -58,9 +49,9 @@
             </Style>
 
             <Style TargetType="Button">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.ControlBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.ControlBorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.ControlBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.ControlBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="4,2"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -78,12 +69,12 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                    <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
+                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
-                                    <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource Theme.ControlPressedBackgroundBrush}"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="bd" Property="Opacity" Value="0.5"/>
@@ -95,24 +86,24 @@
             </Style>
 
             <Style TargetType="TextBox">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.InputBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.InputBorderBrush}"/>
-                <Setter Property="SelectionBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
-                <Setter Property="CaretBrush" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.InputBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBorderBrush}"/>
+                <Setter Property="SelectionBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
             </Style>
 
             <Style TargetType="PasswordBox">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.InputBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.InputBorderBrush}"/>
-                <Setter Property="CaretBrush" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.InputBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBorderBrush}"/>
+                <Setter Property="CaretBrush" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
             </Style>
 
             <Style TargetType="ComboBox">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.InputBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.InputBorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.InputBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.InputBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="4,2"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -120,8 +111,8 @@
                 <Setter Property="ItemContainerStyle">
                     <Setter.Value>
                         <Style TargetType="ComboBoxItem">
-                            <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                            <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                            <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
                             <Setter Property="Padding" Value="6,2"/>
                             <Setter Property="HorizontalContentAlignment" Value="Left"/>
                             <Setter Property="Template">
@@ -135,10 +126,10 @@
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                             </Trigger>
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.DataGridRowSelectedBrush}"/>
+                                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.DataGridRowSelectedBrush}"/>
                                             </Trigger>
                                             <Trigger Property="IsEnabled" Value="False">
                                                 <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -177,11 +168,11 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsPressed" Value="True">
-                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -211,7 +202,7 @@
                                               VerticalAlignment="Center"
                                               HorizontalAlignment="Right"
                                               Stretch="Uniform"
-                                              Fill="{StaticResource Theme.PrimaryTextBrush}"
+                                              Fill="{DynamicResource Theme.PrimaryTextBrush}"
                                               Data="M 0 0 L 5 5 L 10 0"/>
                                     </Grid>
                                 </ToggleButton>
@@ -221,8 +212,8 @@
                                        IsOpen="{TemplateBinding IsDropDownOpen}"
                                        Placement="Bottom"
                                        PopupAnimation="Fade">
-                                    <Border Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                                            BorderBrush="{StaticResource Theme.BorderBrush}"
+                                    <Border Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                                            BorderBrush="{DynamicResource Theme.BorderBrush}"
                                             BorderThickness="1"
                                             Padding="2"
                                             MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ComboBox}}">
@@ -236,14 +227,14 @@
                             </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ToggleButton" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
+                                    <Setter TargetName="ToggleButton" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsDropDownOpen" Value="True">
-                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                                    <Setter TargetName="ToggleButton" Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="ToggleButton" Property="Opacity" Value="0.5"/>
@@ -255,9 +246,9 @@
             </Style>
 
             <Style TargetType="ContextMenu">
-                <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Setter Property="HasDropShadow" Value="False"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="Template">
@@ -270,7 +261,7 @@
                                     SnapsToDevicePixels="True">
                                 <ScrollViewer CanContentScroll="True"
                                               Focusable="False"
-                                              Background="{StaticResource Theme.SurfaceBackgroundBrush}"
+                                              Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
                                               HorizontalScrollBarVisibility="Auto"
                                               VerticalScrollBarVisibility="Auto">
                                     <StackPanel IsItemsHost="True"
@@ -283,9 +274,9 @@
             </Style>
 
             <Style TargetType="MenuItem">
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                 <Setter Property="Padding" Value="8,4"/>
                 <Setter Property="OverridesDefaultStyle" Value="True"/>
                 <Setter Property="Template">
@@ -309,7 +300,7 @@
 
                                 <Rectangle x:Name="CheckArea"
                                            Grid.Column="0"
-                                           Fill="{StaticResource Theme.SurfaceBackgroundBrush}"/>
+                                           Fill="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
 
                                 <ContentPresenter x:Name="IconHost"
                                                   Grid.Column="0"
@@ -360,18 +351,18 @@
                                        IsOpen="{TemplateBinding IsSubmenuOpen}"
                                        PopupAnimation="None"
                                        SnapsToDevicePixels="True">
-                                    <Border Background="{StaticResource Theme.SurfaceBackgroundBrush}"
-                                            BorderBrush="{StaticResource Theme.BorderBrush}"
+                                    <Border Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
+                                            BorderBrush="{DynamicResource Theme.BorderBrush}"
                                             BorderThickness="1"
                                             Padding="2"
                                             SnapsToDevicePixels="True">
                                         <ScrollViewer CanContentScroll="True"
                                                       Style="{x:Null}"
-                                                      Background="{StaticResource Theme.SurfaceBackgroundBrush}"
+                                                      Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
                                                       HorizontalScrollBarVisibility="Auto"
                                                       VerticalScrollBarVisibility="Auto">
                                             <StackPanel IsItemsHost="True"
-                                                        Background="{StaticResource Theme.SurfaceBackgroundBrush}"
+                                                        Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
                                                         KeyboardNavigation.DirectionalNavigation="Cycle"/>
                                         </ScrollViewer>
                                     </Border>
@@ -404,14 +395,14 @@
                                     <Setter TargetName="CheckArea" Property="Visibility" Value="Collapsed"/>
                                 </Trigger>
                                 <Trigger Property="IsSubmenuOpen" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
-                                    <Setter TargetName="CheckArea" Property="Fill" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
+                                    <Setter TargetName="CheckArea" Property="Fill" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsHighlighted" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
-                                    <Setter TargetName="CheckArea" Property="Fill" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
+                                    <Setter TargetName="CheckArea" Property="Fill" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -427,7 +418,7 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Separator">
-                            <Border Background="{StaticResource Theme.BorderBrush}"
+                            <Border Background="{DynamicResource Theme.BorderBrush}"
                                     Height="1"
                                     SnapsToDevicePixels="True"/>
                         </ControlTemplate>
@@ -438,9 +429,9 @@
             <Style TargetType="ScrollBar">
                 <Style.Resources>
                     <Style x:Key="ScrollBarLineButtonStyle" TargetType="RepeatButton">
-                        <Setter Property="Background" Value="{StaticResource Theme.SurfaceAltBackgroundBrush}"/>
-                        <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.SurfaceAltBackgroundBrush}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                         <Setter Property="BorderThickness" Value="0"/>
                         <Setter Property="Padding" Value="0"/>
                         <Setter Property="Template">
@@ -454,10 +445,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlHoverBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlHoverBackgroundBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlPressedBackgroundBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsEnabled" Value="False">
                                             <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
@@ -469,8 +460,8 @@
                     </Style>
 
                     <Style x:Key="ScrollBarThumbStyle" TargetType="Thumb">
-                        <Setter Property="Background" Value="{StaticResource Theme.ControlHoverBorderBrush}"/>
-                        <Setter Property="BorderBrush" Value="{StaticResource Theme.ControlPressedBorderBrush}"/>
+                        <Setter Property="Background" Value="{DynamicResource Theme.ControlHoverBorderBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.ControlPressedBorderBrush}"/>
                         <Setter Property="BorderThickness" Value="1"/>
                         <Setter Property="MinHeight" Value="14"/>
                         <Setter Property="MinWidth" Value="10"/>
@@ -485,12 +476,12 @@
                                             CornerRadius="4"/>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlPressedBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsDragging" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Theme.ControlPressedBackgroundBrush}"/>
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Theme.PrimaryTextBrush}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.ControlPressedBackgroundBrush}"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsEnabled" Value="False">
                                             <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
@@ -566,9 +557,9 @@
                         </Grid>
                     </ControlTemplate>
                 </Style.Resources>
-                <Setter Property="Foreground" Value="{StaticResource Theme.PrimaryTextBrush}"/>
-                <Setter Property="Background" Value="{StaticResource Theme.SurfaceBackgroundBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource Theme.BorderBrush}"/>
+                <Setter Property="Foreground" Value="{DynamicResource Theme.PrimaryTextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource Theme.SurfaceBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource Theme.BorderBrush}"/>
                 <Setter Property="Template" Value="{StaticResource VerticalScrollBarTemplate}"/>
                 <Style.Triggers>
                     <Trigger Property="Orientation" Value="Horizontal">

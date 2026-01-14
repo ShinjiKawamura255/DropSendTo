@@ -59,6 +59,7 @@ public partial class App : WpfApplication
             _logger.CleanupOldLogs();
             var cfg = _configService.LoadOrCreate();
             _logger.Info($"Configuration ready (path={_configService.GetConfigPath()}, rows={cfg.SlotRows}, cols={cfg.SlotColumns}, currentLayer={cfg.CurrentLayer + 1}).");
+            ThemeService.ApplyTheme(cfg.Theme);
             var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
             if (args.Length > 0)
             {

@@ -40,6 +40,7 @@ public class ConfigServiceTests
         cfg.EnableDragMiddleClickShow.Should().BeFalse();
         cfg.MouseGestureClockwiseTurnsToShow.Should().Be(3);
         cfg.MouseGestureCounterClockwiseTurnsToHide.Should().Be(2);
+        cfg.Theme.Should().Be(AppTheme.Dark);
         cfg.CustomSlotSize.Should().NotBeNull();
         cfg.CustomSlotSize.SlotHeight.Should().BeGreaterThan(0);
         cfg.Version.Should().Be(CurrentConfigVersion);

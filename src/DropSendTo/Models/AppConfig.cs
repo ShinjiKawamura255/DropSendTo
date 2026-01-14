@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 35;
+    public int Version { get; set; } = 36;
     public int CurrentLayer { get; set; } = 0; // 0-based
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -48,6 +48,7 @@ public class AppConfig
     public SearchOverlayPlacementMode SearchPlacementMode { get; set; } = SearchOverlayPlacementMode.Fixed;
     public bool SearchPlacementFollowsKeyboard { get; set; }
     public AppLanguage Language { get; set; } = AppLanguage.Japanese;
+    public AppTheme Theme { get; set; } = AppTheme.Dark;
     public List<Layer> Layers { get; set; } = new()
     {
         new Layer(), new Layer(), new Layer(), new Layer()
@@ -93,6 +94,12 @@ public enum AppLanguage
 {
     Japanese = 0,
     English = 1
+}
+
+public enum AppTheme
+{
+    Dark = 0,
+    Light = 1
 }
 
 public sealed class CustomSlotSizeOptions

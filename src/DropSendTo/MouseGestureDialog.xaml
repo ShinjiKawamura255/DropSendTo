@@ -5,7 +5,7 @@
         x:ClassModifier="internal"
         Title="マウスジェスチャ設定" Height="430" Width="460"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" WindowStyle="None"
-        Background="{StaticResource Theme.WindowBackgroundBrush}">
+        Background="{DynamicResource Theme.WindowBackgroundBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32"
                             CornerRadius="0"
@@ -19,13 +19,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Height="32" Background="{StaticResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
+        <Border Height="32" Background="{DynamicResource Theme.SurfaceBackgroundBrush}" MouseLeftButtonDown="OnTitleBarDrag">
             <DockPanel LastChildFill="False">
                 <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                            Margin="12,0"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource Theme.PrimaryTextBrush}"/>
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
                 <Button Content="✕"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True"
                         Width="32"
@@ -101,7 +101,7 @@
         <StackPanel Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,6">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                 <TextBlock Text="判定半径（最大のみ）" VerticalAlignment="Center" />
-                <TextBlock x:Name="RadiusValueText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource Theme.MutedTextBrush}"/>
+                <TextBlock x:Name="RadiusValueText" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Theme.MutedTextBrush}"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                 <StackPanel Width="260">
@@ -122,7 +122,7 @@
                 </CheckBox>
             </StackPanel>
             <TextBlock Text="※ スライダーをドラッグしている間は、カーソル位置を中心に有効最大半径のガイドを表示します。範囲外の動きはジェスチャ判定から除外されます。"
-                       Foreground="{StaticResource Theme.SubtleTextBrush}"
+                       Foreground="{DynamicResource Theme.SubtleTextBrush}"
                        FontSize="11"
                        TextWrapping="Wrap"
                        Margin="0,4,0,0"/>
@@ -135,7 +135,7 @@
 
         <TextBlock Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                    TextWrapping="Wrap"
-                   Foreground="{StaticResource Theme.MutedTextBrush}"
+                   Foreground="{DynamicResource Theme.MutedTextBrush}"
                    FontSize="12"
                    Margin="0,0,0,10"
                    Text="マウスを連続して円を描くように動かすと、指定した回数で DropSendTo を表示 / 最小化します。Ctrl 必須をオンにしても最小化（反時計回り）は Ctrl なしで実行できます。"
@@ -143,7 +143,7 @@
 
         <TextBlock x:Name="ErrorBlock"
                    Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2"
-                   Foreground="{StaticResource Theme.AlertTextBrush}"
+                   Foreground="{DynamicResource Theme.AlertTextBrush}"
                    FontSize="12"
                    Visibility="Collapsed"
                    TextWrapping="Wrap"

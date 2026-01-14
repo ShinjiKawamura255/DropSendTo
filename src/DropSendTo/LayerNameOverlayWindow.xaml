@@ -15,8 +15,8 @@
         ShowActivated="False"
         UseLayoutRounding="True"
         SizeToContent="WidthAndHeight">
-    <Border Background="{StaticResource Theme.OverlayBackgroundBrush}"
-            BorderBrush="{StaticResource Theme.BorderBrush}"
+    <Border Background="{DynamicResource Theme.OverlayBackgroundBrush}"
+            BorderBrush="{DynamicResource Theme.BorderBrush}"
             BorderThickness="1"
             CornerRadius="10"
             Padding="12,8"
@@ -25,7 +25,7 @@
                    Text="Layer 1"
                    FontSize="12"
                    FontWeight="Medium"
-                   Foreground="{StaticResource Theme.PrimaryTextBrush}"
+                   Foreground="{DynamicResource Theme.PrimaryTextBrush}"
                    TextTrimming="CharacterEllipsis"
                    TextWrapping="Wrap"
                    MaxWidth="240"/>
