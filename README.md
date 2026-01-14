@@ -3,13 +3,13 @@
 [![CI](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml/badge.svg)](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-DropSendTo は .NET 8 (WPF) 製の常駐ランチャです。ファイル/フォルダをドラッグ＆ドロップするだけで、登録済みコマンドやマクロを実行できます。CLI 引数でも起動でき、グローバル Prefix+ショートカットで任意スロットを呼び出せます。
+DropSendTo は .NET 8 (WPF) 製の軽量ランチャーです。スロットに登録したコマンドやマクロを、クリックや Prefix ショートカットで素早く呼び出せます。ドラッグ＆ドロップもサポートしますが、基本はランチャー用途が主眼です。
 
-DropSendTo is a resident launcher built with .NET 8 (WPF). Drag and drop files/folders to run registered commands or macros. It also supports CLI arguments and global prefix shortcuts.
+DropSendTo is a lightweight launcher built with .NET 8 (WPF). Launch registered commands or macros via slot clicks or global prefix shortcuts. Drag-and-drop is supported, but the primary focus is a fast launcher workflow.
 
 ## 特徴 / Key Features
 - 4 レイヤー × 2〜8 行・2〜4 列のグリッド (最大 128 スロット) / 4 layers, 2–8 rows × 2–4 columns (up to 128 slots)
-- ドロップ/クリック/CLI/Prefix から共通の起動フロー / Unified launch flow from drop, click, CLI, or prefix
+- クリック/Prefix ショートカット中心のランチャーフロー / Launcher-first flow with click and prefix shortcuts
 - マクロ実行とコマンド起動を組み合わせ可能 / Combine macro execution and command launch
 - タスクトレイ常駐・最小化 / Tray residency and minimize to tray
 - Prefix インジケーターとキーボード操作 / Prefix indicator and keyboard navigation
@@ -33,14 +33,6 @@ DropSendTo is a resident launcher built with .NET 8 (WPF). Drag and drop files/f
    ```
    dotnet run --project src/DropSendTo
    ```
-
-### CLI 起動 / CLI Launch
-```
-src/DropSendTo/bin/Debug/net8.0-windows/DropSendTo.exe "C:\path\to\file.txt"
-```
-最初にマッチした登録スロットを実行し、成功時は UI を開かず終了します。
-
-Runs the first matching registered slot and exits without opening the UI on success.
 
 ## 使い方 / Usage
 - 詳細な手順は `USER_GUIDE.md` を参照 / See `USER_GUIDE.md` for detailed usage
