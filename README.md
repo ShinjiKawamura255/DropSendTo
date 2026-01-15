@@ -7,6 +7,9 @@ DropSendTo は .NET 8 (WPF) 製の軽量ランチャーです。スロットに�
 
 DropSendTo is a lightweight launcher built with .NET 8 (WPF). Launch registered commands or macros via slot clicks or global prefix shortcuts. Drag-and-drop is supported, but the primary focus is a fast launcher workflow.
 
+## スクリーンショット / GIF
+- 準備中 / Coming soon
+
 ## 特徴 / Key Features
 - 4 レイヤー × 2〜8 行・2〜4 列のグリッド (最大 128 スロット) / 4 layers, 2–8 rows × 2–4 columns (up to 128 slots)
 - クリック/Prefix ショートカット中心のランチャーフロー / Launcher-first flow with click and prefix shortcuts
