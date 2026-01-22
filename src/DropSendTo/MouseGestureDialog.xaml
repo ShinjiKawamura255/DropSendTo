@@ -68,7 +68,7 @@
                   Margin="0,0,0,10"
                   Checked="OnDragMiddleClickChanged"
                   Unchecked="OnDragMiddleClickChanged">
-            <TextBlock Text="ドラッグ中にホイールクリックで表示 / Show on middle click while dragging"
+            <TextBlock Text="ドラッグ中にホイールクリックでドロップウィンドウを表示 / Show drop window on middle click while dragging"
                        TextWrapping="Wrap"/>
         </CheckBox>
 

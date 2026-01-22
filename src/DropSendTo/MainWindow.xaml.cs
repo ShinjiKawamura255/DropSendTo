@@ -74,6 +74,7 @@ public partial class MainWindow : Window
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
     private SearchOverlayWindow? _searchOverlayWindow;
+    private DropCaptureWindow? _dropCaptureWindow;
     private bool _searchLayerActive;
     private bool _isSearchOverlayBelowMain;
     private SearchOverlayPlacementMode _searchPlacementMode;
@@ -82,6 +83,7 @@ public partial class MainWindow : Window
     private PrefixSearchRestoreContext? _prefixSearchRestoreContext;
     private readonly List<SearchResult> _searchResults = new();
     private readonly List<VisibleSlotMapping> _visibleSlotMappings = new();
+    private string[] _pendingDropPaths = Array.Empty<string>();
     private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemesDark;
     private static readonly IReadOnlyDictionary<SlotAccentColor, SlotColorScheme> SlotColorSchemesLight;
     private const int MinSlotRows = 2;
@@ -765,6 +767,8 @@ public partial class MainWindow : Window
         CaptureFixedWindowPosition(clampBeforeStoring: true);
         CloseSearchLayer();
         HideLayerNameOverlayImmediate();
+        CloseDropCaptureWindow();
+        ClearPendingDropPaths();
         _isMinimizedToTray = true;
         if (_config.LastWindowVisibility != WindowVisibilityState.Tray)
         {
@@ -821,6 +825,9 @@ public partial class MainWindow : Window
 
     private static UiText GetUiText(AppLanguage language) =>
         language == AppLanguage.English ? EnglishText : JapaneseText;
+
+    private static string GetDropIndicatorLabel(AppLanguage language) =>
+        language == AppLanguage.English ? "Dropped" : "Dropped";
 
     private void ApplyLanguageToUi()
     {
@@ -885,6 +892,13 @@ public partial class MainWindow : Window
             _searchOverlayWindow.SetSearchLabel(text.SearchLabel);
         }
 
+        if (_dropCaptureWindow != null)
+        {
+            _dropCaptureWindow.SetLanguage(_currentLanguage);
+        }
+
+        UpdateDropIndicator();
+
         UpdateLanguageMenuState();
     }
 
@@ -911,6 +925,59 @@ public partial class MainWindow : Window
         {
             ThemeLightMenuItem.IsChecked = theme == AppTheme.Light;
         }
+    }
+
+    private void UpdateDropIndicator()
+    {
+        if (DropIndicator == null || DropIndicatorText == null)
+        {
+            return;
+        }
+
+        if (_pendingDropPaths.Length == 0)
+        {
+            DropIndicator.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        DropIndicator.Visibility = Visibility.Visible;
+        DropIndicatorText.Text = GetDropIndicatorLabel(_currentLanguage);
+    }
+
+    private void ClearPendingDropPaths()
+    {
+        if (_pendingDropPaths.Length == 0)
+        {
+            return;
+        }
+
+        _pendingDropPaths = Array.Empty<string>();
+        UpdateDropIndicator();
+    }
+
+    private void SetPendingDropPaths(IReadOnlyList<string> paths)
+    {
+        _pendingDropPaths = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToArray();
+        UpdateDropIndicator();
+    }
+
+    private IReadOnlyList<string>? TakePendingDropPathsForTrigger(SlotTriggerKind trigger)
+    {
+        if (_pendingDropPaths.Length == 0)
+        {
+            return null;
+        }
+
+        if (trigger is not (SlotTriggerKind.Click or SlotTriggerKind.Keyboard or SlotTriggerKind.Shortcut))
+        {
+            return null;
+        }
+
+        var paths = _pendingDropPaths;
+        ClearPendingDropPaths();
+        return paths;
     }
 
     private bool GetDesiredTopmost()
@@ -5495,11 +5562,12 @@ public partial class MainWindow : Window
         {
             slotTitle = "(untitled)";
         }
-        var dropPathArray = droppedPaths switch
+        var effectiveDroppedPaths = droppedPaths ?? TakePendingDropPathsForTrigger(trigger);
+        var dropPathArray = effectiveDroppedPaths switch
         {
             null => null,
             string[] existing => existing,
-            _ => droppedPaths.ToArray()
+            _ => effectiveDroppedPaths.ToArray()
         };
         var dropPathsOrEmpty = dropPathArray ?? Array.Empty<string>();
         var mode = slot.ExecutionMode;
@@ -5925,7 +5993,7 @@ public partial class MainWindow : Window
 
     private void OnDragMiddleClickShowRequested(object? sender, EventArgs e)
     {
-        ShowWindowFromMouseGesture(useTransientPosition: true);
+        ShowDropCaptureWindow();
     }
 
     private void OnMouseGestureHideRequested(object? sender, EventArgs e)
@@ -5958,6 +6026,137 @@ public partial class MainWindow : Window
     private void OnPrefixPositionToggleRequested(object? sender, EventArgs e)
     {
         TogglePlacementMode(ShowLayerTrigger.Prefix);
+    }
+
+    private void ShowDropCaptureWindow()
+    {
+        if (_dropCaptureWindow != null)
+        {
+            _dropCaptureWindow.SetLanguage(_currentLanguage);
+            _dropCaptureWindow.Show();
+            _dropCaptureWindow.UpdateLayout();
+            PositionDropCaptureWindow(_dropCaptureWindow);
+            _dropCaptureWindow.Activate();
+            return;
+        }
+
+        var window = new DropCaptureWindow();
+        if (IsVisible)
+        {
+            window.Owner = this;
+        }
+        window.SetLanguage(_currentLanguage);
+        window.DropCompleted += OnDropCaptureCompleted;
+        window.CancelRequested += OnDropCaptureCanceled;
+        window.Closed += OnDropCaptureClosed;
+        _dropCaptureWindow = window;
+
+        window.Show();
+        window.UpdateLayout();
+        PositionDropCaptureWindow(window);
+    }
+
+    private void CloseDropCaptureWindow()
+    {
+        if (_dropCaptureWindow == null)
+        {
+            return;
+        }
+
+        _dropCaptureWindow.Close();
+    }
+
+    private void OnDropCaptureCompleted(object? sender, DropCaptureEventArgs e)
+    {
+        var normalized = e.Paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToArray();
+        CloseDropCaptureWindow();
+
+        if (normalized.Length == 0)
+        {
+            return;
+        }
+
+        SetPendingDropPaths(normalized);
+        ShowWindowFromDropCapture();
+    }
+
+    private void OnDropCaptureCanceled(object? sender, EventArgs e)
+    {
+        CloseDropCaptureWindow();
+    }
+
+    private void OnDropCaptureClosed(object? sender, EventArgs e)
+    {
+        if (sender is DropCaptureWindow window)
+        {
+            window.DropCompleted -= OnDropCaptureCompleted;
+            window.CancelRequested -= OnDropCaptureCanceled;
+            window.Closed -= OnDropCaptureClosed;
+        }
+
+        _dropCaptureWindow = null;
+    }
+
+    private void PositionDropCaptureWindow(DropCaptureWindow window)
+    {
+        if (!TryGetCursorPosition(out var cursor))
+        {
+            return;
+        }
+
+        var logicalCursor = ConvertScreenToDeviceIndependent(new System.Windows.Point(cursor.X, cursor.Y));
+        double width = window.ActualWidth;
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = window.Width;
+        }
+        if (double.IsNaN(width) || width <= 0)
+        {
+            width = Math.Max(window.MinWidth, 1);
+        }
+
+        double height = window.ActualHeight;
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = window.Height;
+        }
+        if (double.IsNaN(height) || height <= 0)
+        {
+            height = Math.Max(window.MinHeight, 1);
+        }
+
+        double desiredLeft = logicalCursor.X - width / 2.0;
+        const double offset = 16;
+        var bounds = ScreenBoundsResolver.ForRect(this, new Rect(desiredLeft, logicalCursor.Y, width, height));
+        double spaceBelow = bounds.Bottom - (logicalCursor.Y + offset);
+        double spaceAbove = (logicalCursor.Y - offset) - bounds.Top;
+        bool preferBelow = spaceBelow >= height || spaceBelow >= spaceAbove;
+        double desiredTop = preferBelow
+            ? logicalCursor.Y + offset
+            : logicalCursor.Y - offset - height;
+
+        var (left, top) = _placement.Clamp(desiredLeft, desiredTop, bounds, width, height);
+        window.Left = left;
+        window.Top = top;
+    }
+
+    private void ShowWindowFromDropCapture()
+    {
+        HideLayerNameOverlayImmediate();
+        bool wasHidden = IsWindowHiddenForShow();
+        ApplyShowLayerPreference(ShowLayerTrigger.MouseGesture, wasHidden);
+        _suppressFixedCaptureFromTransientShow = true;
+        PositionWindowNearCursorForDragGesture();
+
+        var placement = GetPlacementMode(ShowLayerTrigger.MouseGesture);
+        _suppressFixedCapture = placement != WindowPlacementMode.Fixed;
+        BringWindowToForeground();
+        RearmDragDropTargets();
+        ActivateKeyboardNavigation();
+        ShowLayerNameOverlay();
+        RefreshDragHoverIfMouseButtonDown();
     }
 
     private void ShowWindowFromMouseGesture(bool useTransientPosition)
@@ -6439,6 +6638,13 @@ public partial class MainWindow : Window
             _searchOverlayWindow.SlotNavigationRequested -= OnSearchOverlaySlotNavigationRequested;
             _searchOverlayWindow.Close();
             _searchOverlayWindow = null;
+        }
+        if (_dropCaptureWindow != null)
+        {
+            _dropCaptureWindow.DropCompleted -= OnDropCaptureCompleted;
+            _dropCaptureWindow.CancelRequested -= OnDropCaptureCanceled;
+            _dropCaptureWindow.Close();
+            _dropCaptureWindow = null;
         }
         if (_trayMenuHost != null)
         {

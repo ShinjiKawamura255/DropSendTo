@@ -9,15 +9,22 @@ namespace DropSendTo.Services;
 internal static class ArgumentTemplateExpander
 {
     private const string ArgsToken = "{args}";
+    private const string DropArgsToken = "{drop_args}";
+    private const string DropCountToken = "{drop_count}";
+    private const string DropPathToken = "{drop_path}";
     private const string ClipboardToken = "{clipboard}";
     private const string ClipboardArgsToken = "{clipboard_args}";
     private const int ClipboardArgsLimitCap = 20;
     private static readonly Regex ClipboardArgsLimitRegex = new(@"\{clipboard_args:(\d+)\}", RegexOptions.Compiled);
+    private static readonly Regex DropPathIndexRegex = new(@"\{drop_path:(\d+)\}", RegexOptions.Compiled);
+    private static readonly Regex DropPathTokenRegex = new(@"\{drop_path\}", RegexOptions.Compiled);
 
     public static string Expand(string? template, IReadOnlyCollection<string> paths, Func<ClipboardSnapshot> clipboardProvider)
     {
         template ??= ArgsToken;
-        var joinedPaths = JoinPaths(paths);
+        var pathList = paths?.ToArray() ?? Array.Empty<string>();
+        var joinedPaths = JoinPaths(pathList);
+        string dropCount = pathList.Length.ToString(CultureInfo.InvariantCulture);
 
         var snapshot = clipboardProvider?.Invoke() ?? ClipboardSnapshot.Empty;
         string clipboardRaw = snapshot.RawText ?? string.Empty;
@@ -25,6 +32,10 @@ internal static class ArgumentTemplateExpander
         var historyEntries = snapshot.Entries ?? Array.Empty<string>();
 
         string result = template.Replace(ArgsToken, joinedPaths);
+        result = result.Replace(DropArgsToken, joinedPaths);
+        result = result.Replace(DropCountToken, dropCount);
+        result = ReplaceDropPathWithIndex(result, pathList);
+        result = ReplaceDropPathToken(result, pathList);
         result = ReplaceClipboardArgsWithLimit(result, historyEntries);
         if (result.Contains(ClipboardArgsToken, StringComparison.Ordinal))
         {
@@ -49,6 +60,43 @@ internal static class ArgumentTemplateExpander
     private static string JoinPaths(IEnumerable<string> paths)
     {
         return string.Join(" ", paths.Select(QuotePath));
+    }
+
+    private static string ReplaceDropPathToken(string template, IReadOnlyList<string> entries)
+    {
+        if (!DropPathTokenRegex.IsMatch(template))
+        {
+            return template;
+        }
+
+        string replacement = entries.Count > 0 ? QuotePath(entries[0]) : string.Empty;
+        return DropPathTokenRegex.Replace(template, replacement);
+    }
+
+    private static string ReplaceDropPathWithIndex(string template, IReadOnlyList<string> entries)
+    {
+        if (!DropPathIndexRegex.IsMatch(template))
+        {
+            return template;
+        }
+
+        return DropPathIndexRegex.Replace(template, match =>
+        {
+            var token = match.Groups[1].Value;
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var index))
+            {
+                return string.Empty;
+            }
+            if (index <= 0)
+            {
+                return string.Empty;
+            }
+            if (entries.Count == 0 || index > entries.Count)
+            {
+                return string.Empty;
+            }
+            return QuotePath(entries[index - 1]);
+        });
     }
 
     private static string BuildClipboardArgs(IReadOnlyList<string> entries, int? limit = null)

@@ -35,7 +35,7 @@
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
-- MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（最新のクリップボード文字列を行単位で引用付き展開）、`{clipboard_args:n}`（直近 n 行〈1〜20 行〉を古い順で引用付き展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
+- MUST: Arguments Template は `{args}`（ドロップ/CLI パス群）、`{drop_args}`（ドロップパス群）、`{drop_count}`（ドロップ件数）、`{drop_path}`（先頭パス）、`{drop_path:n}`（1 基点の n 番目のパス）、`{clipboard}`（クリップボード文字列）、`{clipboard_args}`（最新のクリップボード文字列を行単位で引用付き展開）、`{clipboard_args:n}`（直近 n 行〈1〜20 行〉を古い順で引用付き展開）をサポートし、プレースホルダが存在しない場合は空文字を挿入する。
 - MUST: `Minimize to Tray` メニューまたは Prefix+Shift+Enter でウィンドウをタスクトレイへ格納でき、Prefix+Enter もしくはタスクトレイアイコン左クリックで復帰させる。タスクトレイへ格納中は Alt+Tab に表示されない。
 - MUST: CLI 起動時は現在レイヤー内で最初に登録されたスロットを優先し、存在しない場合は全レイヤーから最初の登録スロットを選んで引数を渡す。失敗時はエラーダイアログを表示し UI を継続する。
 - SHOULD: コマンド未登録スロットへドロップした場合は情報メッセージで通知する。
@@ -142,6 +142,12 @@
 - MUST: ドロップ時のみ設定を更新し、途中のホバーではスロット内容を入れ替えない。空スロットへドロップした場合は移動（スワップ with 空）として扱う。
 - MUST: ドラッグ中にレイヤーボタンを ≥0.8 秒ホバーすると表示レイヤーを切り替え、別レイヤーのスロットとも同一操作でスワップできる。ドラッグキャンセルやモード解除時はプレビューを即座に消し、インジケーターを「SLOT SETUP MODE」に戻す。
 
+## SP-013 Drag Drop Capture
+- MUST: ドラッグ中のホイールクリックでドロップ専用ウィンドウを表示する。
+- MUST: 専用ウィンドウにファイル/フォルダをドロップしたら、左上に「Dropped」インジケーターを表示し、DropSendTo ウィンドウを表示する。
+- MUST: ドロップ専用ウィンドウで取得したパスは、スロットのクリック/キーボード選択/検索起動で `{args}` として利用される。
+- MUST: 上記の表示は一時表示として扱い、固定位置の保存値を更新しない。
+
 ## Traceability (excerpt)
 - SP-001 → DES-002/003 → TC-040/045/065
 - SP-004 → DES-002/004 → TC-020/021/025/080/087
@@ -151,3 +157,4 @@
 - SP-010 → DES-002/003/005 → TC-035/085/086/099/100/101
 - SP-011 → DES-004 → TC-102/103/104
 - SP-012 → DES-002/003 → TC-071
+- SP-013 → DES-003 → TC-109

@@ -172,25 +172,40 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Border x:Name="PrefixIndicator"
-                Grid.RowSpan="2"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Top"
-                Margin="0"
-                Padding="8,2"
-                CornerRadius="8"
-                Background="{DynamicResource Theme.BadgeBackgroundBrush}"
-                BorderBrush="{DynamicResource Theme.BadgeBorderBrush}"
-                BorderThickness="1"
-                Visibility="Collapsed"
-                Panel.ZIndex="10"
-                IsHitTestVisible="False">
-            <TextBlock x:Name="PrefixIndicatorText"
-                       Text="PREFIX"
-                       FontSize="12"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
-        </Border>
+        <StackPanel Grid.RowSpan="2"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="0"
+                    Panel.ZIndex="10"
+                    IsHitTestVisible="False">
+            <Border x:Name="PrefixIndicator"
+                    Padding="8,2"
+                    CornerRadius="8"
+                    Background="{DynamicResource Theme.BadgeBackgroundBrush}"
+                    BorderBrush="{DynamicResource Theme.BadgeBorderBrush}"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="PrefixIndicatorText"
+                           Text="PREFIX"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
+            </Border>
+            <Border x:Name="DropIndicator"
+                    Margin="0,4,0,0"
+                    Padding="8,2"
+                    CornerRadius="8"
+                    Background="{DynamicResource Theme.BadgeBackgroundBrush}"
+                    BorderBrush="{DynamicResource Theme.BadgeBorderBrush}"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="DropIndicatorText"
+                           Text="Dropped"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
+            </Border>
+        </StackPanel>
         <Border x:Name="EditModeIndicator"
                 Grid.Row="1"
                 HorizontalAlignment="Left"

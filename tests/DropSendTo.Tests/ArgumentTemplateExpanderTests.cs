@@ -14,6 +14,22 @@ public class ArgumentTemplateExpanderTests
     }
 
     [Fact]
+    public void Expand_ReplacesDropArgsAndCount()
+    {
+        var paths = new[] { @"C:\One", @"C:\Two Folder\file.txt" };
+        var result = ArgumentTemplateExpander.Expand("{drop_args} ({drop_count})", paths, () => ClipboardSnapshot.Empty);
+        Assert.Equal(@"C:\One ""C:\Two Folder\file.txt"" (2)", result);
+    }
+
+    [Fact]
+    public void Expand_ReplacesDropPathTokens()
+    {
+        var paths = new[] { @"C:\One", @"C:\Two Folder\file.txt" };
+        var result = ArgumentTemplateExpander.Expand("A={drop_path};B={drop_path:2};C={drop_path:3};D={drop_path:0}", paths, () => ClipboardSnapshot.Empty);
+        Assert.Equal(@"A=C:\One;B=""C:\Two Folder\file.txt"";C=;D=", result);
+    }
+
+    [Fact]
     public void Expand_ReplacesClipboardRawText()
     {
         var template = "copy {clipboard}";
