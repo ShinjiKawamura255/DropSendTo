@@ -51,7 +51,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Prefix 後に実行できるショートカット登録済みのスロット一覧です。列ヘッダーをクリックするとソートできます。"
+        <TextBlock Text="Prefix 後に実行できるショートカット登録済みのスロット一覧です。アプリ側で予約されているキーは「アプリ優先」と表示されます。列ヘッダーをクリックするとソートできます。"
                    TextWrapping="Wrap"
                    Margin="0 0 0 10"/>
 
@@ -85,6 +85,9 @@
                             </Trigger>
                             <DataTrigger Binding="{Binding HasParseError}" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource Theme.RowErrorBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasAppShortcutConflict}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource Theme.RowWarningBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding HasConflict}" Value="True">
                                 <Setter Property="Background" Value="{DynamicResource Theme.RowWarningBrush}"/>

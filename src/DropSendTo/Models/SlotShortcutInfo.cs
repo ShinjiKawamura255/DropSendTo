@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DropSendTo.Models;
 
@@ -34,9 +35,31 @@ internal sealed class SlotShortcutInfo
     public string[] NormalizedSegments { get; }
     public bool HasParseError { get; }
     public bool HasConflict { get; set; }
+    public bool HasAppShortcutConflict { get; set; }
+    public string AppShortcutConflictDetail { get; set; } = string.Empty;
     public bool IsShadowed { get; set; }
     public string Status => HasParseError
         ? "解析エラー"
-        : HasConflict ? "競合"
-        : IsShadowed ? "被覆" : string.Empty;
+        : BuildStatus();
+
+    private string BuildStatus()
+    {
+        var parts = new List<string>();
+        if (HasAppShortcutConflict)
+        {
+            var detail = string.IsNullOrWhiteSpace(AppShortcutConflictDetail)
+                ? "アプリ優先"
+                : $"アプリ優先: {AppShortcutConflictDetail}";
+            parts.Add(detail);
+        }
+        if (HasConflict)
+        {
+            parts.Add("競合");
+        }
+        if (IsShadowed)
+        {
+            parts.Add("被覆");
+        }
+        return parts.Count == 0 ? string.Empty : string.Join(" / ", parts);
+    }
 }

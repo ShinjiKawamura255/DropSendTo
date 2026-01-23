@@ -5206,6 +5206,7 @@ public partial class MainWindow : Window
             return items;
         }
 
+        var appReserved = BuildAppShortcutConflictMap();
         int visibleSlots = _slotVisuals.Count > 0
             ? _slotVisuals.Count
             : Math.Max(0, _config.SlotRows * _config.SlotColumns);
@@ -5236,7 +5237,17 @@ public partial class MainWindow : Window
                 var segments = parseError
                     ? Array.Empty<string>()
                     : sequence.Chords.Select(c => c.NormalizedString).ToArray();
-                items.Add(new SlotShortcutInfo(slotId, title, shortcut, normalized, segments, parseError, layerIndex, slotIndex));
+                var info = new SlotShortcutInfo(slotId, title, shortcut, normalized, segments, parseError, layerIndex, slotIndex);
+                if (!parseError && sequence.Chords.Count > 0)
+                {
+                    var firstChord = sequence.Chords[0].NormalizedString;
+                    if (appReserved.TryGetValue(firstChord, out var reason))
+                    {
+                        info.HasAppShortcutConflict = true;
+                        info.AppShortcutConflictDetail = reason;
+                    }
+                }
+                items.Add(info);
             }
         }
 
@@ -5282,6 +5293,52 @@ public partial class MainWindow : Window
         }
 
         return items;
+    }
+
+    private Dictionary<string, string> BuildAppShortcutConflictMap()
+    {
+        var reserved = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (_config == null || _config.ShortcutPrefixDisabled)
+        {
+            return reserved;
+        }
+
+        void AddReserved(string expression, string reason)
+        {
+            if (!KeyChordParser.TryParse(expression, out var chord, out _))
+            {
+                return;
+            }
+            if (!reserved.ContainsKey(chord.NormalizedString))
+            {
+                reserved.Add(chord.NormalizedString, reason);
+            }
+        }
+
+        AddReserved("Enter", "Enter (復帰)");
+        AddReserved("Shift+Enter", "Shift+Enter (最小化)");
+        AddReserved("Alt+Enter", "Alt+Enter (マクロ取消)");
+        AddReserved("Tab", "Tab (表示位置切替)");
+        AddReserved("Alt+Space", "Alt+Space (検索)");
+
+        if (_config.EnablePrefixLayerShortcuts)
+        {
+            AddReserved("Ctrl+N", "Ctrl+N (次レイヤー)");
+            AddReserved("Ctrl+P", "Ctrl+P (前レイヤー)");
+        }
+
+        if (_config.EnablePrefixDropCapture)
+        {
+            AddReserved("Ctrl+D", "Ctrl+D (ドロップ)");
+        }
+
+        if (KeyChordParser.TryParse(_config.ShortcutPrefix, out var prefixChord, out _))
+        {
+            var prefixLabel = $"{prefixChord.NormalizedString} (Prefix再入力)";
+            reserved[prefixChord.NormalizedString] = prefixLabel;
+        }
+
+        return reserved;
     }
 
     private void UpdateMacroModeMenu(MacroConcurrencyMode? overrideMode)
