@@ -500,7 +500,6 @@ public class ConfigService
 
         if (cfg.Version < 16)
         {
-            cfg.EnablePrefixLayerShortcuts = false;
             cfg.Version = 16;
             changed = true;
         }

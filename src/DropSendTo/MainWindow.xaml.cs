@@ -1332,14 +1332,11 @@ public partial class MainWindow : Window
             _shortcutService.PrefixSearchRequested += OnPrefixSearchRequested;
             _shortcutService.PrefixDropCaptureRequested += OnPrefixDropCaptureRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
-            _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
-            _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
             _shortcutService.SearchHotkeyRequested += OnSearchHotkeyRequested;
             _shortcutService.MouseGestureShowRequested += OnMouseGestureShowRequested;
             _shortcutService.DragMiddleClickShowRequested += OnDragMiddleClickShowRequested;
             _shortcutService.MouseGestureHideRequested += OnMouseGestureHideRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
-            _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
             _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
             _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
@@ -5321,12 +5318,6 @@ public partial class MainWindow : Window
         AddReserved("Tab", "Tab (表示位置切替)");
         AddReserved("Alt+Space", "Alt+Space (検索)");
 
-        if (_config.EnablePrefixLayerShortcuts)
-        {
-            AddReserved("Ctrl+N", "Ctrl+N (次レイヤー)");
-            AddReserved("Ctrl+P", "Ctrl+P (前レイヤー)");
-        }
-
         if (_config.EnablePrefixDropCapture)
         {
             AddReserved("Ctrl+D", "Ctrl+D (ドロップ)");
@@ -6368,16 +6359,6 @@ public partial class MainWindow : Window
         return false;
     }
 
-    private void OnPrefixNextLayerRequested(object? sender, EventArgs e)
-    {
-        ChangeLayer(1);
-    }
-
-    private void OnPrefixPreviousLayerRequested(object? sender, EventArgs e)
-    {
-        ChangeLayer(-1);
-    }
-
     private void OnPrefixStateChanged(object? sender, PrefixStateChangedEventArgs e)
     {
         UpdatePrefixGuard(e.IsArmed);
@@ -6688,8 +6669,6 @@ public partial class MainWindow : Window
         _shortcutService.PrefixMacroCancelRequested -= OnPrefixMacroCancelRequested;
         _shortcutService.PrefixMinimizeRequested -= OnPrefixMinimizeRequested;
         _shortcutService.PrefixPositionToggleRequested -= OnPrefixPositionToggleRequested;
-        _shortcutService.PrefixNextLayerRequested -= OnPrefixNextLayerRequested;
-        _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
         _shortcutService.SearchHotkeyRequested -= OnSearchHotkeyRequested;
         _shortcutService.PrefixSearchRequested -= OnPrefixSearchRequested;
         _shortcutService.PrefixDropCaptureRequested -= OnPrefixDropCaptureRequested;

@@ -121,7 +121,6 @@ internal sealed class ShortcutService : IDisposable
     private readonly Timer _prefixTimeoutTimer;
     private bool _usingFallbackPrefix;
     private bool _prefixDisabled;
-    private bool _prefixLayerShortcutsEnabled;
     private bool _prefixDropCaptureEnabled = true;
     private bool _preferRemoteSessions;
     private Func<bool> _remoteSessionDetector;
@@ -147,8 +146,6 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixMinimizeRequested;
     public event EventHandler? PrefixMacroCancelRequested;
     public event EventHandler? PrefixPositionToggleRequested;
-    public event EventHandler? PrefixNextLayerRequested;
-    public event EventHandler? PrefixPreviousLayerRequested;
     public event EventHandler? PrefixSearchRequested;
     public event EventHandler? PrefixDropCaptureRequested;
     public event EventHandler? MouseGestureShowRequested;
@@ -302,15 +299,6 @@ internal sealed class ShortcutService : IDisposable
                 }
             }
             ResetSequenceTrackingLocked();
-        }
-    }
-
-    public void SetPrefixLayerShortcutsEnabled(bool enabled)
-    {
-        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
-        lock (_stateLock)
-        {
-            _prefixLayerShortcutsEnabled = enabled;
         }
     }
 
@@ -595,29 +583,6 @@ internal sealed class ShortcutService : IDisposable
         {
             action = ShortcutAction.CreatePrefixMinimize();
             return true;
-        }
-
-        if (_prefixLayerShortcutsEnabled)
-        {
-            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
-            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
-            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
-            if (ctrlActive &&
-                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
-                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
-            {
-                if (vk == VK_N)
-                {
-                    action = ShortcutAction.CreatePrefixNextLayer();
-                    return true;
-                }
-
-                if (vk == VK_P)
-                {
-                    action = ShortcutAction.CreatePrefixPreviousLayer();
-                    return true;
-                }
-            }
         }
 
         if (_prefixDropCaptureEnabled)
@@ -951,12 +916,6 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixTogglePosition:
                 _dispatcher.BeginInvoke(() => PrefixPositionToggleRequested?.Invoke(this, EventArgs.Empty));
-                break;
-            case ShortcutActionType.PrefixNextLayer:
-                _dispatcher.BeginInvoke(() => PrefixNextLayerRequested?.Invoke(this, EventArgs.Empty));
-                break;
-            case ShortcutActionType.PrefixPreviousLayer:
-                _dispatcher.BeginInvoke(() => PrefixPreviousLayerRequested?.Invoke(this, EventArgs.Empty));
                 break;
             case ShortcutActionType.PrefixSearch:
                 _dispatcher.BeginInvoke(() => PrefixSearchRequested?.Invoke(this, EventArgs.Empty));
@@ -1573,12 +1532,6 @@ internal sealed class ShortcutService : IDisposable
         public static ShortcutAction CreatePrefixTogglePosition() =>
             new(ShortcutActionType.PrefixTogglePosition, null, null);
 
-        public static ShortcutAction CreatePrefixNextLayer() =>
-            new(ShortcutActionType.PrefixNextLayer, null, null);
-
-        public static ShortcutAction CreatePrefixPreviousLayer() =>
-            new(ShortcutActionType.PrefixPreviousLayer, null, null);
-
         public static ShortcutAction CreatePrefixSearch() =>
             new(ShortcutActionType.PrefixSearch, null, null);
 
@@ -1598,8 +1551,6 @@ internal sealed class ShortcutService : IDisposable
         PrefixMinimize,
         PrefixCancelMacro,
         PrefixTogglePosition,
-        PrefixNextLayer,
-        PrefixPreviousLayer,
         PrefixSearch,
         PrefixDropCapture,
         SearchHotkey
@@ -1690,8 +1641,6 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_TAB = 0x09;
     private const ushort VK_SPACE = 0x20;
     private const ushort VK_D = 0x44;
-    private const ushort VK_N = 0x4E;
-    private const ushort VK_P = 0x50;
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();

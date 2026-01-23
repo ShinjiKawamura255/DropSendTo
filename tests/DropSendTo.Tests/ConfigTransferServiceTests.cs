@@ -22,7 +22,6 @@ public class ConfigTransferServiceTests
             LastWindowVisibility = WindowVisibilityState.Tray,
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
-            EnablePrefixLayerShortcuts = true,
             EnablePrefixDropCapture = false,
             SlotRows = 3,
             SlotColumns = 3,
@@ -63,7 +62,6 @@ public class ConfigTransferServiceTests
         imported.AlwaysOnTop.Should().BeFalse();
         imported.StartupBehavior.Should().Be(StartupWindowBehavior.RestoreLastState);
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
-        imported.EnablePrefixLayerShortcuts.Should().BeTrue();
         imported.EnablePrefixDropCapture.Should().BeFalse();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.EnableMouseGestures.Should().BeFalse();
