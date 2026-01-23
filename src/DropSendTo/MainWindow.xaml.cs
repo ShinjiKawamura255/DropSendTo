@@ -1330,6 +1330,7 @@ public partial class MainWindow : Window
             _shortcutService.PrefixMinimizeRequested += OnPrefixMinimizeRequested;
             _shortcutService.PrefixPositionToggleRequested += OnPrefixPositionToggleRequested;
             _shortcutService.PrefixSearchRequested += OnPrefixSearchRequested;
+            _shortcutService.PrefixDropCaptureRequested += OnPrefixDropCaptureRequested;
             _shortcutService.PrefixStateChanged += OnPrefixStateChanged;
             _shortcutService.PrefixNextLayerRequested += OnPrefixNextLayerRequested;
             _shortcutService.PrefixPreviousLayerRequested += OnPrefixPreviousLayerRequested;
@@ -1339,6 +1340,7 @@ public partial class MainWindow : Window
             _shortcutService.MouseGestureHideRequested += OnMouseGestureHideRequested;
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixLayerShortcutsEnabled(_config.EnablePrefixLayerShortcuts);
+            _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
             _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             _macroService.SetPrefixStateAccessors(
@@ -4553,6 +4555,7 @@ public partial class MainWindow : Window
             _currentLanguage = _config.Language;
             _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
+            _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
             ApplySlotLayout();
             RestoreWindowPosition();
             Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
@@ -4654,7 +4657,7 @@ public partial class MainWindow : Window
         try
         {
             var options = BuildMouseGestureOptions();
-            var dlg = new MouseGestureDialog(options) { Owner = this };
+            var dlg = new MouseGestureDialog(options, _config.EnablePrefixDropCapture) { Owner = this };
             WindowCascadeService.Arrange(dlg, this);
             if (!await dlg.ShowForResultAsync())
             {
@@ -4665,6 +4668,7 @@ public partial class MainWindow : Window
             bool changed =
                 _config.EnableMouseGestures != result.Enabled
                 || _config.EnableDragMiddleClickShow != result.EnableDragMiddleClickShow
+                || _config.EnablePrefixDropCapture != dlg.EnablePrefixDropCapture
                 || _config.MouseGestureClockwiseTurnsToShow != result.ClockwiseTurnsToShow
                 || _config.MouseGestureCounterClockwiseTurnsToHide != result.CounterClockwiseTurnsToHide
                 || _config.MouseGestureInvertDirections != result.InvertDirections
@@ -4680,6 +4684,7 @@ public partial class MainWindow : Window
 
             _config.EnableMouseGestures = result.Enabled;
             _config.EnableDragMiddleClickShow = result.EnableDragMiddleClickShow;
+            _config.EnablePrefixDropCapture = dlg.EnablePrefixDropCapture;
             _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
             _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
             _config.MouseGestureInvertDirections = result.InvertDirections;
@@ -4689,6 +4694,7 @@ public partial class MainWindow : Window
             _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
 
             ApplyMouseGestureOptions();
+            _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
             _configService.Save(_config);
         }
         catch (Exception ex)
@@ -5924,6 +5930,11 @@ public partial class MainWindow : Window
         RefreshDragHoverIfMouseButtonDown();
     }
 
+    private void OnPrefixDropCaptureRequested(object? sender, EventArgs e)
+    {
+        ShowDropCaptureWindow();
+    }
+
     private void ApplySearchPlacement()
     {
         try
@@ -6624,6 +6635,7 @@ public partial class MainWindow : Window
         _shortcutService.PrefixPreviousLayerRequested -= OnPrefixPreviousLayerRequested;
         _shortcutService.SearchHotkeyRequested -= OnSearchHotkeyRequested;
         _shortcutService.PrefixSearchRequested -= OnPrefixSearchRequested;
+        _shortcutService.PrefixDropCaptureRequested -= OnPrefixDropCaptureRequested;
         _shortcutService.MouseGestureShowRequested -= OnMouseGestureShowRequested;
         _shortcutService.DragMiddleClickShowRequested -= OnDragMiddleClickShowRequested;
         _shortcutService.MouseGestureHideRequested -= OnMouseGestureHideRequested;

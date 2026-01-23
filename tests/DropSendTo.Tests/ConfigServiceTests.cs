@@ -34,6 +34,7 @@ public class ConfigServiceTests
         cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
         cfg.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
         cfg.EnablePrefixLayerShortcuts.Should().BeFalse();
+        cfg.EnablePrefixDropCapture.Should().BeTrue();
         cfg.EnableEmacsNavigation.Should().BeFalse();
         cfg.EnableViNavigation.Should().BeFalse();
         cfg.EnableMouseGestures.Should().BeTrue();

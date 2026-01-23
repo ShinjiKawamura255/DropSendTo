@@ -736,6 +736,13 @@ public class ConfigService
             changed = true;
         }
 
+        if (cfg.Version < 37)
+        {
+            cfg.EnablePrefixDropCapture = true;
+            cfg.Version = 37;
+            changed = true;
+        }
+
         return changed;
     }
 }

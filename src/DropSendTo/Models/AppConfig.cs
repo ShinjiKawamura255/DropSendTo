@@ -5,7 +5,7 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 36;
+    public int Version { get; set; } = 37;
     public int CurrentLayer { get; set; } = 0; // 0-based
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
@@ -19,6 +19,7 @@ public class AppConfig
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
     public bool EnablePrefixLayerShortcuts { get; set; }
+    public bool EnablePrefixDropCapture { get; set; } = true;
     public bool EnableEmacsNavigation { get; set; }
     public bool EnableViNavigation { get; set; }
     public bool HideEmptySlotNames { get; set; }

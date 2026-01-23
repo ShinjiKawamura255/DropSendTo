@@ -141,6 +141,7 @@ internal sealed class ConfigTransferService
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
         public bool EnablePrefixLayerShortcuts { get; set; }
+        public bool EnablePrefixDropCapture { get; set; }
         public bool EnableEmacsNavigation { get; set; }
         public bool EnableViNavigation { get; set; }
         public bool HideEmptySlotNames { get; set; }
@@ -188,6 +189,7 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = config.EnablePrefixLayerShortcuts,
+                EnablePrefixDropCapture = config.EnablePrefixDropCapture,
                 EnableEmacsNavigation = config.EnableEmacsNavigation,
                 EnableViNavigation = config.EnableViNavigation,
                 HideEmptySlotNames = config.HideEmptySlotNames,
@@ -246,6 +248,7 @@ internal sealed class ConfigTransferService
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
                 EnablePrefixLayerShortcuts = EnablePrefixLayerShortcuts,
+                EnablePrefixDropCapture = EnablePrefixDropCapture,
                 EnableEmacsNavigation = EnableEmacsNavigation,
                 EnableViNavigation = EnableViNavigation,
                 HideEmptySlotNames = HideEmptySlotNames,

@@ -15,14 +15,17 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
     private bool _isInitialized;
 
     internal MouseGestureOptions ResultOptions { get; private set; } = MouseGestureOptions.Default;
+    public bool EnablePrefixDropCapture { get; private set; }
     public bool IsConfirmed { get; private set; }
 
-    internal MouseGestureDialog(MouseGestureOptions options)
+    internal MouseGestureDialog(MouseGestureOptions options, bool enablePrefixDropCapture)
     {
         InitializeComponent();
         ResultOptions = (options ?? MouseGestureOptions.Default).Normalize();
         EnableCheckBox.IsChecked = ResultOptions.Enabled;
         DragMiddleClickCheckBox.IsChecked = ResultOptions.EnableDragMiddleClickShow;
+        PrefixDropCaptureCheckBox.IsChecked = enablePrefixDropCapture;
+        EnablePrefixDropCapture = enablePrefixDropCapture;
         ClockwiseTurnsBox.Text = ResultOptions.ClockwiseTurnsToShow.ToString();
         CounterClockwiseTurnsBox.Text = ResultOptions.CounterClockwiseTurnsToHide.ToString();
         InvertDirectionsCheckBox.IsChecked = ResultOptions.InvertDirections;
@@ -65,6 +68,7 @@ internal partial class MouseGestureDialog : Window, IConfirmableDialog
             (int)MaxRadiusSlider.Value,
             (int)MaxRadiusSlider.Value,
             DragMiddleClickCheckBox.IsChecked == true).Normalize();
+        EnablePrefixDropCapture = PrefixDropCaptureCheckBox.IsChecked == true;
 
         IsConfirmed = true;
         Close();

@@ -122,6 +122,7 @@ internal sealed class ShortcutService : IDisposable
     private bool _usingFallbackPrefix;
     private bool _prefixDisabled;
     private bool _prefixLayerShortcutsEnabled;
+    private bool _prefixDropCaptureEnabled = true;
     private bool _preferRemoteSessions;
     private Func<bool> _remoteSessionDetector;
     private bool _sequenceCaptureInProgress;
@@ -149,6 +150,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixNextLayerRequested;
     public event EventHandler? PrefixPreviousLayerRequested;
     public event EventHandler? PrefixSearchRequested;
+    public event EventHandler? PrefixDropCaptureRequested;
     public event EventHandler? MouseGestureShowRequested;
     public event EventHandler? DragMiddleClickShowRequested;
     public event EventHandler? MouseGestureHideRequested;
@@ -309,6 +311,15 @@ internal sealed class ShortcutService : IDisposable
         lock (_stateLock)
         {
             _prefixLayerShortcutsEnabled = enabled;
+        }
+    }
+
+    public void SetPrefixDropCaptureEnabled(bool enabled)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        lock (_stateLock)
+        {
+            _prefixDropCaptureEnabled = enabled;
         }
     }
 
@@ -604,6 +615,23 @@ internal sealed class ShortcutService : IDisposable
                 if (vk == VK_P)
                 {
                     action = ShortcutAction.CreatePrefixPreviousLayer();
+                    return true;
+                }
+            }
+        }
+
+        if (_prefixDropCaptureEnabled)
+        {
+            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
+            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
+            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
+            if (ctrlActive &&
+                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
+                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
+            {
+                if (vk == VK_D)
+                {
+                    action = ShortcutAction.CreatePrefixDropCapture();
                     return true;
                 }
             }
@@ -932,6 +960,9 @@ internal sealed class ShortcutService : IDisposable
                 break;
             case ShortcutActionType.PrefixSearch:
                 _dispatcher.BeginInvoke(() => PrefixSearchRequested?.Invoke(this, EventArgs.Empty));
+                break;
+            case ShortcutActionType.PrefixDropCapture:
+                _dispatcher.BeginInvoke(() => PrefixDropCaptureRequested?.Invoke(this, EventArgs.Empty));
                 break;
             case ShortcutActionType.SearchHotkey:
                 _dispatcher.BeginInvoke(() => SearchHotkeyRequested?.Invoke(this, EventArgs.Empty));
@@ -1551,6 +1582,9 @@ internal sealed class ShortcutService : IDisposable
         public static ShortcutAction CreatePrefixSearch() =>
             new(ShortcutActionType.PrefixSearch, null, null);
 
+        public static ShortcutAction CreatePrefixDropCapture() =>
+            new(ShortcutActionType.PrefixDropCapture, null, null);
+
         public static ShortcutAction CreateSearchHotkey() =>
             new(ShortcutActionType.SearchHotkey, null, null);
     }
@@ -1567,6 +1601,7 @@ internal sealed class ShortcutService : IDisposable
         PrefixNextLayer,
         PrefixPreviousLayer,
         PrefixSearch,
+        PrefixDropCapture,
         SearchHotkey
     }
 
@@ -1654,6 +1689,7 @@ internal sealed class ShortcutService : IDisposable
     private const ushort VK_RETURN = 0x0D;
     private const ushort VK_TAB = 0x09;
     private const ushort VK_SPACE = 0x20;
+    private const ushort VK_D = 0x44;
     private const ushort VK_N = 0x4E;
     private const ushort VK_P = 0x50;
 

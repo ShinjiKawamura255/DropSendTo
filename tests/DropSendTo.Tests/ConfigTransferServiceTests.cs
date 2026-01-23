@@ -23,6 +23,7 @@ public class ConfigTransferServiceTests
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
             EnablePrefixLayerShortcuts = true,
+            EnablePrefixDropCapture = false,
             SlotRows = 3,
             SlotColumns = 3,
             SlotSize = SlotSize.Medium,
@@ -63,6 +64,7 @@ public class ConfigTransferServiceTests
         imported.StartupBehavior.Should().Be(StartupWindowBehavior.RestoreLastState);
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
         imported.EnablePrefixLayerShortcuts.Should().BeTrue();
+        imported.EnablePrefixDropCapture.Should().BeFalse();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.EnableMouseGestures.Should().BeFalse();
         imported.EnableDragMiddleClickShow.Should().BeTrue();
