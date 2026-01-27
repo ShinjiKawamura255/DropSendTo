@@ -3880,6 +3880,28 @@ public partial class MainWindow : Window
         return e.Data.GetDataPresent(SlotLayoutDragFormat);
     }
 
+    private static WpfDragDropEffects GetPreferredFileDropEffect(DragEventArgs e, WpfDragDropEffects preferred)
+    {
+        var allowed = e.AllowedEffects;
+        if ((allowed & preferred) != 0)
+        {
+            return preferred;
+        }
+        if ((allowed & WpfDragDropEffects.Copy) != 0)
+        {
+            return WpfDragDropEffects.Copy;
+        }
+        if ((allowed & WpfDragDropEffects.Link) != 0)
+        {
+            return WpfDragDropEffects.Link;
+        }
+        if ((allowed & WpfDragDropEffects.Move) != 0)
+        {
+            return WpfDragDropEffects.Move;
+        }
+        return WpfDragDropEffects.None;
+    }
+
     private List<SlotSelectionOption> GetEmptySlotOptions()
     {
         var options = new List<SlotSelectionOption>();
@@ -5418,7 +5440,9 @@ public partial class MainWindow : Window
         }
         _layerHoverTimer.Stop();
         _layerHoverTimer.Start();
-        e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
+        e.Effects = IsSlotLayoutDrag(e)
+            ? WpfDragDropEffects.Move
+            : GetPreferredFileDropEffect(e, WpfDragDropEffects.Link);
         e.Handled = true;
     }
 
@@ -5452,7 +5476,9 @@ public partial class MainWindow : Window
             }
         }
         if (!_layerHoverTimer.IsEnabled) _layerHoverTimer.Start();
-        e.Effects = IsSlotLayoutDrag(e) ? WpfDragDropEffects.Move : WpfDragDropEffects.Link;
+        e.Effects = IsSlotLayoutDrag(e)
+            ? WpfDragDropEffects.Move
+            : GetPreferredFileDropEffect(e, WpfDragDropEffects.Link);
         e.Handled = true;
     }
 
@@ -5521,7 +5547,7 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
         {
             e.Handled = true;
-            e.Effects = WpfDragDropEffects.Link;
+            e.Effects = GetPreferredFileDropEffect(e, WpfDragDropEffects.Link);
         }
 
         int idx = GetSlotIndex(b);
@@ -5566,7 +5592,7 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(WpfDataFormats.FileDrop))
         {
             e.Handled = true;
-            e.Effects = WpfDragDropEffects.Link;
+            e.Effects = GetPreferredFileDropEffect(e, WpfDragDropEffects.Link);
         }
     }
 
@@ -6095,6 +6121,8 @@ public partial class MainWindow : Window
             _dropCaptureWindow.Show();
             _dropCaptureWindow.UpdateLayout();
             PositionDropCaptureWindow(_dropCaptureWindow);
+            RearmDropCaptureWindow(_dropCaptureWindow);
+            RefreshDragHoverIfMouseButtonDown();
             _dropCaptureWindow.Activate();
             return;
         }
@@ -6113,6 +6141,8 @@ public partial class MainWindow : Window
         window.Show();
         window.UpdateLayout();
         PositionDropCaptureWindow(window);
+        RearmDropCaptureWindow(window);
+        RefreshDragHoverIfMouseButtonDown();
     }
 
     private void CloseDropCaptureWindow()
@@ -6291,6 +6321,13 @@ public partial class MainWindow : Window
             slot.Border.AllowDrop = false;
             slot.Border.AllowDrop = true;
         }
+    }
+
+    private static void RearmDropCaptureWindow(DropCaptureWindow window)
+    {
+        bool allow = window.AllowDrop;
+        window.AllowDrop = false;
+        window.AllowDrop = allow;
     }
 
     private void SendMinimalDragHoverPulse()

@@ -42,13 +42,30 @@ public partial class DropCaptureWindow : Window
     {
         if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
         {
-            e.Effects = System.Windows.DragDropEffects.Copy;
+            e.Effects = GetPreferredFileDropEffect(e.AllowedEffects);
         }
         else
         {
             e.Effects = System.Windows.DragDropEffects.None;
         }
         e.Handled = true;
+    }
+
+    private static System.Windows.DragDropEffects GetPreferredFileDropEffect(System.Windows.DragDropEffects allowed)
+    {
+        if ((allowed & System.Windows.DragDropEffects.Copy) != 0)
+        {
+            return System.Windows.DragDropEffects.Copy;
+        }
+        if ((allowed & System.Windows.DragDropEffects.Link) != 0)
+        {
+            return System.Windows.DragDropEffects.Link;
+        }
+        if ((allowed & System.Windows.DragDropEffects.Move) != 0)
+        {
+            return System.Windows.DragDropEffects.Move;
+        }
+        return System.Windows.DragDropEffects.None;
     }
 
     private void OnDrop(object sender, System.Windows.DragEventArgs e)

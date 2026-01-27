@@ -25,6 +25,7 @@
             BorderThickness="1"
             CornerRadius="12"
             Padding="16"
+            AllowDrop="True"
             SnapsToDevicePixels="True">
         <StackPanel Orientation="Vertical">
             <TextBlock x:Name="TitleText"
