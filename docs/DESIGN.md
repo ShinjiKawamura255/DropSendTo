@@ -8,7 +8,7 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
-- MainWindow: 2〜8 行×2〜8 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。Slot Size メニューで Small/Medium/Large/Custom を切り替え（既定は Medium）。Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現し、Custom ではスロット高さ・フォントサイズ・余白・行列ステップを指定したメトリクスで再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。Slot Setup Mode はツールバーの ✎ ボタンで `_isSlotLayoutEditMode` を切り替え、左上に「SLOT SETUP MODE」オーバーレイを表示してクリック/ドロップ起動を抑止する。モード中は `_slotLayoutDragSourceLayer/index` を保持し、`DragDrop.DoDragDrop` に `SlotLayoutDragData`（レイヤー+スロット番号）を渡して UI ベースのドラッグ＆ドロップを実現。`SlotVisual.DragPreviewHost` を重ね描画してターゲットスロットのプレビューを元位置に表示し、`LayerBtn` 上のホバータイマーを流用して別レイヤーへの切替・スワップも同一操作で行う。ドロップ完了時にのみ `_config.Layers` のスロットを入れ替え `ConfigService` で保存する。Language メニューで日本語/English を切り替えた場合は `UiText` 辞書からメニューと検索ラベルの文言を即時反映し、選択を config に保持する。
+- MainWindow: 2〜8 行×2〜8 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。Slot Size メニューで Small/Medium/Large/Custom を切り替え（既定は Medium）。Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現し、Custom ではスロット高さ・フォントサイズ・余白・行列ステップを指定したメトリクスで再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。起動時は `RunOnStartup` が有効なスロットを順に実行する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。Slot Setup Mode はツールバーの ✎ ボタンで `_isSlotLayoutEditMode` を切り替え、左上に「SLOT SETUP MODE」オーバーレイを表示してクリック/ドロップ起動を抑止する。モード中は `_slotLayoutDragSourceLayer/index` を保持し、`DragDrop.DoDragDrop` に `SlotLayoutDragData`（レイヤー+スロット番号）を渡して UI ベースのドラッグ＆ドロップを実現。`SlotVisual.DragPreviewHost` を重ね描画してターゲットスロットのプレビューを元位置に表示し、`LayerBtn` 上のホバータイマーを流用して別レイヤーへの切替・スワップも同一操作で行う。ドロップ完了時にのみ `_config.Layers` のスロットを入れ替え `ConfigService` で保存する。Language メニューで日本語/English を切り替えた場合は `UiText` 辞書からメニューと検索ラベルの文言を即時反映し、選択を config に保持する。
 - DropCaptureWindow: ドラッグ中のホイールクリックで表示するドロップ専用ウィンドウ。ファイル/フォルダのドロップを受け取り、MainWindow にドロップパスを通知してインジケーター表示と `{args}` 展開のための状態を更新する。
 - Window position persistence: 固定位置モードかつユーザーによる移動時のみ座標を保存し、`_suppressFixedCapture`/`_suppressFixedCaptureDuringSearch`/`_suppressFixedCaptureFromTransientShow`/`_blockLocationSave` を使って一時配置（マウスフォロー、画面中央、検索レイヤー表示、ドラッグ中のホイールクリック表示など）では保存を抑止する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey、Language（既定=Japanese）を保持する。
@@ -25,7 +25,7 @@
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
 ## DES-003 UI Flows
-1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。読み込んだ `_config.Language` を基に `ApplyLanguageToUi` でメニュー/検索ラベルの文言を初期化する。
+1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。読み込んだ `_config.Language` を基に `ApplyLanguageToUi` でメニュー/検索ラベルの文言を初期化し、起動時実行フラグが有効なスロットを順に起動する。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、`Macro Script` モードは引き続きドロップ禁止。`Macro Script 拡張` かつマクロ/コマンド両方が設定されている場合は `TriggerSlotAsync(..., SlotTriggerSource.Drop, paths)` を呼び出し、ドロップパスを `MacroExecutionContext.DroppedPaths` としてマクロへ渡す。マクロ内の `{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` で参照でき、`COMMAND` から引数省略で呼び出した場合はドロップパス付きの `ArgumentsTemplate` が展開される。その他のモードでは LauncherService が ClipboardHistoryService から取得した履歴を含めて `ArgumentsTemplate` を展開（`{args}` / `{drop_args}` / `{drop_count}` / `{drop_path}` / `{drop_path:n}` / `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}`）し実行。失敗時はエラーダイアログ表示とログ出力。ドラッグ中のホイールクリック時は DropCaptureWindow を表示し、そこで受けたドロップパスを `_pendingDropPaths` として保持し、左上インジケーターを点灯させた上でメインウィンドウを表示する。
 4) スロットクリック: ClickEnabled が有効な場合、モードに応じて実行する。`Macro Script`/`Macro Script 拡張` では KeyboardMacroService が直前の外部ウィンドウへスクリプトを送信し、拡張モードではマクロ内の `COMMAND` 命令から LauncherService を呼び出せる。`Command` モードはマクロを介さずに LauncherService を起動する。マクロ系スロットは逐次実行し、コマンドのみのスロットはマクロ実行中でも即時に起動できる。Any エラーはメッセージ表示でユーザーへ通知。
@@ -76,6 +76,7 @@
 - グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 4 秒タイムアウトなど UX 配慮が必要。
 
 ## Traceability (excerpt)
-- DES-002 ← SP-001/002/006/009/010 → TC-010/025/065/080/085/086/087/090/108
+- DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108
+- DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109
 - DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087

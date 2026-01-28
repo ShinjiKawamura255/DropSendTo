@@ -107,6 +107,7 @@ public partial class RegisterDialog : Window
             new MacroSnippet("RESOLVE_LINK <変数> <パス>", "RESOLVE_LINK TargetPath {{drop_path}}"),
             new MacroSnippet("RENAME <元パス> <新しいパス>", "RENAME {{drop_path}} {{drop_path}}.bak"),
             new MacroSnippet("READFILE <変数> <パス> [MAX n]", "READFILE Body {{drop_path}}"),
+            new MacroSnippet("WIFI_SSID <変数>", "WIFI_SSID CurrentSsid"),
             new MacroSnippet("PROMPT <名前> \"メッセージ\"", "PROMPT InputValue \"値を入力してください\""),
             new MacroSnippet("PROMPT ... TIMEOUT <ms> \"値\"", "PROMPT InputValue \"値を入力してください\" TIMEOUT 5000 \"(timeout)\""),
             new MacroSnippet("POPUP \"メッセージ\"", "POPUP \"{{drop_path}} が見つかりません\"")
@@ -116,7 +117,7 @@ public partial class RegisterDialog : Window
             new MacroSnippet("WAIT <ミリ秒>", "WAIT 250"),
             new MacroSnippet("REPEAT ... ENDREPEAT", "REPEAT 3\n    \nENDREPEAT"),
             new MacroSnippet("FOREACH_DROP ... ENDFOREACH", "FOREACH_DROP Item INDEX i\n    TEXT [{{i}}] {{Item}}\nENDFOREACH"),
-            new MacroSnippet("IF / ELSE / ENDIF", "IF \"{{clipboard}}\" CONTAINS \"keyword\"\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
+            new MacroSnippet("IF / ELSE / ENDIF", "IF {{Flag}}\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
             new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
             new MacroSnippet("COMMAND [引数指定]", "COMMAND {{clipboard}}"),
             new MacroSnippet("RETURN [\"メッセージ\"]", "RETURN \"finished\""),
@@ -213,6 +214,10 @@ public partial class RegisterDialog : Window
         {
             SearchKeywordBox.Text = string.Empty;
         }
+        if (RunOnStartupCheckBox != null)
+        {
+            RunOnStartupCheckBox.IsChecked = false;
+        }
         InitializeMacroInsertMenu();
         ApplyMinimizeOptions(SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
@@ -243,6 +248,10 @@ public partial class RegisterDialog : Window
         if (SearchKeywordBox != null)
         {
             SearchKeywordBox.Text = slot.SearchKeywords ?? string.Empty;
+        }
+        if (RunOnStartupCheckBox != null)
+        {
+            RunOnStartupCheckBox.IsChecked = slot.RunOnStartup;
         }
         ApplyMinimizeOptions(slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault());
         UpdateModeState();
@@ -330,7 +339,7 @@ public partial class RegisterDialog : Window
             ShortcutChord = string.Empty;
         }
 
-        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions(), SearchKeywords));
+        SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions(), SearchKeywords, RunOnStartup));
         Close();
     }
 
@@ -750,6 +759,8 @@ public partial class RegisterDialog : Window
         EnableOnKeyboard = MinimizeOnKeyboardCheckBox.IsChecked == true
     };
 
+    private bool RunOnStartup => RunOnStartupCheckBox?.IsChecked == true;
+
     private static IReadOnlyList<SlotColorOption> BuildAccentColorOptions(AppTheme theme)
     {
         var options = new List<SlotColorOption>(AccentColorNames.Length);
@@ -1043,7 +1054,7 @@ private static string EscapeAccessKey(string text) => text.Replace("_", "__", St
 
 public sealed class SlotSavedEventArgs : EventArgs
 {
-    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor, SlotMinimizeOptions minimizeOptions, string searchKeywords)
+    public SlotSavedEventArgs(string appTitle, string commandPath, string argumentsTemplate, string macroScript, string shortcutChord, SlotExecutionMode executionMode, SlotAccentColor accentColor, SlotMinimizeOptions minimizeOptions, string searchKeywords, bool runOnStartup)
     {
         AppTitle = appTitle;
         CommandPath = commandPath;
@@ -1054,6 +1065,7 @@ public sealed class SlotSavedEventArgs : EventArgs
         AccentColor = accentColor;
         MinimizeOptions = minimizeOptions;
         SearchKeywords = searchKeywords;
+        RunOnStartup = runOnStartup;
     }
 
     public string AppTitle { get; }
@@ -1065,6 +1077,7 @@ public sealed class SlotSavedEventArgs : EventArgs
     public SlotAccentColor AccentColor { get; }
     public SlotMinimizeOptions MinimizeOptions { get; }
     public string SearchKeywords { get; }
+    public bool RunOnStartup { get; }
 }
 
 public sealed record MacroSnippetEntry(string Group, string Header, string Content);

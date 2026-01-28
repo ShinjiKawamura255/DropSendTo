@@ -48,6 +48,7 @@
                           IsCheckable="True"
                           Click="OnStartupRestoreState"/>
             </MenuItem>
+            <MenuItem x:Name="StartupSlotsMenuItem" Header="起動時実行スロット..." Click="OnConfigureStartupSlots"/>
             <MenuItem x:Name="MacroModeMenuItem" Header="Macro 実行モード">
                 <MenuItem x:Name="MacroModeExclusiveMenuItem"
                           Header="排他（単一実行のみ）"

@@ -137,6 +137,7 @@
                 <CheckBox x:Name="MinimizeOnDropCheckBox" Content="ドロップ時" Margin="0,0,0,0"/>
                 <CheckBox x:Name="MinimizeOnKeyboardCheckBox" Content="キーボード操作時" Margin="0,0,0,0"/>
             </UniformGrid>
+            <CheckBox x:Name="RunOnStartupCheckBox" Content="起動時にこのスロットを実行" Margin="0,6,0,0"/>
         </StackPanel>
 
         <TextBlock Text="Macro Script" Grid.Row="8" Grid.Column="0" VerticalAlignment="Top" Margin="0,4,0,0"/>

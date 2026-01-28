@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using WpfClipboard = System.Windows.Clipboard;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -24,6 +25,7 @@ public sealed class KeyboardMacroService : IDisposable
     private const int TextSendWhitespaceDelayMilliseconds = 28;
     private const int ClipTextAutoWaitMilliseconds = 30;
     private const int MaxPromptTimeoutMilliseconds = 600000;
+    private const int NetshTimeoutMilliseconds = 3000;
     private const string MacroPopupTitle = "DropSendTo Macro";
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
@@ -791,6 +793,18 @@ public sealed class KeyboardMacroService : IDisposable
                     if (!TryApplyReadFileDirective(payload, variables, specialResolver, validateOnly, out var readError))
                     {
                         var message = readError ?? "READFILE の解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "WIFI_SSID"))
+                {
+                    var payload = line.Length > 9 ? line[9..].Trim() : string.Empty;
+                    payload = TrimInlineComment(payload);
+                    if (!TryApplyWifiSsidDirective(payload, variables, validateOnly, out var ssidError))
+                    {
+                        var message = ssidError ?? "WIFI_SSID の解釈に失敗しました。";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
                     continue;
@@ -1710,6 +1724,24 @@ public sealed class KeyboardMacroService : IDisposable
     private static bool IsAsciiLetter(char ch) =>
         (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
 
+    private static readonly HashSet<string> ComparisonOperators = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "==",
+        "=",
+        "!=",
+        ">",
+        "<",
+        ">=",
+        "<=",
+        "CONTAINS",
+        "CONTAIN",
+        "NOTCONTAINS",
+        "STARTSWITH",
+        "SW",
+        "ENDSWITH",
+        "EW"
+    };
+
     private static string TrimInlineComment(string text)
     {
         if (string.IsNullOrEmpty(text))
@@ -1925,21 +1957,100 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
-        if (!TrySplitConditionTokens(expanded, out var tokens, out var splitError))
+        if (!TryTokenizeConditionExpression(expanded, out var tokens, out var splitError))
         {
             error = splitError;
             return false;
         }
 
-        if (tokens.Count != 3)
+        var conditionResults = new List<bool>();
+        var logicalOps = new List<string>();
+        int index = 0;
+        while (index < tokens.Count)
         {
-            error = "IF 条件は「左辺 演算子 右辺」の形式で指定してください（空白を含む値は \"\" で囲んでください）。";
+            if (!TryEvaluateConditionTerm(tokens, ref index, out var condResult, out error))
+            {
+                return false;
+            }
+            conditionResults.Add(condResult);
+
+            if (index < tokens.Count)
+            {
+                var logical = tokens[index].Trim();
+                if (IsLogicalOperator(logical))
+                {
+                    logicalOps.Add(logical.ToUpperInvariant());
+                    index++;
+                }
+                else
+                {
+                    error = $"IF でサポートされていない演算子です: \"{logical}\"";
+                    return false;
+                }
+            }
+        }
+
+        if (logicalOps.Count != conditionResults.Count - 1 && conditionResults.Count > 0)
+        {
+            error = "IF 条件が不完全です。AND/OR の後に条件を指定してください。";
             return false;
         }
 
-        var left = tokens[0];
-        var op = tokens[1].Trim();
-        var right = tokens[2];
+        bool acc = conditionResults[0];
+        var orTerms = new List<bool>();
+        for (int i = 0; i < logicalOps.Count; i++)
+        {
+            if (logicalOps[i] == "AND")
+            {
+                acc = acc && conditionResults[i + 1];
+            }
+            else
+            {
+                orTerms.Add(acc);
+                acc = conditionResults[i + 1];
+            }
+        }
+        orTerms.Add(acc);
+        result = orTerms.Any(v => v);
+        return true;
+    }
+
+    private static bool TryTokenizeConditionExpression(string input, out List<string> tokens, out string? error)
+    {
+        tokens = new List<string>(capacity: 3);
+        error = null;
+        int index = 0;
+
+        static void SkipWhitespace(string text, ref int idx)
+        {
+            while (idx < text.Length && char.IsWhiteSpace(text[idx]))
+            {
+                idx++;
+            }
+        }
+
+        while (true)
+        {
+            SkipWhitespace(input, ref index);
+            if (index >= input.Length)
+            {
+                break;
+            }
+
+            if (!TryParseConditionToken(input, ref index, out var token, out error))
+            {
+                return false;
+            }
+            tokens.Add(token);
+        }
+
+        return true;
+    }
+
+    private static bool TryEvaluateSimpleCondition(string left, string op, string right, out bool result, out string? error)
+    {
+        result = false;
+        error = null;
         var opNormalized = op.ToUpperInvariant();
 
         bool IsNumeric(string value, out long number) =>
@@ -2005,56 +2116,69 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private static bool TrySplitConditionTokens(string input, out List<string> tokens, out string? error)
+    private static bool TryEvaluateConditionTerm(IReadOnlyList<string> tokens, ref int index, out bool result, out string? error)
     {
-        tokens = new List<string>(capacity: 3);
+        result = false;
         error = null;
-        int index = 0;
-
-        static void SkipWhitespace(string text, ref int idx)
+        if (index >= tokens.Count)
         {
-            while (idx < text.Length && char.IsWhiteSpace(text[idx]))
+            error = "IF 条件が不完全です。";
+            return false;
+        }
+
+        var left = tokens[index];
+        if (index + 1 < tokens.Count)
+        {
+            var opCandidate = tokens[index + 1].Trim();
+            if (ComparisonOperators.Contains(opCandidate))
             {
-                idx++;
+                if (index + 2 >= tokens.Count)
+                {
+                    error = "IF 条件が不完全です。演算子の右辺を指定してください。";
+                    return false;
+                }
+                var right = tokens[index + 2];
+                if (!TryEvaluateSimpleCondition(left, opCandidate, right, out result, out error))
+                {
+                    return false;
+                }
+                index += 3;
+                return true;
             }
         }
 
-        SkipWhitespace(input, ref index);
-        if (!TryParseConditionToken(input, ref index, out var left, out error))
-        {
-            return false;
-        }
-        tokens.Add(left);
+        result = EvaluateTruthy(left);
+        index += 1;
+        return true;
+    }
 
-        SkipWhitespace(input, ref index);
-        int opStart = index;
-        while (index < input.Length && !char.IsWhiteSpace(input[index]))
+    private static bool EvaluateTruthy(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
         {
-            index++;
-        }
-        if (index == opStart)
-        {
-            error = "IF 条件が不完全です。演算子を指定してください。";
             return false;
         }
-        tokens.Add(input[opStart..index]);
 
-        SkipWhitespace(input, ref index);
-        if (!TryParseConditionToken(input, ref index, out var right, out error))
+        var trimmed = value.Trim();
+        if (trimmed.Equals("false", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
-        tokens.Add(right);
-
-        SkipWhitespace(input, ref index);
-        if (index < input.Length)
+        if (trimmed.Equals("true", StringComparison.OrdinalIgnoreCase))
         {
-            error = "IF 条件の末尾に余分な文字があります。空白を含む値は \"\" で囲んでください。";
-            return false;
+            return true;
+        }
+        if (long.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
+        {
+            return number != 0;
         }
 
         return true;
     }
+
+    private static bool IsLogicalOperator(string token) =>
+        token.Equals("AND", StringComparison.OrdinalIgnoreCase) ||
+        token.Equals("OR", StringComparison.OrdinalIgnoreCase);
 
     private static bool TryParseConditionToken(string input, ref int index, out string token, out string? error)
     {
@@ -2678,6 +2802,129 @@ public sealed class KeyboardMacroService : IDisposable
         }
 
         return true;
+    }
+
+    private static bool TryApplyWifiSsidDirective(string payload, Dictionary<string, string> variables, bool validateOnly, out string? error)
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "WIFI_SSID には変数名を指定してください。";
+            return false;
+        }
+
+        var firstSpace = FindFirstWhitespace(payload);
+        var nameToken = firstSpace < 0 ? payload.Trim() : payload[..firstSpace].Trim();
+        if (!IsValidVariableName(nameToken))
+        {
+            error = $"WIFI_SSID の変数名が不正です: \"{nameToken}\"";
+            return false;
+        }
+
+        if (firstSpace >= 0 && !string.IsNullOrWhiteSpace(payload[(firstSpace + 1)..]))
+        {
+            error = "WIFI_SSID の変数名の後ろに余分な記述があります。";
+            return false;
+        }
+
+        if (validateOnly)
+        {
+            variables[nameToken] = string.Empty;
+            return true;
+        }
+
+        if (!TryGetConnectedWifiSsid(out var ssid, out var ssidError))
+        {
+            error = ssidError ?? "WIFI_SSID の取得に失敗しました。";
+            return false;
+        }
+
+        variables[nameToken] = ssid;
+        return true;
+    }
+
+    private static bool TryGetConnectedWifiSsid(out string ssid, out string? error)
+    {
+        ssid = string.Empty;
+        error = null;
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = "wlan show interfaces",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.Default,
+                StandardErrorEncoding = Encoding.Default
+            };
+
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                error = "netsh の起動に失敗しました。";
+                return false;
+            }
+
+            string output = process.StandardOutput.ReadToEnd();
+            string stderr = process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(NetshTimeoutMilliseconds))
+            {
+                try
+                {
+                    process.Kill();
+                }
+                catch
+                {
+                    // ignore
+                }
+                error = "netsh の実行がタイムアウトしました。";
+                return false;
+            }
+
+            if (process.ExitCode != 0)
+            {
+                var message = string.IsNullOrWhiteSpace(stderr)
+                    ? $"netsh の終了コードが {process.ExitCode} でした。"
+                    : stderr.Trim();
+                error = message;
+                return false;
+            }
+
+            ssid = ParseWifiSsid(output);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"netsh の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static string ParseWifiSsid(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            return string.Empty;
+        }
+
+        var lines = output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+            if (!trimmed.StartsWith("SSID", StringComparison.OrdinalIgnoreCase)) continue;
+            if (trimmed.StartsWith("BSSID", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var colonIndex = trimmed.IndexOf(':');
+            if (colonIndex < 0) continue;
+            var value = trimmed[(colonIndex + 1)..].Trim();
+            return value;
+        }
+
+        return string.Empty;
     }
 
     private static bool TryParseReadFileMax(string remaining, out int maxBytes, out string? error)

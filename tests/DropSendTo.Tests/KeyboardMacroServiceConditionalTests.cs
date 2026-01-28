@@ -165,4 +165,97 @@ ENDIF
         result.Success.Should().BeTrue();
         invoked.Should().ContainSingle().Which.Should().Be("first");
     }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldEvaluateAndOrConditions()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET A 1
+SET B 2
+SET C 0
+IF {{A}} == 1 AND {{B}} == 2 OR {{C}} == 1
+    COMMAND ok
+ELSE
+    COMMAND ng
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("ok");
+    }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldEvaluateTruthyVariableCondition()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET Flag 1
+IF {{Flag}}
+    COMMAND ok
+ELSE
+    COMMAND ng
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("ok");
+    }
+
+    [Fact]
+    public async Task RunMacroAsync_ShouldEvaluateMixedTruthyAndComparisonCondition()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var context = new MacroExecutionContext(
+            SlotExecutionMode.MacroScriptExtended,
+            args =>
+            {
+                invoked.Add(args ?? string.Empty);
+                return LaunchResult.Ok();
+            },
+            "Conditional",
+            "cmd.exe");
+
+        var script = """
+SET Flag 1
+SET Status OK-200
+IF {{Flag}} AND {{Status}} CONTAINS "OK"
+    COMMAND ok
+ELSE
+    COMMAND ng
+ENDIF
+""";
+
+        var result = await service.RunMacroAsync(script, context);
+
+        result.Success.Should().BeTrue();
+        invoked.Should().ContainSingle().Which.Should().Be("ok");
+    }
 }

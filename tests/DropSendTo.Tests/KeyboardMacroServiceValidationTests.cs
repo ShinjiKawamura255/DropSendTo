@@ -178,6 +178,75 @@ ENDIF
     }
 
     [Fact]
+    public void TryValidateScript_ShouldAllowWifiSsidCommand()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("WIFI_SSID CurrentSsid", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForWifiSsidMissingVariable()
+    {
+        var ok = KeyboardMacroService.TryValidateScript("WIFI_SSID", SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("WIFI_SSID");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowAndOrConditions()
+    {
+        const string script = """
+IF "Alpha" == "Alpha" AND "Beta" != "Gamma"
+    TEXT ok
+ELSE
+    TEXT ng
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowTruthyVariableCondition()
+    {
+        const string script = """
+SET Flag 1
+IF {{Flag}}
+    TEXT ok
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldAllowMixedTruthyAndComparisonCondition()
+    {
+        const string script = """
+SET Flag 1
+SET Status OK-200
+IF {{Flag}} AND {{Status}} CONTAINS "OK"
+    TEXT ok
+ENDIF
+""";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
     public void TryValidateScript_ShouldFail_ForTestPathMissingArguments()
     {
         var ok = KeyboardMacroService.TryValidateScript("TESTPATH OnlyVar", SlotExecutionMode.MacroScript, out var error);

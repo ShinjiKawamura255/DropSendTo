@@ -10,6 +10,7 @@ public class SlotModel
     public string? ArgumentsTemplate { get; set; } = "{args}"; // placeholder will be replaced by joined paths
     public string? IconPath { get; set; }
     public bool ClickEnabled { get; set; } = true;
+    public bool RunOnStartup { get; set; }
     public string? ShortcutKey { get; set; } = string.Empty;
     [JsonConverter(typeof(KeyboardMacroScriptJsonConverter))]
     public string? KeyboardMacroScript { get; set; } = string.Empty;

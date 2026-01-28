@@ -316,6 +316,7 @@ internal sealed class ConfigTransferService
         public string? ArgumentsTemplate { get; set; }
         public string? IconPath { get; set; }
         public bool ClickEnabled { get; set; } = true;
+        public bool RunOnStartup { get; set; }
         public string? ShortcutKey { get; set; }
         public string? KeyboardMacroScript { get; set; }
         public SlotExecutionMode ExecutionMode { get; set; }
@@ -332,6 +333,7 @@ internal sealed class ConfigTransferService
                 ArgumentsTemplate = slot.ArgumentsTemplate,
                 IconPath = slot.IconPath,
                 ClickEnabled = slot.ClickEnabled,
+                RunOnStartup = slot.RunOnStartup,
                 ShortcutKey = slot.ShortcutKey,
                 KeyboardMacroScript = slot.KeyboardMacroScript,
                 ExecutionMode = slot.ExecutionMode,
@@ -350,6 +352,7 @@ internal sealed class ConfigTransferService
                 ArgumentsTemplate = string.IsNullOrWhiteSpace(ArgumentsTemplate) ? "{args}" : ArgumentsTemplate,
                 IconPath = IconPath,
                 ClickEnabled = ClickEnabled,
+                RunOnStartup = RunOnStartup,
                 ShortcutKey = ShortcutKey ?? string.Empty,
                 KeyboardMacroScript = KeyboardMacroScript ?? string.Empty,
                 ExecutionMode = ExecutionMode,

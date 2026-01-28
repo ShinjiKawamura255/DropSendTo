@@ -5,7 +5,8 @@ public enum SlotTriggerKind
     Click = 0,
     Shortcut = 1,
     Drop = 2,
-    Keyboard = 3
+    Keyboard = 3,
+    Startup = 4
 }
 
 public class SlotMinimizeOptions

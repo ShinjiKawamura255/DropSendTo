@@ -84,6 +84,7 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RENAME &lt;元パス&gt; &lt;新しいパス&gt; : ファイル/フォルダをリネーム（パスは変数展開とクォートに対応）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RESOLVE_LINK &lt;変数&gt; &lt;パス&gt; : .lnk / シンボリックリンクの実体パスを取得して変数に格納（リンクでなければ元パスを格納）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="READFILE &lt;変数&gt; &lt;パス&gt; [MAX &lt;バイト&gt;] : ファイル内容を変数に読み込み（既定 4096 バイトまで / それ以上は MAX 指定が必要）" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WIFI_SSID &lt;変数&gt; : 接続中の Wi-Fi SSID を変数に格納（未接続時は空文字）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND_APP &lt;パス&gt; : Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RETURN [&quot;メッセージ&quot;] : マクロを即終了（オプションのメッセージはログ/結果用）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="プレースホルダー {{名前}}   : 任意のコマンドで値を展開 (例: TEXT Hello {{UserName}})" TextWrapping="NoWrap"/>
@@ -109,6 +110,7 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="IF / ELSEIF / ELSE / ENDIF : 条件分岐。演算子は ==, !=, &gt;, &gt;=, &lt;, &lt;=, CONTAINS, NOTCONTAINS, STARTSWITH, ENDSWITH をサポート" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="条件は AND / OR で連結可能（AND を優先して評価）。IF {{Flag}} のように真偽値(空/0/false は false)でも指定可" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="空白を含む値は &quot;&quot; で囲んでください（例: IF &quot;Hello World&quot; CONTAINS &quot;World&quot;）" TextWrapping="NoWrap"/>
                     </StackPanel>
                 </Border>

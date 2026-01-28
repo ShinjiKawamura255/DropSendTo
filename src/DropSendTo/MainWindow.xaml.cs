@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private SlotShortcutListWindow? _shortcutListWindow;
+    private SlotStartupSettingsWindow? _startupSettingsWindow;
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
     private int _lastLayerNavigationDirection;
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
     private bool _blockLocationSave;
     private bool _suppressFixedCaptureFromTransientShow;
     private bool _minimizeOnLoaded;
+    private bool _startupSlotsTriggered;
     private bool _shutdownMacroCancellationInProgress;
     private LayerNameOverlayWindow? _layerNameOverlayWindow;
     private CancellationTokenSource? _layerNameOverlayCts;
@@ -125,6 +127,7 @@ public partial class MainWindow : Window
         string StartupWindow,
         string StartupAlwaysShow,
         string StartupRestore,
+        string StartupSlots,
         string MacroMode,
         string MacroExclusive,
         string MacroInterrupt,
@@ -173,6 +176,7 @@ public partial class MainWindow : Window
         StartupWindow: "起動時のウィンドウ",
         StartupAlwaysShow: "常にウィンドウを表示",
         StartupRestore: "前回の状態を復元",
+        StartupSlots: "起動時実行スロット...",
         MacroMode: "Macro 実行モード",
         MacroExclusive: "排他（単一実行のみ）",
         MacroInterrupt: "割り込み実行（実行中マクロを停止）",
@@ -221,6 +225,7 @@ public partial class MainWindow : Window
         StartupWindow: "Startup Window",
         StartupAlwaysShow: "Always show window",
         StartupRestore: "Restore last state",
+        StartupSlots: "Startup slots...",
         MacroMode: "Macro Mode",
         MacroExclusive: "Exclusive (single run only)",
         MacroInterrupt: "Interrupt running macro",
@@ -791,6 +796,70 @@ public partial class MainWindow : Window
         {
             _config.LastWindowVisibility = WindowVisibilityState.Visible;
         }
+
+        QueueStartupSlotRun();
+    }
+
+    private void QueueStartupSlotRun()
+    {
+        if (_startupSlotsTriggered)
+        {
+            return;
+        }
+
+        _startupSlotsTriggered = true;
+        Dispatcher.BeginInvoke(new Action(() => _ = RunStartupSlotsAsync()), DispatcherPriority.Background);
+    }
+
+    private async Task RunStartupSlotsAsync()
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        var targets = new List<(int LayerIndex, int SlotIndex)>();
+        for (int layerIndex = 0; layerIndex < _config.Layers.Count; layerIndex++)
+        {
+            var layer = _config.Layers[layerIndex];
+            if (layer?.Slots == null) continue;
+            for (int slotIndex = 0; slotIndex < layer.Slots.Count; slotIndex++)
+            {
+                var slot = layer.Slots[slotIndex];
+                if (slot == null || !slot.RunOnStartup)
+                {
+                    continue;
+                }
+
+                bool macroConfigured = !string.IsNullOrWhiteSpace(slot.KeyboardMacroScript);
+                bool commandConfigured = !string.IsNullOrWhiteSpace(slot.Command);
+                bool runnable = slot.ExecutionMode switch
+                {
+                    SlotExecutionMode.Command => commandConfigured,
+                    SlotExecutionMode.MacroScript => macroConfigured,
+                    SlotExecutionMode.MacroScriptExtended => macroConfigured,
+                    _ => false
+                };
+
+                if (!runnable)
+                {
+                    continue;
+                }
+
+                targets.Add((layerIndex, slotIndex));
+            }
+        }
+
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        _logger.Info($"Startup slot run requested (count={targets.Count}).");
+        foreach (var target in targets)
+        {
+            await TriggerSlotAsync(target.LayerIndex, target.SlotIndex, SlotTriggerKind.Startup, allowMinimize: false);
+        }
     }
 
     private void RestoreWindowFromTray()
@@ -851,6 +920,7 @@ public partial class MainWindow : Window
         if (StartupWindowMenuItem != null) StartupWindowMenuItem.Header = text.StartupWindow;
         if (StartupAlwaysShowMenuItem != null) StartupAlwaysShowMenuItem.Header = text.StartupAlwaysShow;
         if (StartupRestoreMenuItem != null) StartupRestoreMenuItem.Header = text.StartupRestore;
+        if (StartupSlotsMenuItem != null) StartupSlotsMenuItem.Header = text.StartupSlots;
         if (MacroModeMenuItem != null) MacroModeMenuItem.Header = text.MacroMode;
         if (MacroModeExclusiveMenuItem != null) MacroModeExclusiveMenuItem.Header = text.MacroExclusive;
         if (MacroModeInterruptMenuItem != null) MacroModeInterruptMenuItem.Header = text.MacroInterrupt;
@@ -3626,6 +3696,7 @@ public partial class MainWindow : Window
             slot.AccentColor = args.AccentColor;
             slot.MinimizeOptions = args.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
             slot.SearchKeywords = args.SearchKeywords;
+            slot.RunOnStartup = args.RunOnStartup;
             _configService.Save(config);
             RefreshUi();
         };
@@ -3679,6 +3750,7 @@ public partial class MainWindow : Window
             ArgumentsTemplate = source.ArgumentsTemplate,
             IconPath = source.IconPath,
             ClickEnabled = source.ClickEnabled,
+            RunOnStartup = source.RunOnStartup,
             ShortcutKey = source.ShortcutKey,
             KeyboardMacroScript = source.KeyboardMacroScript,
             ExecutionMode = source.ExecutionMode,
@@ -5186,6 +5258,60 @@ public partial class MainWindow : Window
         RefreshUi();
     }
 
+    private void OnConfigureStartupSlots(object sender, RoutedEventArgs e)
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        if (_startupSettingsWindow == null)
+        {
+            var window = new SlotStartupSettingsWindow(_config.Layers)
+            {
+                Owner = this
+            };
+            window.SaveRequested += (_, args) =>
+            {
+                ApplyStartupSlotUpdates(args.Updates);
+            };
+            window.Closed += (_, _) => _startupSettingsWindow = null;
+            WindowCascadeService.Arrange(window, this);
+            _startupSettingsWindow = window;
+            window.Show();
+        }
+        else
+        {
+            _startupSettingsWindow.SetEntries(_config.Layers);
+            if (_startupSettingsWindow.WindowState == WindowState.Minimized)
+            {
+                _startupSettingsWindow.WindowState = WindowState.Normal;
+            }
+            _startupSettingsWindow.Activate();
+        }
+    }
+
+    private void ApplyStartupSlotUpdates(IReadOnlyList<SlotStartupUpdate> updates)
+    {
+        if (_config?.Layers == null)
+        {
+            return;
+        }
+
+        foreach (var update in updates)
+        {
+            if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
+            var layer = _config.Layers[update.LayerIndex];
+            layer.Slots ??= new List<SlotModel>();
+            if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
+            var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
+            slot.RunOnStartup = update.RunOnStartup;
+            layer.Slots[update.SlotIndex] = slot;
+        }
+
+        _configService.Save(_config);
+    }
+
     private void OnShowShortcutList(object sender, RoutedEventArgs e)
     {
         var entries = BuildShortcutListEntries();
@@ -5620,17 +5746,17 @@ public partial class MainWindow : Window
         TryBeginSlotLayoutDrag(sender as FrameworkElement);
     }
 
-    private Task TriggerVisibleSlotAsync(int displayIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null)
+    private Task TriggerVisibleSlotAsync(int displayIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null, bool allowMinimize = true)
     {
         if (!TryGetVisibleSlot(displayIndex, out var layerIndex, out var slotIndex))
         {
             return Task.CompletedTask;
         }
 
-        return TriggerSlotAsync(layerIndex, slotIndex, trigger, droppedPaths);
+        return TriggerSlotAsync(layerIndex, slotIndex, trigger, droppedPaths, allowMinimize);
     }
 
-    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null)
+    private async Task TriggerSlotAsync(int layerIndex, int slotIndex, SlotTriggerKind trigger, IReadOnlyList<string>? droppedPaths = null, bool allowMinimize = true)
     {
         if (slotIndex < 0 || slotIndex >= _slotVisuals.Count) return;
         var layer = _config.Layers[layerIndex];
@@ -5750,6 +5876,7 @@ public partial class MainWindow : Window
                         ArgumentsTemplate = slot.ArgumentsTemplate,
                         IconPath = slot.IconPath,
                         ClickEnabled = slot.ClickEnabled,
+                        RunOnStartup = slot.RunOnStartup,
                         ShortcutKey = slot.ShortcutKey,
                         KeyboardMacroScript = slot.KeyboardMacroScript,
                         ExecutionMode = slot.ExecutionMode,
@@ -5792,7 +5919,7 @@ public partial class MainWindow : Window
                     return;
                 }
                 _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: true);
+                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: true, allowMinimize: allowMinimize);
             }
             catch (Exception ex)
             {
@@ -5818,7 +5945,7 @@ public partial class MainWindow : Window
             else
             {
                 _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: false);
+                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: false, allowMinimize: allowMinimize);
             }
         }
         }
@@ -5837,8 +5964,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void MaybeMinimizeAfterSlot(SlotModel slot, SlotTriggerKind trigger, bool macroExecuted)
+    private void MaybeMinimizeAfterSlot(SlotModel slot, SlotTriggerKind trigger, bool macroExecuted, bool allowMinimize = true)
     {
+        if (!allowMinimize)
+        {
+            return;
+        }
+
         var options = slot.MinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
         if (!options.ShouldMinimizeAfter(trigger))
         {
