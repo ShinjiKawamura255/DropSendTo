@@ -111,7 +111,7 @@
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
 | `PROMPT <変数> "メッセージ" [DEFAULT "初期値"] [TIMEOUT <ms> "タイムアウト値"]` | 入力ダイアログを表示し OK で値を変数へ格納（TIMEOUT 指定時はタイムアウト値を使用、キャンセルで失敗） | `PROMPT Name "名前を入力" TIMEOUT 10000 "unknown"` |
 | `COMMAND_APP <パス>` | Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す） | `COMMAND_APP "C:\tools\img.exe"` |
-| `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回） | `REPEAT 3` → `KEY TAB` → `ENDREPEAT` |
+| `REPEAT <n>` … `ENDREPEAT` | ブロックを繰り返し（0〜1000 回、変数展開可） | `REPEAT {{Count}}` → `KEY TAB` → `ENDREPEAT` |
 | `COMMAND [args]` | Macro Script 拡張モードで登録済みコマンドを呼び出し | `COMMAND "{{clipboard}}"` |
 | `{{drop_args}}` / `{{drop_path:n}}` | ドロップ時にパスを取得（`n` は 1 基点） | `SET First {{drop_path:1}}` |
 | `IF <左> <演算子> <右>` | 条件分岐（`ELSEIF`/`ELSE`/`ENDIF` と組み合わせ、ネスト可） | `IF {{Count}} >= 10` |
@@ -164,9 +164,10 @@
   KEY Enter
   ```
 
-- **簡易テンプレ: 3 回クリックして待機**  
+- **簡易テンプレ: 回数を変数で指定してクリックして待機**  
   ```
-  REPEAT 3
+  SET Count 3
+  REPEAT {{Count}}
       MOUSELEFTCLICK
       WAIT 150
   ENDREPEAT

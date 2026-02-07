@@ -102,7 +102,7 @@
                 <Border Background="{DynamicResource Theme.CardBackgroundBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="NoWrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5) - 単独で 1 行に記述" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5 / REPEAT {{Count}}) - 単独で 1 行に記述" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_DROP &lt;変数&gt; [INDEX &lt;番号変数&gt;] : ドロップした各パスでブロックを繰り返し、{{変数}} で現在のパス、INDEX で 1 基点の番号を参照" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDFOREACH             : FOREACH_DROP の終了。ドロップ 0 件ならブロックはスキップ" TextWrapping="NoWrap"/>
@@ -195,7 +195,8 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="TEXT {{Body}}" TextWrapping="NoWrap" Margin="0,0,0,8"/>
 
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# REPEAT ブロックの例" TextWrapping="NoWrap"/>
-                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT 3" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="SET Count 3" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT {{Count}}" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    KEYDOWN Shift" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    KEY A" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="    KEYUP Shift" TextWrapping="NoWrap"/>

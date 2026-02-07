@@ -33,7 +33,7 @@
 - MUST: 起動時に「起動時実行」フラグが有効なスロットを順に実行する。起動時実行は最小化トリガーを適用しない。
 - MUST: `Macro Script 拡張` モードでの `COMMAND` 命令は、引数省略時にスロットの引数テンプレートを `{args}` 等のプレースホルダを含めて展開し、引数を指定した場合は変数展開後の文字列をそのままコマンドへ渡す。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへのフォーカス取得を試みた上でキーストロークを送る。ターゲットの特定やフォーカス取得に失敗した場合でもエラーにせず警告ログを残し、現在のフォーカス状態で実行を継続する。
-- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT`/`FOREACH_DROP`/`ENDFOREACH` 命令をサポートし、REPEAT 回数は 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
+- MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`REPEAT`/`ENDREPEAT`/`FOREACH_DROP`/`ENDFOREACH` 命令をサポートし、REPEAT 回数は変数展開後の整数で 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。
@@ -93,7 +93,7 @@
 - MUST: `WIN_*` 予約語は `WIN_TOPLEFT` / `WIN_TOPCENTER`(=`WIN_TOPMIDDLE`) / `WIN_TOPRIGHT` / `WIN_LEFTCENTER`(=`WIN_LEFTMIDDLE`) / `WIN_RIGHTCENTER`(=`WIN_RIGHTMIDDLE`) / `WIN_BOTTOMLEFT` / `WIN_BOTTOMCENTER`(=`WIN_BOTTOMMIDDLE`) / `WIN_BOTTOMRIGHT` / `WIN_CENTER`(=`WIN_MIDDLE`=`WIN_MID`) のいずれかとし、他の組み合わせはエラーとする。
 - MUST: `MOUSELEFTDOWN/UP`・`MOUSERIGHTDOWN/UP`・`MOUSEMIDDLEDOWN/UP` で各ボタンの押下/解放を制御し、`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK` は押下と解放をセットで送出する。`MOUSELEFTDOUBLECLICK` はダブルクリック相当の 2 回押下を送出する。
 - MUST: `MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` はホイール量を 1 ステップ=120 として扱い、引数省略時は 1 ステップ送出する。0 以下の値はエラーとする。
-- MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は 0〜1000。入れ子構造もサポートする。
+- MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は変数展開後の整数で 0〜1000。入れ子構造もサポートする。
 - SHOULD: `FOREACH_DROP` ブロックは `REPEAT`/`IF` と入れ子にでき、ブロック展開後も変数値はループをまたいで保持される（最後に代入した値が残る）。
 
 ## SP-010 Shortcut Prefix & Global Shortcuts

@@ -615,15 +615,10 @@ public sealed class KeyboardMacroService : IDisposable
             }
 
             var lines = script.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-            if (!TryExpandRepeatBlocks(lines, out var expandedLines, out var expandError))
-            {
-                return CompleteResult(MacroExecutionResult.Fail(expandError ?? "REPEAT ブロックの解釈に失敗しました。"));
-            }
-            if (!TryExpandForeachDropBlocks(expandedLines, dropEntries, out var foreachExpandedLines, out var foreachError))
+            if (!TryExpandForeachDropBlocks(lines, dropEntries, out var expandedLines, out var foreachError))
             {
                 return CompleteResult(MacroExecutionResult.Fail(foreachError ?? "FOREACH_DROP ブロックの解釈に失敗しました。"));
             }
-            expandedLines = foreachExpandedLines;
             for (int lineIndex = 0; lineIndex < expandedLines.Count; lineIndex++)
             {
                 var rawLine = expandedLines[lineIndex];
@@ -692,6 +687,40 @@ public sealed class KeyboardMacroService : IDisposable
                     }
                     SyncInactiveVariableScopes(previousDepth, inactiveIfDepth);
                     continue;
+                }
+
+                if (StartsWithCommand(line, "REPEAT"))
+                {
+                    if (inactiveIfDepth > 0 && !validateOnly)
+                    {
+                        if (!TryFindMatchingEndRepeat(expandedLines, lineIndex, out var endIndex, out var repeatError, out var errorIndex))
+                        {
+                            int reportedLine = errorIndex >= 0 ? errorIndex + 1 : lineNumber;
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, repeatError ?? "REPEAT ブロックの解釈に失敗しました。")));
+                        }
+                        lineIndex = endIndex;
+                        continue;
+                    }
+
+                    if (!TryExpandRepeatAt(expandedLines, lineIndex, variables, specialResolver, out var nextIndex, out var repeatError, out var errorIndex))
+                    {
+                        int reportedLine = errorIndex >= 0 ? errorIndex + 1 : lineNumber;
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, repeatError ?? "REPEAT ブロックの解釈に失敗しました。")));
+                    }
+                    lineIndex = nextIndex;
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "ENDREPEAT"))
+                {
+                    var remainder = line.Length > 9 ? line[9..].Trim() : string.Empty;
+                    remainder = TrimInlineComment(remainder);
+                    if (remainder.Length > 0)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber,
+                            $"ENDREPEAT 行に余分な記述があります: \"{line}\"")));
+                    }
+                    return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "ENDREPEAT に対応する REPEAT が見つかりません。")));
                 }
 
                 if (inactiveIfDepth > 0 && !validateOnly)
@@ -1517,81 +1546,124 @@ public sealed class KeyboardMacroService : IDisposable
         return char.IsWhiteSpace(next) || !IsAsciiLetter(next);
     }
 
-    private static bool TryExpandRepeatBlocks(string[] lines, out List<string> expanded, out string? error)
+    private static bool TryExpandRepeatAt(
+        List<string> lines,
+        int repeatIndex,
+        IReadOnlyDictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out int nextIndex,
+        out string? error,
+        out int errorIndex)
     {
-        expanded = new List<string>(lines.Length);
+        nextIndex = repeatIndex;
         error = null;
-        var stack = new Stack<RepeatFrame>();
-        for (int i = 0; i < lines.Length; i++)
+        errorIndex = repeatIndex;
+        if (repeatIndex < 0 || repeatIndex >= lines.Count)
         {
-            var rawLine = lines[i];
-            var trimmed = rawLine.Trim();
-
-            if (StartsWithCommand(trimmed, "REPEAT"))
-            {
-                var countToken = trimmed.Length > 6 ? trimmed[6..].Trim() : string.Empty;
-                countToken = TrimInlineComment(countToken);
-                if (!int.TryParse(countToken, out var repeat))
-                {
-                    error = $"REPEAT の回数指定が不正です: \"{trimmed}\"";
-                    return false;
-                }
-                if (repeat < 0 || repeat > MaxRepeatCount)
-                {
-                    error = $"REPEAT に指定できる回数は 0〜{MaxRepeatCount} です: \"{trimmed}\"";
-                    return false;
-                }
-
-                stack.Push(new RepeatFrame(repeat));
-                continue;
-            }
-
-            if (StartsWithCommand(trimmed, "ENDREPEAT"))
-            {
-                var remainder = trimmed.Length > 9 ? trimmed[9..].Trim() : string.Empty;
-                remainder = TrimInlineComment(remainder);
-                if (remainder.Length > 0)
-                {
-                    error = $"ENDREPEAT 行に余分な記述があります: \"{trimmed}\"";
-                    return false;
-                }
-                if (stack.Count == 0)
-                {
-                    error = "ENDREPEAT に対応する REPEAT が見つかりません。";
-                    return false;
-                }
-
-                var frame = stack.Pop();
-                if (frame.Count == 0)
-                {
-                    continue;
-                }
-
-                var target = stack.Count > 0 ? stack.Peek().Lines : expanded;
-                for (int r = 0; r < frame.Count; r++)
-                {
-                    target.AddRange(frame.Lines);
-                }
-                continue;
-            }
-
-            if (stack.Count > 0)
-            {
-                stack.Peek().Lines.Add(rawLine);
-            }
-            else
-            {
-                expanded.Add(rawLine);
-            }
+            error = "REPEAT の位置が不正です。";
+            return false;
         }
 
-        if (stack.Count > 0)
+        var trimmed = lines[repeatIndex].Trim();
+        if (!TryParseRepeatCount(trimmed, variables, specialResolver, out var repeat, out error))
         {
-            error = "REPEAT ブロックが ENDREPEAT で閉じられていません。";
+            return false;
+        }
+
+        if (!TryFindMatchingEndRepeat(lines, repeatIndex, out var endIndex, out error, out errorIndex))
+        {
+            return false;
+        }
+
+        var blockCount = endIndex - repeatIndex - 1;
+        var blockLines = blockCount > 0
+            ? lines.GetRange(repeatIndex + 1, blockCount)
+            : new List<string>();
+        lines.RemoveRange(repeatIndex, endIndex - repeatIndex + 1);
+        if (repeat > 0 && blockLines.Count > 0)
+        {
+            for (int r = 0; r < repeat; r++)
+            {
+                lines.InsertRange(repeatIndex + r * blockLines.Count, blockLines);
+            }
+        }
+        nextIndex = repeatIndex - 1;
+        return true;
+    }
+
+    private static bool TryParseRepeatCount(
+        string trimmedLine,
+        IReadOnlyDictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out int repeat,
+        out string? error)
+    {
+        repeat = 0;
+        error = null;
+        var countToken = trimmedLine.Length > 6 ? trimmedLine[6..].Trim() : string.Empty;
+        countToken = TrimInlineComment(countToken);
+        if (!TryExpandVariables(countToken, variables, out var expanded, out var expandError, specialResolver))
+        {
+            error = expandError ?? $"REPEAT の回数指定が不正です: \"{trimmedLine}\"";
+            return false;
+        }
+        expanded = expanded.Trim();
+        if (!int.TryParse(expanded, out repeat))
+        {
+            error = $"REPEAT の回数指定が不正です: \"{trimmedLine}\"";
+            return false;
+        }
+        if (repeat < 0 || repeat > MaxRepeatCount)
+        {
+            error = $"REPEAT に指定できる回数は 0〜{MaxRepeatCount} です: \"{trimmedLine}\"";
             return false;
         }
 
         return true;
+    }
+
+    private static bool TryFindMatchingEndRepeat(
+        IReadOnlyList<string> lines,
+        int repeatIndex,
+        out int endIndex,
+        out string? error,
+        out int errorIndex)
+    {
+        endIndex = -1;
+        error = null;
+        errorIndex = repeatIndex;
+        int depth = 0;
+        for (int i = repeatIndex + 1; i < lines.Count; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (StartsWithCommand(trimmed, "REPEAT"))
+            {
+                depth++;
+                continue;
+            }
+            if (!StartsWithCommand(trimmed, "ENDREPEAT"))
+            {
+                continue;
+            }
+
+            var remainder = trimmed.Length > 9 ? trimmed[9..].Trim() : string.Empty;
+            remainder = TrimInlineComment(remainder);
+            if (remainder.Length > 0)
+            {
+                error = $"ENDREPEAT 行に余分な記述があります: \"{trimmed}\"";
+                errorIndex = i;
+                return false;
+            }
+            if (depth == 0)
+            {
+                endIndex = i;
+                return true;
+            }
+            depth--;
+        }
+
+        error = "REPEAT ブロックが ENDREPEAT で閉じられていません。";
+        return false;
     }
 
     private static bool TryExpandForeachDropBlocks(IReadOnlyList<string> lines, IReadOnlyList<string> dropEntries, out List<string> expanded, out string? error)
