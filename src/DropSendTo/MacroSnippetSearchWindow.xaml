@@ -47,10 +47,55 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <DockPanel Grid.Row="0" Margin="0,0,0,8">
-                <TextBlock Text="検索" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox x:Name="SearchBox" MinWidth="240" TextChanged="OnSearchTextChanged" />
-            </DockPanel>
+            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                <DockPanel Margin="0,0,0,6">
+                    <TextBlock Text="検索" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox x:Name="SearchBox" MinWidth="240" TextChanged="OnSearchTextChanged"/>
+                </DockPanel>
+                <WrapPanel Margin="0,0,0,6" VerticalAlignment="Center">
+                    <TextBlock Text="検索対象" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <CheckBox x:Name="SearchGroupCheck"
+                              Content="カテゴリ"
+                              IsChecked="True"
+                              Margin="0,0,10,0"
+                              Checked="OnSearchTargetChanged"
+                              Unchecked="OnSearchTargetChanged"/>
+                    <CheckBox x:Name="SearchHeaderCheck"
+                              Content="コマンド"
+                              IsChecked="True"
+                              Margin="0,0,10,0"
+                              Checked="OnSearchTargetChanged"
+                              Unchecked="OnSearchTargetChanged"/>
+                    <CheckBox x:Name="SearchContentCheck"
+                              Content="内容"
+                              IsChecked="True"
+                              Checked="OnSearchTargetChanged"
+                              Unchecked="OnSearchTargetChanged"/>
+                </WrapPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Text="カテゴリ フィルタ" Margin="0,0,0,2"/>
+                        <ComboBox x:Name="GroupFilterBox"
+                                  MinWidth="140"
+                                  SelectionChanged="OnGroupFilterChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                        <TextBlock Text="コマンド フィルタ" Margin="0,0,0,2"/>
+                        <TextBox x:Name="CommandFilterBox"
+                                 TextChanged="OnCommandFilterChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="内容 フィルタ" Margin="0,0,0,2"/>
+                        <TextBox x:Name="ContentFilterBox"
+                                 TextChanged="OnContentFilterChanged"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
 
             <ListView x:Name="SnippetList"
                       Grid.Row="1"
