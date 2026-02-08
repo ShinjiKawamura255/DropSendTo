@@ -691,20 +691,22 @@ public sealed class KeyboardMacroService : IDisposable
 
                 if (StartsWithCommand(line, "REPEAT"))
                 {
+                    string? repeatError;
+                    int repeatErrorIndex;
                     if (inactiveIfDepth > 0 && !validateOnly)
                     {
-                        if (!TryFindMatchingEndRepeat(expandedLines, lineIndex, out var endIndex, out var repeatError, out var errorIndex))
+                        if (!TryFindMatchingEndRepeat(expandedLines, lineIndex, out var endIndex, out repeatError, out repeatErrorIndex))
                         {
-                            int reportedLine = errorIndex >= 0 ? errorIndex + 1 : lineNumber;
+                            int reportedLine = repeatErrorIndex >= 0 ? repeatErrorIndex + 1 : lineNumber;
                             return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, repeatError ?? "REPEAT ブロックの解釈に失敗しました。")));
                         }
                         lineIndex = endIndex;
                         continue;
                     }
 
-                    if (!TryExpandRepeatAt(expandedLines, lineIndex, variables, specialResolver, out var nextIndex, out var repeatError, out var errorIndex))
+                    if (!TryExpandRepeatAt(expandedLines, lineIndex, variables, specialResolver, out var nextIndex, out repeatError, out repeatErrorIndex))
                     {
-                        int reportedLine = errorIndex >= 0 ? errorIndex + 1 : lineNumber;
+                        int reportedLine = repeatErrorIndex >= 0 ? repeatErrorIndex + 1 : lineNumber;
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, repeatError ?? "REPEAT ブロックの解釈に失敗しました。")));
                     }
                     lineIndex = nextIndex;
