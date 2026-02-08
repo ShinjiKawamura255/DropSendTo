@@ -259,6 +259,16 @@ public partial class RegisterDialog : Window
 
     private void OnOk(object sender, RoutedEventArgs e)
     {
+        TryApplySlot(closeAfter: true);
+    }
+
+    private void OnApply(object sender, RoutedEventArgs e)
+    {
+        TryApplySlot(closeAfter: false);
+    }
+
+    private bool TryApplySlot(bool closeAfter)
+    {
         var mode = CurrentMode;
         bool macroRequired = mode != SlotExecutionMode.Command;
         bool commandRequired = mode != SlotExecutionMode.MacroScript;
@@ -273,7 +283,7 @@ public partial class RegisterDialog : Window
                     ? "Macro Script 拡張モードでは Macro Script を入力してください。"
                     : "Macro Script モードでは Macro Script を入力してください。";
                 WpfMessageBox.Show(message, "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
 
             if (!KeyboardMacroService.TryValidateScript(formattedMacro, mode, out var macroError))
@@ -283,7 +293,7 @@ public partial class RegisterDialog : Window
                 var result = WpfMessageBox.Show(message, "Macro Script", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result != MessageBoxResult.Yes)
                 {
-                    return;
+                    return false;
                 }
             }
 
@@ -293,7 +303,7 @@ public partial class RegisterDialog : Window
                 var result = WpfMessageBox.Show(warning, "Macro Script", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result != MessageBoxResult.Yes)
                 {
-                    return;
+                    return false;
                 }
             }
         }
@@ -310,7 +320,7 @@ public partial class RegisterDialog : Window
                     ? "Macro Script 拡張モードでは Command を入力してください。"
                     : "Command モードでは Command を入力してください。";
                 WpfMessageBox.Show(message, "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
         }
         else
@@ -329,7 +339,7 @@ public partial class RegisterDialog : Window
             if (!ShortcutSequenceParser.TryParse(shortcutText, out var sequence, out var error))
             {
                 WpfMessageBox.Show(error ?? "ショートカットの書式が正しくありません。", "Edit Slot", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
             ShortcutChord = sequence.NormalizedString;
             ShortcutBox.Text = sequence.NormalizedString;
@@ -340,7 +350,11 @@ public partial class RegisterDialog : Window
         }
 
         SlotSaved?.Invoke(this, new SlotSavedEventArgs(AppTitle, CommandPath, ArgumentsTemplate, MacroScript, ShortcutChord, mode, GetSelectedAccentColor(), BuildMinimizeOptions(), SearchKeywords, RunOnStartup));
-        Close();
+        if (closeAfter)
+        {
+            Close();
+        }
+        return true;
     }
 
     private void OnModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
