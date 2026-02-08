@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/DropSendTo/`: Main .NET 8 Windows app (WPF/WinUI style).
+- `src/DropSendTo/`: Main .NET 8 Windows app (WPF).
 - `tests/DropSendTo.Tests/`: Unit/integration tests mirroring `src` namespaces.
 - `img/`: Icons・トレイ用リソース一式（過去の `assets/` は廃止済み）。
 - `docs/`: REQUIREMENTS, SPEC, DESIGN, TESTPLAN and architecture notes.
@@ -44,12 +44,13 @@
 
 ## Control Flow Cheat Sheet
 - 全体設計は `docs/DESIGN.md`、API 仕様とコマンド一覧は `docs/SPEC.md`、試験観点は `docs/TESTPLAN.md` を参照。
-- UI 起点: `src/DropSendTo/MainWindow.xaml(.cs)`。スロット操作と Prefix 状態を制御し、マクロの呼び出しは `KeyboardMacroService` へ委譲。Slot Size／行列切替、タスクトレイ最小化、`ClipboardHistoryService.Instance.Initialize` のライフサイクル管理、`ConfigTransferService` を用いたエクスポート/インポートダイアログ、`WindowPlacementService` でウィンドウ位置を補正する。
+- UI 起点: `src/DropSendTo/MainWindow.xaml(.cs)`。スロット操作と Prefix 状態を制御し、マクロの呼び出しは `KeyboardMacroService` へ委譲。Slot Size／行列切替（2〜8 行 × 2〜8 列）、レイヤー数変更（4〜8）、タスクトレイ最小化、`ClipboardHistoryService.Instance.Initialize` のライフサイクル管理、`ConfigTransferService` を用いたエクスポート/インポートダイアログ、`WindowPlacementService` でウィンドウ位置を補正する。
+- ドロップ専用ウィンドウ: `src/DropSendTo/DropCaptureWindow.xaml(.cs)`。ドラッグ中ホイールクリックまたは Prefix+Ctrl+D で表示し、ドロップ済みパスを MainWindow 側の pending 状態へ引き渡す。左上 `Dropped` インジケーター点灯中のクリック/キーボード選択/検索起動で `{args}` 展開を有効にする。
 - マクロ処理: `src/DropSendTo/Services/KeyboardMacroService.cs`。検索トークンは `RunMacroInternal`, `TryHandleMouseCommand`, `TryParseInt64OrWindowToken`。座標予約語の解決は `TryResolveWindowCoordinatePoint`/`*_ComponentToken`。`MacroRecordingService` → `MacroRecordingOptimizer` で録画イベントを `KEY/KEYDOWN/KEYUP` に最適化。
 - クリップボード/引数展開: `ClipboardHistoryService` が `WM_CLIPBOARDUPDATE` を購読し、直近 20 個の履歴を `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}` 向けに保持。`LauncherService` + `ArgumentTemplateExpander` がドロップ/CLI パスと履歴を合成して `ProcessStartInfo` を生成し、失敗時はメッセージ文字列を返す。
 - 設定 I/O/移行: `ConfigService` が JSON 読み書き、`.bak` バックアップ、バージョンアップマイグレーションを担当。`ConfigTransferService` は AES-GCM + PBKDF2（200k iterations）で暗号化したエクスポート payload を扱い、`PasswordPromptDialog` から渡されるパスワードで復号後に `AppConfig` へマッピングする。
 - Config 項目を追加/変更したら、`ConfigTransferService` の Export/Import スナップショットと `tests/DropSendTo.Tests/ConfigTransferServiceTests.cs` を必ず更新し、バックアップ/エクスポートで設定が欠落しないようにする。
-- レイヤー/ショートカット: `LayerManager` が 0〜3 のレイヤーインデックスを巡回し、`ShortcutService` が Prefix armed 状態をディスパッチ。Prefix+Enter 後は矢印キー選択を `MainWindow` に送出して `_slotVisuals` を更新する。
+- レイヤー/ショートカット: `LayerManager` が `0..(Layers.Count-1)` のレイヤーインデックスを巡回し、`ShortcutService` が Prefix armed 状態をディスパッチ。Prefix+Enter 後は矢印キー選択を `MainWindow` に送出して `_slotVisuals` を更新する。
 - ウィンドウ配置: `ScreenBoundsResolver` がマルチモニターの DPI を考慮した `ScreenBounds` を求め、`WindowPlacementService.Clamp` が可視領域へ収める。座標に NaN/Infinity が来た場合も安全にデフォルトへ戻す。
 - 代表テスト:
   - Config/設定系 → `tests/DropSendTo.Tests/ConfigServiceTests.cs`, `ConfigTransferServiceTests.cs`（暗号化 round-trip, パスワード誤り検証）
