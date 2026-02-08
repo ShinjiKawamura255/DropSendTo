@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private SlotShortcutListWindow? _shortcutListWindow;
+    private SlotShortcutEditWindow? _shortcutEditWindow;
     private SlotStartupSettingsWindow? _startupSettingsWindow;
     private bool _keyboardNavigationActive;
     private int _keyboardSelectedSlotIndex = -1;
@@ -2283,6 +2284,24 @@ public partial class MainWindow : Window
         return slot != null;
     }
 
+    private bool TryGetSlotModel(int layerIndex, int slotIndex, out SlotModel slot)
+    {
+        slot = null!;
+        if (_config?.Layers == null || layerIndex < 0 || layerIndex >= _config.Layers.Count)
+        {
+            return false;
+        }
+
+        var layer = _config.Layers[layerIndex];
+        if (layer?.Slots == null || slotIndex < 0 || slotIndex >= layer.Slots.Count)
+        {
+            return false;
+        }
+
+        slot = layer.Slots[slotIndex];
+        return slot != null;
+    }
+
     private bool TryFindDisplayIndex(int layerIndex, int slotIndex, out int displayIndex)
     {
         for (int i = 0; i < _visibleSlotMappings.Count; i++)
@@ -3665,20 +3684,42 @@ public partial class MainWindow : Window
     private void EditSlot(FrameworkElement fe)
     {
         int idx = GetSlotIndex(fe);
-        if (!TryGetVisibleSlotModel(idx, out _, out _, out var slot))
+        if (!TryGetVisibleSlotModel(idx, out var layerIndex, out var slotIndex, out _))
         {
             return;
         }
+        OpenSlotEditor(layerIndex, slotIndex);
+    }
+
+    private void OpenSlotEditor(int layerIndex, int slotIndex)
+    {
         if (_config == null)
         {
             _logger.Error("Config is not loaded; cannot edit slot.");
             return;
         }
+        if (layerIndex < 0 || layerIndex >= _config.Layers.Count)
+        {
+            return;
+        }
+        var layer = _config.Layers[layerIndex];
+        if (layer?.Slots == null || slotIndex < 0 || slotIndex >= layer.Slots.Count)
+        {
+            return;
+        }
+
+        var slot = layer.Slots[slotIndex];
+        if (slot == null)
+        {
+            return;
+        }
+
         var config = _config;
         if ((config.DefaultMinimizeOptions != null && IsSlotEmpty(slot)) || slot.MinimizeOptions == null)
         {
             slot.MinimizeOptions = (config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault()).Clone();
         }
+
         var dlg = new RegisterDialog(slot)
         {
             Owner = this
@@ -3699,6 +3740,7 @@ public partial class MainWindow : Window
             slot.RunOnStartup = args.RunOnStartup;
             _configService.Save(config);
             RefreshUi();
+            RefreshShortcutList();
         };
 
         dlg.Show();
@@ -5327,7 +5369,14 @@ public partial class MainWindow : Window
             {
                 Owner = this
             };
-            _shortcutListWindow.Closed += (_, _) => _shortcutListWindow = null;
+            _shortcutListWindow.EditRequested += OnShortcutListEditRequested;
+            _shortcutListWindow.ShortcutEditRequested += OnShortcutListShortcutEditRequested;
+            _shortcutListWindow.Closed += (_, _) =>
+            {
+                _shortcutListWindow.EditRequested -= OnShortcutListEditRequested;
+                _shortcutListWindow.ShortcutEditRequested -= OnShortcutListShortcutEditRequested;
+                _shortcutListWindow = null;
+            };
             WindowCascadeService.Arrange(_shortcutListWindow, this);
             _shortcutListWindow.SetEntries(entries);
             _shortcutListWindow.Show();
@@ -5341,6 +5390,79 @@ public partial class MainWindow : Window
             }
             _shortcutListWindow.Activate();
         }
+    }
+
+    private void OnShortcutListEditRequested(object? sender, SlotShortcutInfo info)
+    {
+        OpenSlotEditor(info.LayerIndex, info.SlotIndex);
+    }
+
+    private void OnShortcutListShortcutEditRequested(object? sender, SlotShortcutInfo info)
+    {
+        ShowShortcutEditWindow(info);
+    }
+
+    private void ShowShortcutEditWindow(SlotShortcutInfo info)
+    {
+        if (!TryGetSlotModel(info.LayerIndex, info.SlotIndex, out var slot))
+        {
+            return;
+        }
+
+        if (_shortcutEditWindow != null)
+        {
+            _shortcutEditWindow.Close();
+            _shortcutEditWindow = null;
+        }
+
+        Window owner = _shortcutListWindow != null ? _shortcutListWindow : this;
+        var window = new SlotShortcutEditWindow(info.SlotId, info.Title, slot.ShortcutKey)
+        {
+            Owner = owner
+        };
+        _shortcutEditWindow = window;
+        window.ShortcutApplied += (_, args) =>
+        {
+            ApplyShortcutChange(info.LayerIndex, info.SlotIndex, args.Shortcut);
+        };
+        window.Closed += (_, _) =>
+        {
+            if (_shortcutEditWindow == window)
+            {
+                _shortcutEditWindow = null;
+            }
+        };
+        WindowCascadeService.Arrange(window, owner);
+        window.Show();
+    }
+
+    private void ApplyShortcutChange(int layerIndex, int slotIndex, string shortcut)
+    {
+        if (_config == null)
+        {
+            return;
+        }
+        if (!TryGetSlotModel(layerIndex, slotIndex, out var slot))
+        {
+            return;
+        }
+
+        var trimmed = (shortcut ?? string.Empty).Trim();
+        slot.ShortcutKey = trimmed;
+        _configService.Save(_config);
+        RefreshUi();
+        RefreshShortcutList();
+    }
+
+    private void RefreshShortcutList()
+    {
+        if (_shortcutListWindow == null)
+        {
+            return;
+        }
+
+        var entries = BuildShortcutListEntries();
+        _shortcutListWindow.SetEntries(entries);
     }
 
     private List<SlotShortcutInfo> BuildShortcutListEntries()

@@ -64,6 +64,8 @@
                       HeadersVisibility="Column"
                       IsReadOnly="True"
                       SelectionMode="Extended"
+                      SelectionChanged="OnSelectionChanged"
+                      MouseDoubleClick="OnGridDoubleClick"
                       Margin="0 0 0 8"
                       Background="{DynamicResource Theme.SurfaceBackgroundBrush}"
                       Foreground="{DynamicResource Theme.PrimaryTextBrush}"
@@ -130,15 +132,34 @@
                        Visibility="Collapsed"/>
         </Grid>
 
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right">
-            <Button Content="閉じる"
-                    Width="100"
-                    IsDefault="True"
-                    IsCancel="True"
-                    Click="OnClose"/>
-        </StackPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="EditButton"
+                        Content="編集..."
+                        Width="100"
+                        Margin="0 0 8 0"
+                        IsEnabled="False"
+                        Click="OnEditClicked"/>
+                <Button x:Name="ShortcutEditButton"
+                        Content="ショートカット変更..."
+                        Width="140"
+                        IsEnabled="False"
+                        Click="OnShortcutEditClicked"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button Content="閉じる"
+                        Width="100"
+                        IsDefault="True"
+                        IsCancel="True"
+                        Click="OnClose"/>
+            </StackPanel>
+        </Grid>
         </Grid>
     </Grid>
 </Window>
