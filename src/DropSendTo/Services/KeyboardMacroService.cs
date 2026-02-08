@@ -25,6 +25,9 @@ public sealed class KeyboardMacroService : IDisposable
     private const int TextSendWhitespaceDelayMilliseconds = 28;
     private const int ClipTextAutoWaitMilliseconds = 30;
     private const int MaxPromptTimeoutMilliseconds = 600000;
+    private const int MaxWaitUntilTimeoutMilliseconds = 600000;
+    private const int DefaultWaitUntilIntervalMilliseconds = 50;
+    private const int MaxWaitUntilIntervalMilliseconds = 5000;
     private const int NetshTimeoutMilliseconds = 3000;
     private const string MacroPopupTitle = "DropSendTo Macro";
 
@@ -1156,6 +1159,63 @@ public sealed class KeyboardMacroService : IDisposable
                     continue;
                 }
 
+                if (StartsWithCommand(line, "WAIT_UNTIL") || StartsWithCommand(line, "WAIT-UNTIL"))
+                {
+                    if (!TryParseWaitUntilDirective(line, variables, specialResolver, out var waitUntilCondition, out var waitUntilTimeoutMs, out var waitUntilIntervalMs, out var waitUntilError))
+                    {
+                        var message = waitUntilError ?? "WAIT_UNTIL の解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (!TryFlushInputsSafe(buffer, validateOnly, out var flushWaitUntilError))
+                    {
+                        var message = flushWaitUntilError ?? "SendInput の実行に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (!TryEvaluateCondition(waitUntilCondition, variables, specialResolver, out var waitUntilSatisfied, out var waitUntilConditionError))
+                    {
+                        var message = waitUntilConditionError ?? "WAIT_UNTIL の条件式評価に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+
+                    if (validateOnly || waitUntilSatisfied)
+                    {
+                        continue;
+                    }
+
+                    var waitUntilStopwatch = Stopwatch.StartNew();
+                    while (waitUntilStopwatch.ElapsedMilliseconds < waitUntilTimeoutMs)
+                    {
+                        var remaining = waitUntilTimeoutMs - (int)Math.Min(waitUntilStopwatch.ElapsedMilliseconds, int.MaxValue);
+                        if (remaining <= 0)
+                        {
+                            break;
+                        }
+
+                        var delay = Math.Min(waitUntilIntervalMs, remaining);
+                        DelayFor(delay, session, cancellationToken);
+
+                        if (!TryEvaluateCondition(waitUntilCondition, variables, specialResolver, out waitUntilSatisfied, out waitUntilConditionError))
+                        {
+                            var message = waitUntilConditionError ?? "WAIT_UNTIL の条件式評価に失敗しました。";
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                        }
+
+                        if (waitUntilSatisfied)
+                        {
+                            break;
+                        }
+                    }
+
+                    if (!waitUntilSatisfied)
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, $"WAIT_UNTIL がタイムアウトしました（{waitUntilTimeoutMs} ミリ秒）。")));
+                    }
+
+                    continue;
+                }
+
                 if (StartsWithCommand(line, "WAIT"))
                 {
                     var waitToken = line.Length > 4 ? line[4..].Trim() : string.Empty;
@@ -2253,6 +2313,160 @@ public sealed class KeyboardMacroService : IDisposable
     private static bool IsLogicalOperator(string token) =>
         token.Equals("AND", StringComparison.OrdinalIgnoreCase) ||
         token.Equals("OR", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryParseWaitUntilDirective(
+        string line,
+        Dictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out string condition,
+        out int timeoutMs,
+        out int intervalMs,
+        out string? error)
+    {
+        condition = string.Empty;
+        timeoutMs = 0;
+        intervalMs = DefaultWaitUntilIntervalMilliseconds;
+        error = null;
+
+        var payload = line.Length > 10 ? line[10..].TrimStart() : string.Empty;
+        payload = TrimInlineComment(payload);
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            error = "WAIT_UNTIL には条件式と TIMEOUT を指定してください。";
+            return false;
+        }
+
+        var timeoutKeywordIndex = FindKeywordOutsideQuotes(payload, "TIMEOUT");
+        if (timeoutKeywordIndex < 0)
+        {
+            error = "WAIT_UNTIL には TIMEOUT <ミリ秒> の指定が必須です。";
+            return false;
+        }
+
+        condition = payload[..timeoutKeywordIndex].Trim();
+        if (string.IsNullOrWhiteSpace(condition))
+        {
+            error = "WAIT_UNTIL の条件式が空です。";
+            return false;
+        }
+
+        var parseIndex = timeoutKeywordIndex + "TIMEOUT".Length;
+        if (!TryReadUnquotedToken(payload, ref parseIndex, out var rawTimeoutToken))
+        {
+            error = "WAIT_UNTIL の TIMEOUT にはミリ秒を指定してください。";
+            return false;
+        }
+
+        if (!TryExpandVariables(rawTimeoutToken, variables, out var expandedTimeoutToken, out var timeoutExpandError, specialResolver))
+        {
+            error = timeoutExpandError ?? "WAIT_UNTIL の TIMEOUT 展開に失敗しました。";
+            return false;
+        }
+
+        if (!int.TryParse(expandedTimeoutToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out timeoutMs) ||
+            timeoutMs < 1 ||
+            timeoutMs > MaxWaitUntilTimeoutMilliseconds)
+        {
+            error = $"WAIT_UNTIL の TIMEOUT は 1〜{MaxWaitUntilTimeoutMilliseconds} ミリ秒で指定してください。";
+            return false;
+        }
+
+        var remainder = parseIndex < payload.Length ? payload[parseIndex..].Trim() : string.Empty;
+        if (string.IsNullOrEmpty(remainder))
+        {
+            return true;
+        }
+
+        var optionIndex = 0;
+        if (!TryReadUnquotedToken(remainder, ref optionIndex, out var optionToken) ||
+            !optionToken.Equals("INTERVAL", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "WAIT_UNTIL の TIMEOUT の後ろには INTERVAL <ミリ秒> のみ指定できます。";
+            return false;
+        }
+
+        if (!TryReadUnquotedToken(remainder, ref optionIndex, out var rawIntervalToken))
+        {
+            error = "WAIT_UNTIL の INTERVAL にはミリ秒を指定してください。";
+            return false;
+        }
+
+        if (!TryExpandVariables(rawIntervalToken, variables, out var expandedIntervalToken, out var intervalExpandError, specialResolver))
+        {
+            error = intervalExpandError ?? "WAIT_UNTIL の INTERVAL 展開に失敗しました。";
+            return false;
+        }
+
+        if (!int.TryParse(expandedIntervalToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out intervalMs) ||
+            intervalMs < 1 ||
+            intervalMs > MaxWaitUntilIntervalMilliseconds)
+        {
+            error = $"WAIT_UNTIL の INTERVAL は 1〜{MaxWaitUntilIntervalMilliseconds} ミリ秒で指定してください。";
+            return false;
+        }
+
+        if (optionIndex < remainder.Length && !string.IsNullOrWhiteSpace(remainder[optionIndex..]))
+        {
+            error = "WAIT_UNTIL の INTERVAL の後ろに余分な記述があります。";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static int FindKeywordOutsideQuotes(string input, string keyword)
+    {
+        if (string.IsNullOrEmpty(input) || string.IsNullOrEmpty(keyword))
+        {
+            return -1;
+        }
+
+        bool inQuotes = false;
+        bool escape = false;
+        for (int i = 0; i <= input.Length - keyword.Length; i++)
+        {
+            var ch = input[i];
+            if (!escape && ch == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+
+            if (!inQuotes &&
+                input.AsSpan(i, keyword.Length).Equals(keyword.AsSpan(), StringComparison.OrdinalIgnoreCase) &&
+                (i == 0 || char.IsWhiteSpace(input[i - 1])) &&
+                (i + keyword.Length >= input.Length || char.IsWhiteSpace(input[i + keyword.Length])))
+            {
+                return i;
+            }
+
+            escape = !escape && ch == '\\';
+        }
+
+        return -1;
+    }
+
+    private static bool TryReadUnquotedToken(string input, ref int index, out string token)
+    {
+        token = string.Empty;
+        while (index < input.Length && char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        if (index >= input.Length)
+        {
+            return false;
+        }
+
+        var start = index;
+        while (index < input.Length && !char.IsWhiteSpace(input[index]))
+        {
+            index++;
+        }
+
+        token = input[start..index];
+        return token.Length > 0;
+    }
 
     private static bool TryParseConditionToken(string input, ref int index, out string token, out string? error)
     {

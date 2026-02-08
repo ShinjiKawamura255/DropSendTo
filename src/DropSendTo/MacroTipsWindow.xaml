@@ -102,6 +102,8 @@
                 <Border Background="{DynamicResource Theme.CardBackgroundBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,12">
                     <StackPanel>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT &lt;ミリ秒&gt;         : 0〜60000 の待機 (例: WAIT 250)" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WAIT_UNTIL &lt;条件&gt; TIMEOUT &lt;ms&gt; [INTERVAL &lt;ms&gt;] : 条件成立まで待機。TIMEOUT は必須、INTERVAL は省略時 50ms" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="例: WAIT_UNTIL {{clipboard}} CONTAINS &quot;.txt&quot; TIMEOUT 3000 INTERVAL 100" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="REPEAT &lt;回数&gt;         : ブロック開始 (例: REPEAT 5 / REPEAT {{Count}}) - 単独で 1 行に記述" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_DROP &lt;変数&gt; [INDEX &lt;番号変数&gt;] : ドロップした各パスでブロックを繰り返し、{{変数}} で現在のパス、INDEX で 1 基点の番号を参照" TextWrapping="NoWrap"/>

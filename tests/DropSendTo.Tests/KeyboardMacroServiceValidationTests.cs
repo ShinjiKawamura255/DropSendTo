@@ -10,12 +10,50 @@ public class KeyboardMacroServiceValidationTests
     [Fact]
     public void TryValidateScript_ShouldPass_ForSimpleMacro()
     {
-        const string script = "KEY Ctrl+C\nWAIT 100\nKEY V\n";
+        const string script = "KEY Ctrl+C\nWAIT 100\nWAIT_UNTIL 1 TIMEOUT 100\nKEY V\n";
 
         var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
 
         ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
         error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldPass_ForWaitUntilWithInterval()
+    {
+        var ok = KeyboardMacroService.TryValidateScript(
+            "WAIT_UNTIL \"ABC\" CONTAINS \"A\" TIMEOUT 3000 INTERVAL 100",
+            SlotExecutionMode.MacroScript,
+            out var error);
+
+        ok.Should().BeTrue("validation failed: {0}", error ?? "(null)");
+        error.Should().BeNull();
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForWaitUntilWithoutTimeout()
+    {
+        var ok = KeyboardMacroService.TryValidateScript(
+            "WAIT_UNTIL {{clipboard}} CONTAINS \"ok\"",
+            SlotExecutionMode.MacroScript,
+            out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("TIMEOUT");
+    }
+
+    [Fact]
+    public void TryValidateScript_ShouldFail_ForWaitUntilTimeoutOutOfRange()
+    {
+        var ok = KeyboardMacroService.TryValidateScript(
+            "WAIT_UNTIL 1 TIMEOUT 700000",
+            SlotExecutionMode.MacroScript,
+            out var error);
+
+        ok.Should().BeFalse();
+        error.Should().NotBeNull();
+        error.Should().Contain("WAIT_UNTIL");
     }
 
     [Fact]

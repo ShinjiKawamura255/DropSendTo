@@ -115,6 +115,7 @@ public partial class RegisterDialog : Window
         new MacroSnippetGroup("フロー制御 / Prefix", new[]
         {
             new MacroSnippet("WAIT <ミリ秒>", "WAIT 250"),
+            new MacroSnippet("WAIT_UNTIL <条件> TIMEOUT <ms>", "WAIT_UNTIL {{clipboard}} CONTAINS \".txt\" TIMEOUT 3000 INTERVAL 100"),
             new MacroSnippet("REPEAT ... ENDREPEAT", "REPEAT 3\n    \nENDREPEAT"),
             new MacroSnippet("FOREACH_DROP ... ENDFOREACH", "FOREACH_DROP Item INDEX i\n    TEXT [{{i}}] {{Item}}\nENDFOREACH"),
             new MacroSnippet("IF / ELSE / ENDIF", "IF {{Flag}}\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
