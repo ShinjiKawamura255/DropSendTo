@@ -56,7 +56,7 @@
 
     <!-- Slot visuals -->
     <SolidColorBrush x:Key="Theme.SlotBackgroundBrush" Color="#FFF5F5F5"/>
-    <SolidColorBrush x:Key="Theme.SlotBorderBrush" Color="#FFCCCCCC"/>
+    <SolidColorBrush x:Key="Theme.SlotBorderBrush" Color="#FFC0C0C0"/>
     <SolidColorBrush x:Key="Theme.SlotHoverBackgroundBrush" Color="#FFEAEAEA"/>
     <SolidColorBrush x:Key="Theme.SlotHoverBorderBrush" Color="#FF999999"/>
     <SolidColorBrush x:Key="Theme.SlotPressedBackgroundBrush" Color="#FFDADADA"/>

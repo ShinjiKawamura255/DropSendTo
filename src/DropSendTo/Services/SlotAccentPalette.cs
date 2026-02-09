@@ -26,7 +26,7 @@ internal static class SlotAccentPalette
     private static readonly IReadOnlyDictionary<SlotAccentColor, SlotAccentPaletteEntry> LightSchemes =
         new Dictionary<SlotAccentColor, SlotAccentPaletteEntry>
         {
-            [SlotAccentColor.Default] = new(MediaColor.FromRgb(0xF5, 0xF5, 0xF5), MediaColor.FromRgb(0xCC, 0xCC, 0xCC), MediaColor.FromRgb(0x11, 0x11, 0x11)),
+            [SlotAccentColor.Default] = new(MediaColor.FromRgb(0xF5, 0xF5, 0xF5), MediaColor.FromRgb(0xC0, 0xC0, 0xC0), MediaColor.FromRgb(0x11, 0x11, 0x11)),
             [SlotAccentColor.Teal] = new(MediaColor.FromRgb(0xE3, 0xF4, 0xF6), MediaColor.FromRgb(0x74, 0xB9, 0xC0), MediaColor.FromRgb(0x1F, 0x5A, 0x62)),
             [SlotAccentColor.Indigo] = new(MediaColor.FromRgb(0xEC, 0xEB, 0xFA), MediaColor.FromRgb(0x8E, 0x87, 0xD6), MediaColor.FromRgb(0x2F, 0x2F, 0x6A)),
             [SlotAccentColor.Azure] = new(MediaColor.FromRgb(0xE6, 0xF0, 0xFB), MediaColor.FromRgb(0x7A, 0xAD, 0xE3), MediaColor.FromRgb(0x1F, 0x3E, 0x69)),
