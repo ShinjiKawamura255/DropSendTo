@@ -882,6 +882,11 @@ public partial class RegisterDialog : Window
             foreach (var snippet in group.Items)
             {
                 list.Add(new MacroSnippetEntry(group.Header, snippet.Header, snippet.Content));
+                var withoutSampleArgs = MacroSnippetTemplateService.TryCreateWithoutSampleArguments(snippet.Content);
+                if (!string.IsNullOrWhiteSpace(withoutSampleArgs))
+                {
+                    list.Add(new MacroSnippetEntry(group.Header, $"{snippet.Header}（引数なし）", withoutSampleArgs));
+                }
             }
         }
 
