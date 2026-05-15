@@ -13,6 +13,7 @@ function Invoke-Step($name, $scriptBlock) {
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $solutionPath = Join-Path $repoRoot 'DropSendTo.sln'
+$dotnetExe = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }
 
 Push-Location $repoRoot
 
@@ -24,17 +25,17 @@ try {
     }
 
     if (-not $NoRestore) {
-        Invoke-Step "Restore" { dotnet restore $solutionPath }
+        Invoke-Step "Restore" { & $dotnetExe restore $solutionPath }
     }
 
-    Invoke-Step "Build (Debug)" { dotnet build $solutionPath -c Debug -v minimal }
+    Invoke-Step "Build (Debug)" { & $dotnetExe build $solutionPath -c Debug -v minimal }
 
     Invoke-Step "Test (Debug)" {
-        dotnet test $solutionPath -c Debug -l "trx;LogFileName=test_results.trx" --nologo
+        & $dotnetExe test $solutionPath -c Debug -l "trx;LogFileName=test_results.trx" --nologo
     }
 
     if ($Release) {
-        Invoke-Step "Build (Release)" { dotnet build $solutionPath -c Release -v minimal }
+        Invoke-Step "Build (Release)" { & $dotnetExe build $solutionPath -c Release -v minimal }
     }
 
     Write-Host "Done."

@@ -25,6 +25,7 @@
     - `-KillRunning` で常駐中の DropSendTo.exe を終了してから `dotnet restore/build/test` を実行。`-Release` 追加で Release ビルドを後続実行し、`test_results.trx` をルートに保存。
   - `scripts/Build-Release.ps1 [-Rid win-x64] [-Version vX.Y.Z] [-SelfContained] [-Portable] [-KillRunning] [-NoZip] [-InvariantGlobalization]`
     - 既定で Framework Dependent の単一ファイル配布を `dist/DropSendTo_<Rid>_<Version>/` に生成し、`dist/latest/` に最新コピーを展開。`-SelfContained` や `-Portable` で追加バリアントを作り、`USER_GUIDE.md` を成果物へ同梱。`-CertificatePath/-CertificatePassword` 指定で署名、`-NoZip` 無指定なら各バリアントを Zip 化する。
+  - 既定の `dotnet` が .NET 10 SDK を指さない環境では、`DOTNET_EXE` に使用する `dotnet.exe` のフルパスを指定して各スクリプトを実行する。
   - リリース工程では `dist/` 内を直接編集しない。必要に応じ `dist/latest/` の中身を配布用に再梱包する。
 
 ## Coding Style & Naming Conventions

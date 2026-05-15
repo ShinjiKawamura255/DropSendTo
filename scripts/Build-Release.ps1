@@ -42,6 +42,7 @@ if ($PortableTrim) {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
+$dotnetExe = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }
 Push-Location $repoRoot
 
 try {
@@ -71,7 +72,7 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $latestDir | Out-Null
 
-    Invoke-Step "Restore" { dotnet restore $proj }
+    Invoke-Step "Restore" { & $dotnetExe restore $proj }
 
     $props = @(
         "-p:PublishSingleFile=true",
@@ -147,7 +148,7 @@ try {
         New-Item -ItemType Directory -Force -Path $variantDir | Out-Null
 
         Invoke-Step "Publish - $variantName" {
-            dotnet publish $proj -c Release -r $Rid --self-contained:$scFlag -o $variantDir @props @($variant.ExtraProps)
+            & $dotnetExe publish $proj -c Release -r $Rid --self-contained:$scFlag -o $variantDir @props @($variant.ExtraProps)
         }
 
         $exePath = Join-Path $variantDir 'DropSendTo.exe'
