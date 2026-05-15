@@ -3,11 +3,11 @@
 [![CI](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml/badge.svg)](https://github.com/ShinjiKawamura255/DropSendTo/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-DropSendTo は .NET 8 (WPF) 製の軽量ランチャーです。  
+DropSendTo は .NET 10 (WPF) 製の軽量ランチャーです。  
 エクスプローラーの SendTo を拡張するように、ドロップ/CLI 引数をスロット実行へ流し込める構成を持ちつつ、クリックや Prefix ショートカットでも高速に操作できます。  
 さらにドロップ専用ウィンドウを使って、ドラッグ中でも対象ファイルを保持したままスロット選択へつなげられます。
 
-DropSendTo is a lightweight launcher built with .NET 8 (WPF).  
+DropSendTo is a lightweight launcher built with .NET 10 (WPF).  
 It is structured as a functional SendTo extension: drop/CLI arguments are routed into slot execution while keeping a fast launcher workflow via slot clicks and global prefix shortcuts.  
 It also provides a dedicated drop-capture window so you can keep drag context and pick the target slot after dropping.
 
@@ -28,7 +28,7 @@ It also provides a dedicated drop-capture window so you can keep drag context an
 
 ## 対応環境 / Requirements
 - Windows 10 22H2 以降 / Windows 11
-- .NET SDK 8.x
+- .NET SDK 10.x
 
 ## クイックスタート / Quickstart
 1. リポジトリをクローン / Clone the repo

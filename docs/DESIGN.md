@@ -1,7 +1,7 @@
 # DESIGN
 
 ## DES-001 Architecture Overview
-- Platform: .NET 8 / Windows デスクトップ（WPF）。単一プロセス常駐アプリ。
+- Platform: .NET 10 / Windows デスクトップ（WPF）。単一プロセス常駐アプリ。
 - Entry: `App` が起動時引数を評価し、CLI 処理成功時は UI を表示せずに終了。
 - Persistence: `%AppData%/DropSendTo/config.json`（JSON + `.bak` バックアップ）。
 - Logging: `%AppData%/DropSendTo/logs/app.log` にローテーション出力（1MB 超で世代化、7日保持）。

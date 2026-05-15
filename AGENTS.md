@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/DropSendTo/`: Main .NET 8 Windows app (WPF).
+- `src/DropSendTo/`: Main .NET 10 Windows app (WPF).
 - `tests/DropSendTo.Tests/`: Unit/integration tests mirroring `src` namespaces.
 - `img/`: Icons・トレイ用リソース一式（過去の `assets/` は廃止済み）。
 - `docs/`: REQUIREMENTS, SPEC, DESIGN, TESTPLAN and architecture notes.
@@ -9,7 +9,7 @@
 - `dist/`: `scripts/Build-Release.ps1` が生成する配布成果物（`latest/` シンボリック コピー含む）。
 
 ## Build, Test, and Development Commands
-- Build: `dotnet build` (Windows .NET 8 SDK; not WSL).
+- Build: `dotnet build` (Windows .NET 10 SDK; not WSL).
 - Run: `dotnet run --project src/DropSendTo`.
 - Test: `dotnet test` (xUnit default).
 - Format: `dotnet format` (requires `dotnet-format` in SDK workloads).
@@ -28,7 +28,7 @@
   - リリース工程では `dist/` 内を直接編集しない。必要に応じ `dist/latest/` の中身を配布用に再梱包する。
 
 ## Coding Style & Naming Conventions
-- Language: C# 12, .NET 8, Windows-only APIs allowed.
+- Language: C# 14, .NET 10, Windows-only APIs allowed.
 - Indentation: 4 spaces; max line length ~120.
 - Naming: `PascalCase` for types/methods, `camelCase` for locals/fields, `I...` for interfaces.
 - Analyzer rules: enable nullable, treat warnings as build warnings; keep public APIs documented.

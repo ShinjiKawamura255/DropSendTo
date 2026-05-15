@@ -8,7 +8,7 @@
 
 ### Step 0: 動作環境とセットアップ
 - 対応 OS: Windows 10 22H2 以降 / Windows 11  
-- ランタイム: .NET 8 Desktop Runtime（同梱バンドル版を使う場合は不要）  
+- ランタイム: .NET 10 Desktop Runtime（同梱バンドル版を使う場合は不要）  
 - セットアップ: 配布 ZIP を任意フォルダへ展開 → `DropSendTo.exe` を起動 → 初回起動時に `%AppData%\DropSendTo\config.json` を自動作成  
 - SmartScreen が出たら「詳細情報 → 実行」を選択
 

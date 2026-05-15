@@ -64,7 +64,7 @@
 - SHOULD: CLI 起動失敗時もログに詳細を残す。
 
 ## SP-008 Platform
-- MUST: .NET 8（Windows）でビルド/実行。WSL の .NET は非対象。
+- MUST: .NET 10（Windows）でビルド/実行。WSL の .NET は非対象。
 
 ## SP-009 Macro Script Syntax
 - MUST: マクロ行は先頭/末尾の空白を除いて解釈し、空行と `#` で始まる行は無視する。
