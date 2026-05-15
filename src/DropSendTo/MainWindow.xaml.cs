@@ -5141,7 +5141,7 @@ public partial class MainWindow : Window
             _config?.MouseGestureRequireCtrl ?? MouseGestureOptions.Default.RequireCtrl,
             _config?.MouseGestureSuppressDuringPresentation ?? MouseGestureOptions.Default.SuppressDuringPresentation,
             _config?.MouseGestureEnforceRadiusLimit ?? MouseGestureOptions.Default.EnforceRadiusLimit,
-            _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels,
+            _config?.MouseGestureMinRadiusPixels ?? MouseGestureOptions.Default.MinRadiusPixels,
             _config?.MouseGestureMaxRadiusPixels ?? MouseGestureOptions.Default.MaxRadiusPixels,
             _config?.EnableDragMiddleClickShow ?? MouseGestureOptions.Default.EnableDragMiddleClickShow);
 
