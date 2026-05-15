@@ -5124,44 +5124,12 @@ public partial class MainWindow : Window
 
     private void OnStartupAlwaysShow(object sender, RoutedEventArgs e)
     {
-        if (StartupAlwaysShowMenuItem != null)
-        {
-            StartupAlwaysShowMenuItem.IsChecked = true;
-        }
-        if (StartupAlwaysMinimizeMenuItem != null)
-        {
-            StartupAlwaysMinimizeMenuItem.IsChecked = false;
-        }
-        if (StartupRestoreMenuItem != null)
-        {
-            StartupRestoreMenuItem.IsChecked = false;
-        }
-        if (_config.StartupBehavior != StartupWindowBehavior.AlwaysShow)
-        {
-            _config.StartupBehavior = StartupWindowBehavior.AlwaysShow;
-            _configService.Save(_config);
-        }
+        SetStartupBehavior(StartupWindowBehavior.AlwaysShow);
     }
 
     private void OnStartupAlwaysMinimizeToTray(object sender, RoutedEventArgs e)
     {
-        if (StartupAlwaysMinimizeMenuItem != null)
-        {
-            StartupAlwaysMinimizeMenuItem.IsChecked = true;
-        }
-        if (StartupAlwaysShowMenuItem != null)
-        {
-            StartupAlwaysShowMenuItem.IsChecked = false;
-        }
-        if (StartupRestoreMenuItem != null)
-        {
-            StartupRestoreMenuItem.IsChecked = false;
-        }
-        if (_config.StartupBehavior != StartupWindowBehavior.StartInTray)
-        {
-            _config.StartupBehavior = StartupWindowBehavior.StartInTray;
-            _configService.Save(_config);
-        }
+        SetStartupBehavior(StartupWindowBehavior.StartInTray);
     }
 
     private MouseGestureOptions BuildMouseGestureOptions() =>
@@ -5184,22 +5152,32 @@ public partial class MainWindow : Window
 
     private void OnStartupRestoreState(object sender, RoutedEventArgs e)
     {
-        if (StartupRestoreMenuItem != null)
+        SetStartupBehavior(StartupWindowBehavior.RestoreLastState);
+    }
+
+    private void SetStartupBehavior(StartupWindowBehavior behavior)
+    {
+        UpdateStartupBehaviorMenu(behavior);
+        if (_config.StartupBehavior != behavior)
         {
-            StartupRestoreMenuItem.IsChecked = true;
+            _config.StartupBehavior = behavior;
+            _configService.Save(_config);
         }
+    }
+
+    private void UpdateStartupBehaviorMenu(StartupWindowBehavior behavior)
+    {
         if (StartupAlwaysShowMenuItem != null)
         {
-            StartupAlwaysShowMenuItem.IsChecked = false;
+            StartupAlwaysShowMenuItem.IsChecked = behavior == StartupWindowBehavior.AlwaysShow;
         }
         if (StartupAlwaysMinimizeMenuItem != null)
         {
-            StartupAlwaysMinimizeMenuItem.IsChecked = false;
+            StartupAlwaysMinimizeMenuItem.IsChecked = behavior == StartupWindowBehavior.StartInTray;
         }
-        if (_config.StartupBehavior != StartupWindowBehavior.RestoreLastState)
+        if (StartupRestoreMenuItem != null)
         {
-            _config.StartupBehavior = StartupWindowBehavior.RestoreLastState;
-            _configService.Save(_config);
+            StartupRestoreMenuItem.IsChecked = behavior == StartupWindowBehavior.RestoreLastState;
         }
     }
 
@@ -5236,12 +5214,7 @@ public partial class MainWindow : Window
         {
             ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
         }
-        if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null && StartupAlwaysMinimizeMenuItem != null)
-        {
-            StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
-            StartupAlwaysMinimizeMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.StartInTray;
-            StartupRestoreMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState;
-        }
+        UpdateStartupBehaviorMenu(_config.StartupBehavior);
         if (HideEmptySlotNamesMenuItem != null)
         {
             HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;
