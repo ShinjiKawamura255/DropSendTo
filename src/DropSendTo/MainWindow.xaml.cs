@@ -127,6 +127,7 @@ public partial class MainWindow : Window
         string HideEmptySlotNames,
         string StartupWindow,
         string StartupAlwaysShow,
+        string StartupAlwaysMinimize,
         string StartupRestore,
         string StartupSlots,
         string MacroMode,
@@ -176,6 +177,7 @@ public partial class MainWindow : Window
         HideEmptySlotNames: "未登録スロット名を非表示",
         StartupWindow: "起動時のウィンドウ",
         StartupAlwaysShow: "常にウィンドウを表示",
+        StartupAlwaysMinimize: "常にタスクトレイで起動",
         StartupRestore: "前回の状態を復元",
         StartupSlots: "起動時実行スロット...",
         MacroMode: "Macro 実行モード",
@@ -225,6 +227,7 @@ public partial class MainWindow : Window
         HideEmptySlotNames: "Hide empty slot names",
         StartupWindow: "Startup Window",
         StartupAlwaysShow: "Always show window",
+        StartupAlwaysMinimize: "Always start in tray",
         StartupRestore: "Restore last state",
         StartupSlots: "Startup slots...",
         MacroMode: "Macro Mode",
@@ -389,8 +392,9 @@ public partial class MainWindow : Window
         _layerButtons = new[] { LayerBtn1, LayerBtn2, LayerBtn3, LayerBtn4 };
         _positionSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _positionSaveTimer.Tick += OnPositionSaveTick;
-        _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState
-                            && _config.LastWindowVisibility == WindowVisibilityState.Tray;
+        _minimizeOnLoaded = _config.StartupBehavior == StartupWindowBehavior.StartInTray
+                            || (_config.StartupBehavior == StartupWindowBehavior.RestoreLastState
+                                && _config.LastWindowVisibility == WindowVisibilityState.Tray);
         Loaded += OnLoaded;
         ApplyTopmostState();
         _currentLanguage = _config.Language;
@@ -920,6 +924,7 @@ public partial class MainWindow : Window
         if (HideEmptySlotNamesMenuItem != null) HideEmptySlotNamesMenuItem.Header = text.HideEmptySlotNames;
         if (StartupWindowMenuItem != null) StartupWindowMenuItem.Header = text.StartupWindow;
         if (StartupAlwaysShowMenuItem != null) StartupAlwaysShowMenuItem.Header = text.StartupAlwaysShow;
+        if (StartupAlwaysMinimizeMenuItem != null) StartupAlwaysMinimizeMenuItem.Header = text.StartupAlwaysMinimize;
         if (StartupRestoreMenuItem != null) StartupRestoreMenuItem.Header = text.StartupRestore;
         if (StartupSlotsMenuItem != null) StartupSlotsMenuItem.Header = text.StartupSlots;
         if (MacroModeMenuItem != null) MacroModeMenuItem.Header = text.MacroMode;
@@ -5123,6 +5128,10 @@ public partial class MainWindow : Window
         {
             StartupAlwaysShowMenuItem.IsChecked = true;
         }
+        if (StartupAlwaysMinimizeMenuItem != null)
+        {
+            StartupAlwaysMinimizeMenuItem.IsChecked = false;
+        }
         if (StartupRestoreMenuItem != null)
         {
             StartupRestoreMenuItem.IsChecked = false;
@@ -5130,6 +5139,27 @@ public partial class MainWindow : Window
         if (_config.StartupBehavior != StartupWindowBehavior.AlwaysShow)
         {
             _config.StartupBehavior = StartupWindowBehavior.AlwaysShow;
+            _configService.Save(_config);
+        }
+    }
+
+    private void OnStartupAlwaysMinimizeToTray(object sender, RoutedEventArgs e)
+    {
+        if (StartupAlwaysMinimizeMenuItem != null)
+        {
+            StartupAlwaysMinimizeMenuItem.IsChecked = true;
+        }
+        if (StartupAlwaysShowMenuItem != null)
+        {
+            StartupAlwaysShowMenuItem.IsChecked = false;
+        }
+        if (StartupRestoreMenuItem != null)
+        {
+            StartupRestoreMenuItem.IsChecked = false;
+        }
+        if (_config.StartupBehavior != StartupWindowBehavior.StartInTray)
+        {
+            _config.StartupBehavior = StartupWindowBehavior.StartInTray;
             _configService.Save(_config);
         }
     }
@@ -5161,6 +5191,10 @@ public partial class MainWindow : Window
         if (StartupAlwaysShowMenuItem != null)
         {
             StartupAlwaysShowMenuItem.IsChecked = false;
+        }
+        if (StartupAlwaysMinimizeMenuItem != null)
+        {
+            StartupAlwaysMinimizeMenuItem.IsChecked = false;
         }
         if (_config.StartupBehavior != StartupWindowBehavior.RestoreLastState)
         {
@@ -5202,9 +5236,10 @@ public partial class MainWindow : Window
         {
             ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
         }
-        if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null)
+        if (StartupAlwaysShowMenuItem != null && StartupRestoreMenuItem != null && StartupAlwaysMinimizeMenuItem != null)
         {
             StartupAlwaysShowMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.AlwaysShow;
+            StartupAlwaysMinimizeMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.StartInTray;
             StartupRestoreMenuItem.IsChecked = _config.StartupBehavior == StartupWindowBehavior.RestoreLastState;
         }
         if (HideEmptySlotNamesMenuItem != null)

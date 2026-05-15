@@ -67,7 +67,8 @@ public class Layer
 public enum StartupWindowBehavior
 {
     AlwaysShow = 0,
-    RestoreLastState = 1
+    RestoreLastState = 1,
+    StartInTray = 2
 }
 
 public enum WindowVisibilityState

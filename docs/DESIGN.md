@@ -25,12 +25,12 @@
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
 ## DES-003 UI Flows
-1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。読み込んだ `_config.Language` を基に `ApplyLanguageToUi` でメニュー/検索ラベルの文言を初期化し、起動時実行フラグが有効なスロットを順に起動する。
+1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。読み込んだ `_config.Language` を基に `ApplyLanguageToUi` でメニュー/検索ラベルの文言を初期化し、起動時実行フラグが有効なスロットを順に起動する。起動時の挙動が「常にタスクトレイで起動」の場合は `Loaded` 後に `MinimizeWindowToTray` を呼び、前回状態を復元する場合は `LastWindowVisibility` が Tray なら同じ処理を行う。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、`Macro Script` モードは引き続きドロップ禁止。`Macro Script 拡張` かつマクロ/コマンド両方が設定されている場合は `TriggerSlotAsync(..., SlotTriggerSource.Drop, paths)` を呼び出し、ドロップパスを `MacroExecutionContext.DroppedPaths` としてマクロへ渡す。マクロ内の `{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` で参照でき、`COMMAND` から引数省略で呼び出した場合はドロップパス付きの `ArgumentsTemplate` が展開される。その他のモードでは LauncherService が ClipboardHistoryService から取得した履歴を含めて `ArgumentsTemplate` を展開（`{args}` / `{drop_args}` / `{drop_count}` / `{drop_path}` / `{drop_path:n}` / `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}`）し実行。失敗時はエラーダイアログ表示とログ出力。ドラッグ中のホイールクリック時は DropCaptureWindow を表示し、そこで受けたドロップパスを `_pendingDropPaths` として保持し、左上インジケーターを点灯させた上でメインウィンドウを表示する。
 4) スロットクリック: ClickEnabled が有効な場合、モードに応じて実行する。`Macro Script`/`Macro Script 拡張` では KeyboardMacroService が直前の外部ウィンドウへスクリプトを送信し、拡張モードではマクロ内の `COMMAND` 命令から LauncherService を呼び出せる。`Command` モードはマクロを介さずに LauncherService を起動する。マクロ系スロットは逐次実行し、コマンドのみのスロットはマクロ実行中でも即時に起動できる。Any エラーはメッセージ表示でユーザーへ通知。
 5) 登録/解除: スロット右クリック→ContextMenu から Edit/Clear/Click トグル。Edit ダイアログではモード選択 ComboBox で `Command` / `Macro Script` / `Macro Script 拡張` を切り替え、タイトル/コマンド/引数テンプレート/マクロ/ショートカットを編集する。KeyChordParser でショートカット書式を検証・正規化し、Macro Script 欄には `?` ボタンを配置して MacroTipsWindow をモードレス表示（単一インスタンス再利用）できる。保存後に ConfigService へ反映し UI を再描画。Clear は確認ダイアログ後に SlotModel を初期化する。
-6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/Language/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新し、Language メニューでは Japanese/English を選択するとメニューと検索ラベルの文言を即時切り替えた上で `_config.Language` とメニューのチェック状態を保存する。
+6) メニュー操作: メニューボタン/ウィンドウ右クリックで Open Config/Open Logs/Change Prefix/Slot Layout/Language/起動時のウィンドウ/常に最前面トグル/Exit を提供。Open Config/Logs は `Process.Start` with `UseShellExecute=true`。常に最前面トグルは Topmost と config を即時更新し、Language メニューでは Japanese/English を選択するとメニューと検索ラベルの文言を即時切り替えた上で `_config.Language` とメニューのチェック状態を保存する。起動時のウィンドウは「常に表示」「前回の状態を復元」「常にタスクトレイで起動」の 3 つから選択し、設定を即時保存する。
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Slot Layout Edit Mode: ツールバーの ✎ ボタンかメニューで `_isSlotLayoutEditMode` を ON にすると `EditModeIndicator` を表示し、クリック/ファイルドロップ起動を抑止する。スロット左ドラッグで `_slotLayoutDragSourceLayer/index` と `SlotLayoutDragData` を構築し、`DragDrop.DoDragDrop` を開始。`OnSlotDragEnter/Over` で `_slotLayoutPreview*` を更新し `SlotVisual.DragPreviewHost` にターゲット概要を描画する。ドラッグ中に LayerBtn に 0.8 秒ホバーすると `_hoverTargetLayer` を通じて `SetLayer` が呼ばれ別レイヤーへ切替。Drop イベントで `CompleteSlotSwap` が両レイヤーの `SlotModel` を入れ替え `ConfigService.Save`、キャンセル時はプレビューとドラッグ状態をクリアする。
 9) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
@@ -78,5 +78,5 @@
 ## Traceability (excerpt)
 - DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108
 - DES-002 ← SP-002/004 → TC-073
-- DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109
+- DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087

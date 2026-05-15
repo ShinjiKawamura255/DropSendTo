@@ -18,7 +18,7 @@ public class ConfigTransferServiceTests
             WindowLeft = 123.4,
             WindowTop = 56.7,
             AlwaysOnTop = false,
-            StartupBehavior = StartupWindowBehavior.RestoreLastState,
+            StartupBehavior = StartupWindowBehavior.StartInTray,
             LastWindowVisibility = WindowVisibilityState.Tray,
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
@@ -61,7 +61,7 @@ public class ConfigTransferServiceTests
         imported.ShortcutPrefix.Should().Be(config.ShortcutPrefix);
         imported.ShortcutPrefixDisabled.Should().BeTrue();
         imported.AlwaysOnTop.Should().BeFalse();
-        imported.StartupBehavior.Should().Be(StartupWindowBehavior.RestoreLastState);
+        imported.StartupBehavior.Should().Be(StartupWindowBehavior.StartInTray);
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
         imported.EnablePrefixDropCapture.Should().BeFalse();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);

@@ -50,6 +50,7 @@
 - TC-101 SearchHotkeyOption: 検索ホットキー設定ダイアログが既定で無効になっていること、注意書きに Prefix+Alt+Space でも呼び出せることと Alt+Space 競合の警告があることを確認する。Alt+Space 等を指定して有効化すると Prefix を押さずに検索レイヤーが開き、無効化すると元に戻ること、Prefix+Alt+Space が引き続き利用できることを確認する。
 - TC-108 LanguageMenu: Language メニューで Japanese/English を切り替えるとメニューと検索ラベルの文言が即時更新され、config に保存されることを確認する。既定は日本語で、再起動後も選択した言語が復元される。
 - TC-109 DragDropCapture: ドラッグ中にホイールクリックでドロップ専用ウィンドウが表示され、ドロップ後に左上の Dropped インジケーターが表示されること、スロットのクリック/キーボード選択/検索起動で `{args}` に展開されることを確認する。
+- TC-110 StartupWindowBehavior: 起動時のウィンドウメニューで「常に表示」「前回の状態を復元」「常にタスクトレイで起動」を切り替えられ、選択が保存・復元されることを確認する。`常にタスクトレイで起動` 選択時は再起動後にウィンドウがタスクトレイへ格納された状態で開始し、`前回の状態を復元` は最後に Tray だった場合のみ最小化で開始することを確認する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
@@ -114,4 +115,5 @@
 - FR-035 → SP-006 → DES-003 → TC-108
 - FR-036 → SP-013 → DES-003 → TC-109
 - FR-037 → SP-002/004 → DES-002 → TC-073
+- FR-038 → SP-005/006 → DES-002/003 → TC-110
 - NFR-003 → SP-001 → DES-003 → TC-040/045

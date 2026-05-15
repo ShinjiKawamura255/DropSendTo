@@ -43,6 +43,10 @@
                           Header="常にウィンドウを表示"
                           IsCheckable="True"
                           Click="OnStartupAlwaysShow"/>
+                <MenuItem x:Name="StartupAlwaysMinimizeMenuItem"
+                          Header="常にタスクトレイで起動"
+                          IsCheckable="True"
+                          Click="OnStartupAlwaysMinimizeToTray"/>
                 <MenuItem x:Name="StartupRestoreMenuItem"
                           Header="前回の状態を復元"
                           IsCheckable="True"

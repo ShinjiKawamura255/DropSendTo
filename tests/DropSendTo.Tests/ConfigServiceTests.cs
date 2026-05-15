@@ -68,6 +68,25 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void LoadOrCreate_Should_Reset_Invalid_StartupBehavior()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var cfgDir = Path.Combine(temp, "DropSendTo");
+        Directory.CreateDirectory(cfgDir);
+        var cfg = new AppConfig
+        {
+            StartupBehavior = (StartupWindowBehavior)999,
+            Layers = new() { new Layer(), new Layer(), new Layer(), new Layer() }
+        };
+        File.WriteAllText(Path.Combine(cfgDir, "config.json"), JsonSerializer.Serialize(cfg));
+
+        var svc = new ConfigService(temp);
+        var loaded = svc.LoadOrCreate();
+
+        loaded.StartupBehavior.Should().Be(StartupWindowBehavior.AlwaysShow);
+    }
+
+    [Fact]
     public void Save_Should_Persist_AlwaysOnTop_Flag()
     {
         var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
