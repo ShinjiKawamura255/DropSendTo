@@ -11,9 +11,29 @@ function Invoke-Step($name, $scriptBlock) {
     & $scriptBlock
 }
 
+function Resolve-DotnetExe() {
+    if ($env:DOTNET_EXE) {
+        return $env:DOTNET_EXE
+    }
+
+    $userDotnet = Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'
+    if (Test-Path $userDotnet) {
+        return $userDotnet
+    }
+
+    return 'dotnet'
+}
+
+function Invoke-Dotnet {
+    & $dotnetExe @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet $($args -join ' ') failed with exit code $LASTEXITCODE. Using: $dotnetExe"
+    }
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $solutionPath = Join-Path $repoRoot 'DropSendTo.sln'
-$dotnetExe = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }
+$dotnetExe = Resolve-DotnetExe
 
 Push-Location $repoRoot
 
@@ -25,17 +45,17 @@ try {
     }
 
     if (-not $NoRestore) {
-        Invoke-Step "Restore" { & $dotnetExe restore $solutionPath }
+        Invoke-Step "Restore" { Invoke-Dotnet restore $solutionPath }
     }
 
-    Invoke-Step "Build (Debug)" { & $dotnetExe build $solutionPath -c Debug -v minimal }
+    Invoke-Step "Build (Debug)" { Invoke-Dotnet build $solutionPath -c Debug -v minimal }
 
     Invoke-Step "Test (Debug)" {
-        & $dotnetExe test $solutionPath -c Debug -l "trx;LogFileName=test_results.trx" --nologo
+        Invoke-Dotnet test $solutionPath -c Debug -l "trx;LogFileName=test_results.trx" --nologo
     }
 
     if ($Release) {
-        Invoke-Step "Build (Release)" { & $dotnetExe build $solutionPath -c Release -v minimal }
+        Invoke-Step "Build (Release)" { Invoke-Dotnet build $solutionPath -c Release -v minimal }
     }
 
     Write-Host "Done."

@@ -22,6 +22,26 @@ function Invoke-Step($name, $script) {
     & $script
 }
 
+function Resolve-DotnetExe() {
+    if ($env:DOTNET_EXE) {
+        return $env:DOTNET_EXE
+    }
+
+    $userDotnet = Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'
+    if (Test-Path $userDotnet) {
+        return $userDotnet
+    }
+
+    return 'dotnet'
+}
+
+function Invoke-Dotnet {
+    & $dotnetExe @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet $($args -join ' ') failed with exit code $LASTEXITCODE. Using: $dotnetExe"
+    }
+}
+
 function Get-SafeVariantName($name, $index) {
     if (-not $name) {
         return "Variant$index"
@@ -42,7 +62,7 @@ if ($PortableTrim) {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-$dotnetExe = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } else { 'dotnet' }
+$dotnetExe = Resolve-DotnetExe
 Push-Location $repoRoot
 
 try {
@@ -72,7 +92,7 @@ try {
     }
     New-Item -ItemType Directory -Force -Path $latestDir | Out-Null
 
-    Invoke-Step "Restore" { & $dotnetExe restore $proj }
+    Invoke-Step "Restore" { Invoke-Dotnet restore $proj }
 
     $props = @(
         "-p:PublishSingleFile=true",
@@ -148,7 +168,7 @@ try {
         New-Item -ItemType Directory -Force -Path $variantDir | Out-Null
 
         Invoke-Step "Publish - $variantName" {
-            & $dotnetExe publish $proj -c Release -r $Rid --self-contained:$scFlag -o $variantDir @props @($variant.ExtraProps)
+            Invoke-Dotnet publish $proj -c Release -r $Rid --self-contained:$scFlag -o $variantDir @props @($variant.ExtraProps)
         }
 
         $exePath = Join-Path $variantDir 'DropSendTo.exe'

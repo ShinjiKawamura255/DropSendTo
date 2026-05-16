@@ -60,7 +60,7 @@ It also provides a dedicated drop-capture window so you can keep drag context an
   ```
   powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64 -SelfContained:$false -Version vX.Y.Z
   ```
-- 既定の `dotnet` が .NET 10 SDK を指さない環境では、`DOTNET_EXE` に使用する `dotnet.exe` を指定できます。
+- スクリプトは `DOTNET_EXE` が指定されていればその `dotnet.exe` を使い、未指定でも `%USERPROFILE%\.dotnet\dotnet.exe` があれば優先します。
   ```
   $env:DOTNET_EXE="$env:USERPROFILE\.dotnet\dotnet.exe"
   powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1
