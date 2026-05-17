@@ -71,8 +71,8 @@ internal sealed class ShortcutService : IDisposable
     private bool _searchHotkeyEnabled;
     private readonly Dictionary<ushort, int> _suppressedKeyUps = new();
     private readonly List<ShortcutSequence> _availableSequences = new();
-    private readonly List<SequenceProgress> _sequenceCandidates = new();
-    private readonly List<SequenceProgress> _sequenceCandidatesBuffer = new();
+    private readonly List<ShortcutSequenceProgress> _sequenceCandidates = new();
+    private readonly List<ShortcutSequenceProgress> _sequenceCandidatesBuffer = new();
     private readonly HashSet<ushort> _activeModifiers = new();
     private readonly Dictionary<ushort, DateTime> _modifierLastPressedUtc = new();
     private readonly Timer _prefixTimeoutTimer;
@@ -467,15 +467,31 @@ internal sealed class ShortcutService : IDisposable
             return specialAction;
         }
 
-        var sequenceResult = EvaluateSequenceKey(vk, modifiers, prefixResidue, out var matchedSequence);
-        switch (sequenceResult)
+        var sequenceEvaluation = ShortcutSequenceMatcher.EvaluateKey(
+            _availableSequences,
+            _sequenceCandidates,
+            _sequenceCaptureInProgress,
+            vk,
+            modifiers,
+            prefixResidue);
+        _sequenceCandidates.Clear();
+        _sequenceCandidatesBuffer.Clear();
+        if (sequenceEvaluation.NextCandidates.Count > 0)
         {
-            case SequenceEvaluationResult.CompletedMatch when matchedSequence != null:
+            _sequenceCandidatesBuffer.AddRange(sequenceEvaluation.NextCandidates);
+            _sequenceCandidates.AddRange(_sequenceCandidatesBuffer);
+            _sequenceCandidatesBuffer.Clear();
+        }
+        _sequenceCaptureInProgress = sequenceEvaluation.Result == ShortcutSequenceEvaluationResult.PartialMatch;
+
+        switch (sequenceEvaluation.Result)
+        {
+            case ShortcutSequenceEvaluationResult.CompletedMatch when sequenceEvaluation.MatchedSequence != null:
                 MarkKeyForSuppression(vk);
                 suppress = true;
                 SetPrefixArmedLocked(false, now);
-                return ShortcutAction.CreateShortcut(matchedSequence);
-            case SequenceEvaluationResult.PartialMatch:
+                return ShortcutAction.CreateShortcut(sequenceEvaluation.MatchedSequence);
+            case ShortcutSequenceEvaluationResult.PartialMatch:
                 MarkKeyForSuppression(vk);
                 suppress = true;
                 SetPrefixArmedLocked(true, now);
@@ -566,86 +582,6 @@ internal sealed class ShortcutService : IDisposable
         }
 
         return false;
-    }
-
-    private SequenceEvaluationResult EvaluateSequenceKey(ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue, out ShortcutSequence? matchedSequence)
-    {
-        matchedSequence = null;
-        if (_availableSequences.Count == 0)
-        {
-            return SequenceEvaluationResult.None;
-        }
-
-        _sequenceCandidatesBuffer.Clear();
-        bool isFirstChord = !_sequenceCaptureInProgress;
-        if (isFirstChord)
-        {
-            foreach (var sequence in _availableSequences)
-            {
-                if (sequence.Chords.Count == 0)
-                {
-                    continue;
-                }
-                var chord = sequence.Chords[0];
-                if (!ShortcutMatches(chord, mainKey, modifiers, prefixResidue))
-                {
-                    continue;
-                }
-
-                if (sequence.Chords.Count == 1)
-                {
-                    matchedSequence = sequence;
-                    break;
-                }
-
-                _sequenceCandidatesBuffer.Add(new SequenceProgress(sequence, 1));
-            }
-        }
-        else
-        {
-            foreach (var candidate in _sequenceCandidates)
-            {
-                if (candidate.NextIndex >= candidate.Sequence.Chords.Count)
-                {
-                    continue;
-                }
-
-                var chord = candidate.Sequence.Chords[candidate.NextIndex];
-                if (!ShortcutMatches(chord, mainKey, modifiers, Array.Empty<ushort>()))
-                {
-                    continue;
-                }
-
-                if (candidate.NextIndex + 1 == candidate.Sequence.Chords.Count)
-                {
-                    matchedSequence = candidate.Sequence;
-                    break;
-                }
-
-                _sequenceCandidatesBuffer.Add(new SequenceProgress(candidate.Sequence, candidate.NextIndex + 1));
-            }
-        }
-
-        _sequenceCandidates.Clear();
-
-        if (matchedSequence != null)
-        {
-            _sequenceCandidatesBuffer.Clear();
-            _sequenceCaptureInProgress = false;
-            return SequenceEvaluationResult.CompletedMatch;
-        }
-
-        if (_sequenceCandidatesBuffer.Count > 0)
-        {
-            _sequenceCandidates.AddRange(_sequenceCandidatesBuffer);
-            _sequenceCandidatesBuffer.Clear();
-            _sequenceCaptureInProgress = true;
-            return SequenceEvaluationResult.PartialMatch;
-        }
-
-        _sequenceCandidatesBuffer.Clear();
-        _sequenceCaptureInProgress = false;
-        return SequenceEvaluationResult.None;
     }
 
     private bool IsRemoteSessionActive()
@@ -752,48 +688,6 @@ internal sealed class ShortcutService : IDisposable
             // ignore
         }
 
-        return false;
-    }
-
-    private bool ShortcutMatches(KeyChord chord, ushort mainKey, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue)
-    {
-        if (chord.MainKey != mainKey) return false;
-        var working = new HashSet<ushort>(modifiers);
-        var prefixWorking = prefixResidue.Count > 0 ? new List<ushort>(prefixResidue) : null;
-        foreach (var modifier in chord.Modifiers)
-        {
-            if (TryConsumeModifier(working, modifier))
-            {
-                continue;
-            }
-
-            if (prefixWorking is null || !TryConsumeModifier(prefixWorking, modifier))
-            {
-                return false;
-            }
-        }
-        if (working.Count > 0)
-        {
-            return false;
-        }
-
-        if (prefixWorking is null || prefixWorking.Count == 0)
-        {
-            return true;
-        }
-
-        return chord.Modifiers.Count > 0;
-    }
-
-    private static bool TryConsumeModifier(ICollection<ushort> actual, ModifierKind modifier)
-    {
-        foreach (var candidate in KeyChordParser.GetCandidateModifierVirtualKeys(modifier))
-        {
-            if (actual.Remove(candidate))
-            {
-                return true;
-            }
-        }
         return false;
     }
 
@@ -1391,25 +1285,6 @@ internal sealed class ShortcutService : IDisposable
             _suppressedKeyUps[vk] = count - 1;
         }
         return true;
-    }
-
-    private enum SequenceEvaluationResult
-    {
-        None,
-        PartialMatch,
-        CompletedMatch
-    }
-
-    private readonly struct SequenceProgress
-    {
-        public SequenceProgress(ShortcutSequence sequence, int nextIndex)
-        {
-            Sequence = sequence;
-            NextIndex = nextIndex;
-        }
-
-        public ShortcutSequence Sequence { get; }
-        public int NextIndex { get; }
     }
 
     private struct ShortcutAction
