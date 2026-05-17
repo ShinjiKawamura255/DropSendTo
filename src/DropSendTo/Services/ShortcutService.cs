@@ -526,62 +526,18 @@ internal sealed class ShortcutService : IDisposable
 
     private bool TryResolveSpecialCommand(ushort vk, HashSet<ushort> modifiers, IReadOnlyCollection<ushort> prefixResidue, out ShortcutAction action)
     {
-        action = ShortcutAction.None;
-        if (vk == VK_TAB && modifiers.Count == 0 && prefixResidue.Count == 0)
+        var command = ShortcutSpecialCommandResolver.Resolve(vk, modifiers, prefixResidue, _prefixDropCaptureEnabled);
+        action = command switch
         {
-            action = ShortcutAction.CreatePrefixTogglePosition();
-            return true;
-        }
-
-        if (vk == VK_SPACE)
-        {
-            bool altFromModifiers = modifiers.Contains(VK_MENU);
-            bool altFromResidue = ContainsVirtualKey(prefixResidue, VK_MENU);
-            if ((altFromModifiers || altFromResidue) &&
-                !HasModifiersOtherThan(modifiers, altFromModifiers ? VK_MENU : (ushort)0) &&
-                !HasModifiersOtherThan(prefixResidue, altFromResidue ? VK_MENU : (ushort)0))
-            {
-                action = ShortcutAction.CreatePrefixSearch();
-                return true;
-            }
-        }
-
-        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_MENU) && prefixResidue.Count == 0)
-        {
-            action = ShortcutAction.CreatePrefixCancelMacro();
-            return true;
-        }
-
-        if (vk == VK_RETURN && modifiers.Count == 1 && modifiers.Contains(VK_SHIFT) && prefixResidue.Count == 0)
-        {
-            action = ShortcutAction.CreatePrefixMinimize();
-            return true;
-        }
-
-        if (_prefixDropCaptureEnabled)
-        {
-            bool ctrlFromModifiers = modifiers.Contains(VK_CONTROL);
-            bool ctrlFromResidue = ContainsVirtualKey(prefixResidue, VK_CONTROL);
-            bool ctrlActive = ctrlFromModifiers || ctrlFromResidue;
-            if (ctrlActive &&
-                !HasModifiersOtherThan(modifiers, ctrlFromModifiers ? VK_CONTROL : (ushort)0) &&
-                !HasModifiersOtherThan(prefixResidue, ctrlFromResidue ? VK_CONTROL : (ushort)0))
-            {
-                if (vk == VK_D)
-                {
-                    action = ShortcutAction.CreatePrefixDropCapture();
-                    return true;
-                }
-            }
-        }
-
-        if (vk == VK_RETURN && modifiers.Count == 0 && prefixResidue.Count == 0)
-        {
-            action = ShortcutAction.CreatePrefixActivation();
-            return true;
-        }
-
-        return false;
+            ShortcutSpecialCommandType.PrefixTogglePosition => ShortcutAction.CreatePrefixTogglePosition(),
+            ShortcutSpecialCommandType.PrefixSearch => ShortcutAction.CreatePrefixSearch(),
+            ShortcutSpecialCommandType.PrefixCancelMacro => ShortcutAction.CreatePrefixCancelMacro(),
+            ShortcutSpecialCommandType.PrefixMinimize => ShortcutAction.CreatePrefixMinimize(),
+            ShortcutSpecialCommandType.PrefixDropCapture => ShortcutAction.CreatePrefixDropCapture(),
+            ShortcutSpecialCommandType.PrefixActivate => ShortcutAction.CreatePrefixActivation(),
+            _ => ShortcutAction.None
+        };
+        return command != ShortcutSpecialCommandType.None;
     }
 
     private bool IsRemoteSessionActive()
@@ -1096,53 +1052,6 @@ internal sealed class ShortcutService : IDisposable
         }
 
         return string.Empty;
-    }
-
-    private static bool ContainsVirtualKey(IReadOnlyCollection<ushort> source, ushort value)
-    {
-        if (source == null || source.Count == 0) return false;
-        foreach (var entry in source)
-        {
-            if (entry == value)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool HasModifiersOtherThan(HashSet<ushort> source, ushort allowed)
-    {
-        if (source.Count == 0) return false;
-        if (allowed == 0)
-        {
-            return source.Count > 0;
-        }
-        foreach (var entry in source)
-        {
-            if (entry != allowed)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static bool HasModifiersOtherThan(IReadOnlyCollection<ushort> source, ushort allowed)
-    {
-        if (source == null || source.Count == 0) return false;
-        if (allowed == 0)
-        {
-            return source.Count > 0;
-        }
-        foreach (var entry in source)
-        {
-            if (entry != allowed)
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     private HashSet<ushort> CollectActiveModifierKeysLocked()
