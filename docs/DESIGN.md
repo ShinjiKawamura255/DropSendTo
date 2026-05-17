@@ -17,6 +17,7 @@
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基に `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}`/`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を展開する純粋関数。
 - SlotSearchService: 検索レイヤー向けに全レイヤーを順序通り走査し、空スロットを除外した `SlotSearchResult` を生成する純粋サービス。検索対象は現行互換として `SlotModel.Title` と `SlotModel.SearchKeywords` のみとし、Command/Arguments/Macro Script は対象に含めない。検索語は空白区切りの AND 条件で、大小文字・全角/半角・濁点を正規化し、ハイフンと長音記号を検索語側で除去する。日本語スロット名はかな→ローマ字の候補も生成し、部分一致または subsequence で照合する。空クエリでは全レイヤーの非空スロットをレイヤー順・スロット順で返す。
+- MacroQuotedTextReader: Macro Script の通常クォート文字列を読み取る純粋サービス。`\n`/`\r`/`\t`、escaped quote、バックスラッシュ直後の終端クォート、コメント直前の終端判定を共通化し、`KeyboardMacroService` と `MacroConditionEvaluator` のクォート解釈を一致させる。Windows パス引数用のクォート処理はバックスラッシュ意味論が異なるため `KeyboardMacroService` 側に残す。
 - MacroConditionEvaluator: 変数展開後の Macro Script 条件式を token 化し、truthy 判定、比較演算子、`AND`/`OR`（`AND` 優先）を評価する純粋サービス。条件式内のクォート文字列は Macro Script と同等の escape 処理を行い、引用符内の `AND`/`OR`/`#` は構文要素として扱わない。
 - KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。`MacroExecutionSession` と `_macroStack` で実行中のマクロ/キャンセレーショントークンを追跡し、`_suspensionStack` で一時停止中セッションを管理する。排他モードはセマフォで直列化し、割り込みモードは `CancelAllRunningMacrosAsync` で段階的にキャンセル、一時停止モードは `SuspendCurrentMacroAsync` が `MacroSuspensionHandle` を返して外部処理中は入力を停止、`DisposeAsync`（再開）時にセマフォを再取得して処理を続行する。文字列変形は `SET`/`APPEND`/`PREPEND` のほか Ordinal 置換用の `REPLACE <Var> "検索" "置換"`、拡張正規表現用の `REPLACE_REGEX <Var> "正規表現" "置換" [オプション]` をサポートしており、後者は .NET Regex の `IGNORECASE`/`MULTILINE` 等をオプション指定できる。ユーザー入力を受けたい場合は `PROMPT` でメッセージ付きダイアログを開き、初期値は変数展開後に渡し、`TIMEOUT` 指定時は一定時間で自動クローズしてタイムアウト値を採用する。検証モードはダイアログを出さず初期値のみ設定する。Macro Script 拡張では `COMMAND_APP` で一時的に実行ファイルを差し替えてから `COMMAND` を呼び出せる。条件分岐は `IF`/`ELSEIF`/`ELSE`/`ENDIF` を再帰的に処理する `Stack<IfBlockState>` で管理し、親ブロックが非アクティブな場合は子の条件式を評価せずスキップできるよう `inactiveIfDepth` カウンタでスキップ状態を追跡する。条件式は変数展開後に `MacroConditionEvaluator` へ委譲する。
 - ShortcutRemoteSessionMatcher: リモートデスクトップ/Citrix 系のウィンドウクラス名・プロセス名を exact/wildcard で判定する純粋サービス。`ShortcutService` は Win32 から前景ウィンドウ、root owner、root のクラス名/プロセス名を取得し、判定のみをこのサービスへ委譲する。
@@ -79,7 +80,7 @@
 - グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 4 秒タイムアウトなど UX 配慮が必要。
 
 ## Traceability (excerpt)
-- DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113
+- DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087

@@ -170,6 +170,48 @@ ENDIF
     }
 
     [Fact]
+    public async Task RunMacroAsync_ShouldKeepQuotedPathReader_ForTrailingBackslashPath()
+    {
+        using var service = new KeyboardMacroService();
+        var invoked = new List<string>();
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"macro test {Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        try
+        {
+            var directoryWithTrailingSlash = tempDirectory + Path.DirectorySeparatorChar;
+            var template = """
+TESTPATH PathOk "{PATH}"
+IF {{PathOk}} == 1
+    COMMAND ok
+ELSE
+    COMMAND ng
+ENDIF
+""";
+            var script = template.Replace("{PATH}", directoryWithTrailingSlash, StringComparison.Ordinal);
+
+            var context = new MacroExecutionContext(
+                SlotExecutionMode.MacroScriptExtended,
+                args =>
+                {
+                    invoked.Add(args ?? string.Empty);
+                    return LaunchResult.Ok();
+                },
+                "PathChecker",
+                "cmd.exe",
+                Array.Empty<string>());
+
+            var result = await service.RunMacroAsync(script, context);
+
+            result.Success.Should().BeTrue(result.Message);
+            invoked.Should().ContainSingle().Which.Should().Be("ok");
+        }
+        finally
+        {
+            Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RunMacroAsync_ShouldEvaluateIfWithQuotedDropPath()
     {
         using var service = new KeyboardMacroService();

@@ -22,6 +22,7 @@
 - TC-031 MacroReplace: `REPLACE` コマンドで `{clipboard}` を変数へ取り込み、半角空白や特定文字列を `""` や別文字列へ置換できる。検索文字列が空のときはエラーになる。また `REPLACE_REGEX` で `IGNORECASE`/`MULTILINE` 等のオプションや `$1` を使用した正規表現置換が機能すること、無効なパターン/オプションでマクロが失敗することを確認する。
 - TC-032 MacroConditional: `IF`/`ELSEIF`（`ELSE IF`）/`ELSE`/`ENDIF` で条件分岐を書き、`==`/`!=`/`>`/`<`/`>=`/`<=` の数値比較および `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH` の文字列比較が期待通り評価されること、`AND`/`OR` の結合が期待通り評価され（`AND` 優先）、`IF {{Flag}}` の真偽値評価（空/0/false が偽）が期待通りであること、`ELSE` を 2 回書くとエラーになること、`ELSEIF` が前段成立後は評価されず未定義変数でも失敗しないこと、親の `IF` が偽のとき内側の `IF` 条件式は評価されないこと、`ENDIF` が不足するとマクロ全体が失敗することを確認する。
 - TC-112 MacroConditionEvaluator: 変数展開済みの条件式評価を単体テストし、比較演算子/別名、truthy 値、`AND` 優先 `OR`、UNC literal、escaped quote、末尾 backslash、未閉じ quote、引用符内の `AND`/`OR`/`#` が期待通り扱われることを確認する。
+- TC-114 MacroQuotedTextReader: Macro Script の通常クォート文字列 reader を単体テストし、成功時 index、標準 escape、奇数/偶数 backslash + quote、コメント/EOL 直前の終端 quote、未閉じ quote のエラーを確認する。合わせて path 専用 quoted reader が末尾 backslash を含むパス引数を維持することを確認する。
 - TC-033 MacroRename: `RENAME` でファイル/フォルダ名を変数展開後に変更でき、存在しない元パスやアクセス不可/重複等でマクロが失敗することを確認する。
 - TC-034 MacroPrompt: `PROMPT <変数> "メッセージ" [DEFAULT "初期値"] [TIMEOUT <ms> "タイムアウト値"]` でメッセージと初期値が表示され、OK を押すと入力値が変数へ格納され `RETURN "{{変数}}"` 等で参照できる。DEFAULT 省略時は空文字が入ること、`TIMEOUT` 指定時に指定時間経過でタイムアウト値が格納されること、キャンセル時はマクロが失敗することを確認する。
 - TC-038 MacroWaitUntil: `WAIT_UNTIL <条件> TIMEOUT <ms> [INTERVAL <ms>]` で条件成立時に次へ進むこと、`TIMEOUT` 未指定や範囲外値が構文エラーになること、条件不成立のままタイムアウトした場合にマクロが失敗することを確認する。
@@ -104,7 +105,7 @@
 ## Traceability (excerpt)
 - FR-001 → SP-001 → DES-002/003 → TC-010/065
 - FR-002 → SP-004 → DES-004 → TC-020/021
-- FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112
+- FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112/114
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
 - FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089/099/100/101/111/113

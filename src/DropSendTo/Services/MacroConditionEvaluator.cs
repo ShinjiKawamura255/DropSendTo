@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 
 namespace DropSendTo.Services;
 
@@ -285,7 +284,7 @@ internal static class MacroConditionEvaluator
             return true;
         }
 
-        if (!TryReadQuotedContent(input, ref index, "IF", "条件", out var literal, out error))
+        if (!MacroQuotedTextReader.TryRead(input, ref index, "IF", "条件", out var literal, out error))
         {
             return false;
         }
@@ -294,117 +293,4 @@ internal static class MacroConditionEvaluator
         return true;
     }
 
-    private static bool TryReadQuotedContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
-    {
-        index++;
-        var sb = new StringBuilder();
-        error = null;
-        bool closed = false;
-
-        while (index < input.Length)
-        {
-            char ch = input[index++];
-            if (ch == '\\')
-            {
-                int slashCount = 1;
-                while (index < input.Length && input[index] == '\\')
-                {
-                    slashCount++;
-                    index++;
-                }
-
-                if (index >= input.Length)
-                {
-                    sb.Append('\\', slashCount);
-                    break;
-                }
-
-                var nextChar = input[index];
-                if (nextChar == '"')
-                {
-                    sb.Append('\\', slashCount / 2);
-                    if (slashCount % 2 == 0)
-                    {
-                        index++;
-                        closed = true;
-                        break;
-                    }
-
-                    if (IsQuoteTerminator(input, index + 1))
-                    {
-                        sb.Append('\\');
-                        index++;
-                        closed = true;
-                        break;
-                    }
-
-                    index++;
-                    sb.Append('"');
-                    continue;
-                }
-
-                var literalPairs = slashCount / 2;
-                if (literalPairs > 0)
-                {
-                    sb.Append('\\', literalPairs);
-                }
-                if (slashCount % 2 == 1)
-                {
-                    if (nextChar == 'n' || nextChar == 'r' || nextChar == 't' || nextChar == '"' || nextChar == '\\')
-                    {
-                        index++;
-                        sb.Append(nextChar switch
-                        {
-                            'n' => '\n',
-                            'r' => '\r',
-                            't' => '\t',
-                            '"' => '"',
-                            '\\' => '\\',
-                            _ => nextChar
-                        });
-                        continue;
-                    }
-
-                    sb.Append('\\');
-                    continue;
-                }
-
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                closed = true;
-                break;
-            }
-
-            sb.Append(ch);
-        }
-
-        if (!closed)
-        {
-            error = $"{commandName} の {argumentName} が閉じられていません。";
-            value = string.Empty;
-            return false;
-        }
-
-        value = sb.ToString();
-        return true;
-    }
-
-    private static bool IsQuoteTerminator(string input, int startIndex)
-    {
-        for (int i = startIndex; i < input.Length; i++)
-        {
-            char c = input[i];
-            if (char.IsWhiteSpace(c))
-            {
-                continue;
-            }
-
-            return c == '#';
-        }
-
-        return true;
-    }
 }

@@ -3679,7 +3679,7 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
-        if (!TryReadQuotedContent(input, ref index, commandName, argumentName, out var literal, out error))
+        if (!MacroQuotedTextReader.TryRead(input, ref index, commandName, argumentName, out var literal, out error))
         {
             value = string.Empty;
             return false;
@@ -3734,104 +3734,6 @@ public sealed class KeyboardMacroService : IDisposable
         return value[..MaxLength] + "...";
     }
 
-    private static bool TryReadQuotedContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
-    {
-        index++; // skip opening quote
-        var sb = new StringBuilder();
-        error = null;
-        bool closed = false;
-
-        while (index < input.Length)
-        {
-            char ch = input[index++];
-            if (ch == '\\')
-            {
-                int slashCount = 1;
-                while (index < input.Length && input[index] == '\\')
-                {
-                    slashCount++;
-                    index++;
-                }
-
-                if (index >= input.Length)
-                {
-                    sb.Append('\\', slashCount);
-                    break;
-                }
-
-                var nextChar = input[index];
-                if (nextChar == '"')
-                {
-                    sb.Append('\\', slashCount / 2);
-                    if (slashCount % 2 == 0)
-                    {
-                        index++;
-                        closed = true;
-                        break;
-                    }
-
-                    if (IsQuoteTerminator(input, index + 1))
-                    {
-                        sb.Append('\\');
-                        index++;
-                        closed = true;
-                        break;
-                    }
-
-                    index++;
-                    sb.Append('"');
-                    continue;
-                }
-
-                var literalPairs = slashCount / 2;
-                if (literalPairs > 0)
-                {
-                    sb.Append('\\', literalPairs);
-                }
-                if (slashCount % 2 == 1)
-                {
-                    if (nextChar == 'n' || nextChar == 'r' || nextChar == 't' || nextChar == '"' || nextChar == '\\')
-                    {
-                        index++;
-                        sb.Append(nextChar switch
-                        {
-                            'n' => '\n',
-                            'r' => '\r',
-                            't' => '\t',
-                            '"' => '"',
-                            '\\' => '\\',
-                            _ => nextChar
-                        });
-                        continue;
-                    }
-
-                    sb.Append('\\');
-                    continue;
-                }
-
-                continue;
-            }
-
-            if (ch == '"')
-            {
-                closed = true;
-                break;
-            }
-
-            sb.Append(ch);
-        }
-
-        if (!closed)
-        {
-            error = $"{commandName} の {argumentName} が閉じられていません。";
-            value = string.Empty;
-            return false;
-        }
-
-        value = sb.ToString();
-        return true;
-    }
-
     private static bool TryReadQuotedPathContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
     {
         index++; // skip opening quote
@@ -3850,6 +3752,14 @@ public sealed class KeyboardMacroService : IDisposable
 
             if (ch == '\\' && index < input.Length && input[index] == '"')
             {
+                if (IsPathQuoteTerminator(input, index + 1))
+                {
+                    sb.Append('\\');
+                    index++;
+                    closed = true;
+                    break;
+                }
+
                 sb.Append('"');
                 index++;
                 continue;
@@ -3869,7 +3779,7 @@ public sealed class KeyboardMacroService : IDisposable
         return true;
     }
 
-    private static bool IsQuoteTerminator(string input, int startIndex)
+    private static bool IsPathQuoteTerminator(string input, int startIndex)
     {
         for (int i = startIndex; i < input.Length; i++)
         {
