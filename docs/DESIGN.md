@@ -23,6 +23,7 @@
 - ShortcutRemoteSessionMatcher: リモートデスクトップ/Citrix 系のウィンドウクラス名・プロセス名を exact/wildcard で判定する純粋サービス。`ShortcutService` は Win32 から前景ウィンドウ、root owner、root のクラス名/プロセス名を取得し、判定のみをこのサービスへ委譲する。
 - ShortcutSequenceMatcher: Prefix 待機中に入力されたキーが登録済み `ShortcutSequence` に一致するかを判定する純粋サービス。単一 chord の即時完了、複数 chord の partial/completed 遷移、Prefix と同じ修飾キーを初回 chord にだけ流用する residue 判定、余分な修飾キーの拒否を扱う。`ShortcutService` は hook 状態と候補リストの反映を保持し、照合計算のみをこのサービスへ委譲する。
 - ShortcutSpecialCommandResolver: Prefix 待機中の特殊操作（Enter/Tab/Alt+Space/Alt+Enter/Shift+Enter/Ctrl+D）を `ShortcutSpecialCommandType` へ解決する純粋サービス。active modifier と Prefix residue の許可条件、Drop Capture 有効フラグ、余分な修飾キー拒否を扱い、`ShortcutService` は解決結果を nested `ShortcutAction` に mapping して既存 dispatch を維持する。
+- ShortcutPresentationModeDetector: Shell 通知状態と前景ウィンドウ heuristic からプレゼン/フルスクリーン状態を推定するサービス。PowerPoint slideshow 判定は process/class/title の純粋分類としてテスト可能にし、検出失敗時は通常操作を妨げないよう false を返す。`ShortcutService` は mouse gesture の show/hide policy を保持し、プレゼン中は show だけを抑止して hide は許可する。
 - ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。Prefix+Enter でウィンドウ復帰、Prefix+Alt+Space で検索レイヤーを開きつつ復帰、設定で有効化されている場合は Alt+Space など任意の検索ホットキーでも検索レイヤーを開く。Prefix+Shift+Enter でタスクトレイ最小化イベントを発火し、Prefix+Enter 後は MainWindow に矢印キー入力を通知してドロップシャドウによる選択状態を更新する。ショートカットの文字列は空白/カンマ/`>` 区切りで複数 KeyChord を表現でき、Prefix 後は 1 キーずつシーケンス状態を進める。部分一致中は入力を抑止し、候補がなくなるか特殊操作が押されると待機を解除する。
 - WindowPlacementService: ScreenBoundsResolver が取得したモニターの作業領域を使い、保存済みのウィンドウ位置をタスクバー等の予約領域に重ならないよう Clamp する。NaN/Infinity が渡された場合は作業領域の左上へ戻す。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
@@ -82,7 +83,7 @@
 - グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 4 秒タイムアウトなど UX 配慮が必要。
 
 ## Traceability (excerpt)
-- DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114/115/116
+- DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114/115/116/117
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087

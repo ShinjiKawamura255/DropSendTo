@@ -32,6 +32,7 @@
 - TC-113 ShortcutRemoteSessionMatcher: リモートセッション判定用のウィンドウクラス名・プロセス名について、全 exact 候補、wildcard 代表、大小文字差、null/空白、不一致ケースを単体テストで確認する。
 - TC-115 ShortcutSequenceMatcher: 登録済みショートカット sequence の照合を単体テストし、単一 chord 完了、複数 chord の partial/completed、no-match 時の候補クリア、単一完了と partial が同時成立する場合の complete 優先、初回 chord の Prefix residue 利用、2 chord 目以降の residue 不使用、余分な修飾キー拒否を確認する。
 - TC-116 ShortcutSpecialCommandResolver: Prefix 特殊操作の解決を単体テストし、Tab/Enter/Alt+Space/Alt+Enter/Shift+Enter/Ctrl+D、有効/無効フラグ、Alt+Space と Ctrl+D の residue 許可、Tab/Enter/Alt+Enter/Shift+Enter の residue 拒否、余分な修飾キー拒否を確認する。合わせて `ProcessKeyDown` の薄い統合テストで resolver 結果が `ShortcutAction` へ mapping されることを確認する。
+- TC-117 ShortcutPresentationModeDetector: PowerPoint slideshow heuristic を単体テストし、PowerPoint process + slideshow class/title は true、非 PowerPoint process と通常 PowerPoint window は false になることを確認する。mouse gesture のプレゼン中抑止では show だけを抑止し hide を許可する policy が維持されることを差分確認する。
 - TC-040 UiTheme: 常時最前面が既定で ON、黒基調・半透明・角丸・ボタンスタイルが維持される。
 - TC-045 AlwaysOnTopToggle: メニューから常時最前面を切り替え、設定保存後も状態が復元される。
 - TC-050 Layer: ボタン/ホイールの循環切替、ドラッグホバー 0.8s で自動切替、ハイライト更新。
@@ -110,7 +111,7 @@
 - FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112/114
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
-- FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089/099/100/101/111/113/115/116
+- FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089/099/100/101/111/113/115/116/117
 - FR-024 → SP-010 → DES-002/005 → TC-035/085/086/088/089/099/100/101
 - FR-025 → SP-004/010 → DES-002/004 → TC-025/087
 - FR-019 → SP-009 → DES-003/004 → TC-037/080/097
