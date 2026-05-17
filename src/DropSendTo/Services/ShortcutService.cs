@@ -48,49 +48,6 @@ internal sealed class ShortcutService : IDisposable
     private const string DefaultPrefixExpression = "CTRL+Q";
     private const uint GaRoot = 2;
     private const uint GaRootOwner = 3;
-    private static readonly string[] RemoteWindowClassNames =
-    {
-        "TscShellContainerClass",
-        "TscShellContainerClass2",
-        "TSSHELLWND",
-        "TscShellWindowClass",
-        "TransparentWndClass",
-        "CitrixHDXClientWindowClass",
-        "CitrixWorkspaceDesktop",
-        "CtxGPCClass",
-        "WFICATopLevelWindow",
-        "WFICATopLevel"
-    };
-
-    private static readonly string[] RemoteWindowClassWildcards =
-    {
-        "citrix",
-        "ctx",
-        "wfica",
-        "hdx"
-    };
-
-    private static readonly string[] RemoteProcessNames =
-    {
-        "mstsc",
-        "mstsc64",
-        "wfica32",
-        "wfcrun32",
-        "citrixworkspace",
-        "citrixviewer",
-        "selfserviceplugin",
-        "receiver",
-        "cdviewer",
-        "hdxengine"
-    };
-
-    private static readonly string[] RemoteProcessWildcards =
-    {
-        "citrix",
-        "wfica",
-        "wfcrun",
-        "hdx"
-    };
     private const int MouseGestureIdleResetMilliseconds = 330;
     private readonly object _stateLock = new();
     private readonly LoggerService _logger = LoggerService.Instance;
@@ -741,12 +698,12 @@ internal sealed class ShortcutService : IDisposable
             return false;
         }
 
-        if (TryGetWindowClassName(hwnd, out var className) && IsRemoteClassName(className))
+        if (TryGetWindowClassName(hwnd, out var className) && ShortcutRemoteSessionMatcher.IsRemoteClassName(className))
         {
             return true;
         }
 
-        if (TryGetProcessName(hwnd, out var processName) && IsRemoteProcessName(processName))
+        if (TryGetProcessName(hwnd, out var processName) && ShortcutRemoteSessionMatcher.IsRemoteProcessName(processName))
         {
             return true;
         }
@@ -793,50 +750,6 @@ internal sealed class ShortcutService : IDisposable
         catch
         {
             // ignore
-        }
-
-        return false;
-    }
-
-    private static bool IsRemoteClassName(string? className)
-    {
-        if (string.IsNullOrWhiteSpace(className)) return false;
-        foreach (var candidate in RemoteWindowClassNames)
-        {
-            if (string.Equals(className, candidate, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        foreach (var fragment in RemoteWindowClassWildcards)
-        {
-            if (className.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsRemoteProcessName(string? processName)
-    {
-        if (string.IsNullOrWhiteSpace(processName)) return false;
-        foreach (var candidate in RemoteProcessNames)
-        {
-            if (string.Equals(processName, candidate, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        foreach (var fragment in RemoteProcessWildcards)
-        {
-            if (processName.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
         }
 
         return false;

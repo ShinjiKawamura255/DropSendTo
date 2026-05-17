@@ -1,4 +1,3 @@
-using System.Reflection;
 using DropSendTo.Services;
 using FluentAssertions;
 using Xunit;
@@ -7,45 +6,101 @@ namespace DropSendTo.Tests;
 
 public class ShortcutServiceRemoteDetectionTests
 {
-    private static readonly MethodInfo IsRemoteClassMethod =
-        typeof(ShortcutService).GetMethod("IsRemoteClassName", BindingFlags.NonPublic | BindingFlags.Static)!;
-
-    private static readonly MethodInfo IsRemoteProcessMethod =
-        typeof(ShortcutService).GetMethod("IsRemoteProcessName", BindingFlags.NonPublic | BindingFlags.Static)!;
+    [Theory]
+    [MemberData(nameof(ExactRemoteClassNames))]
+    public void IsRemoteClassName_ShouldMatchExactPatterns(string className)
+    {
+        ShortcutRemoteSessionMatcher.IsRemoteClassName(className).Should().BeTrue();
+    }
 
     [Theory]
     [InlineData("CitrixHdxDesktopX")]
     [InlineData("CtxEmbeddedWindow")]
     [InlineData("WFICA_Child")]
-    public void IsRemoteClassName_ShouldMatchCitrixPatterns(string className)
+    [InlineData("HDXOverlayWindow")]
+    public void IsRemoteClassName_ShouldMatchWildcardPatterns(string className)
     {
-        InvokeClassCheck(className).Should().BeTrue();
+        ShortcutRemoteSessionMatcher.IsRemoteClassName(className).Should().BeTrue();
     }
 
-    [Fact]
-    public void IsRemoteClassName_ShouldReturnFalse_ForUnrelatedClass()
+    [Theory]
+    [InlineData("tscshellcontainerclass")]
+    [InlineData("citrixhdxclientwindowclass")]
+    public void IsRemoteClassName_ShouldIgnoreCase(string className)
     {
-        InvokeClassCheck("Chrome_WidgetWin_1").Should().BeFalse();
+        ShortcutRemoteSessionMatcher.IsRemoteClassName(className).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Chrome_WidgetWin_1")]
+    public void IsRemoteClassName_ShouldReturnFalse_ForNonRemoteClass(string? className)
+    {
+        ShortcutRemoteSessionMatcher.IsRemoteClassName(className).Should().BeFalse();
+    }
+
+    [Theory]
+    [MemberData(nameof(ExactRemoteProcessNames))]
+    public void IsRemoteProcessName_ShouldMatchExactPatterns(string processName)
+    {
+        ShortcutRemoteSessionMatcher.IsRemoteProcessName(processName).Should().BeTrue();
     }
 
     [Theory]
     [InlineData("CitrixWorkspace")]
     [InlineData("WFICA32")]
-    [InlineData("SelfServicePlugin")]
-    public void IsRemoteProcessName_ShouldMatchCitrixProcesses(string processName)
+    [InlineData("WFCRun32")]
+    [InlineData("HDXEngine")]
+    public void IsRemoteProcessName_ShouldMatchWildcardPatterns(string processName)
     {
-        InvokeProcessCheck(processName).Should().BeTrue();
+        ShortcutRemoteSessionMatcher.IsRemoteProcessName(processName).Should().BeTrue();
     }
 
-    [Fact]
-    public void IsRemoteProcessName_ShouldReturnFalse_ForUnrelatedProcess()
+    [Theory]
+    [InlineData("MSTSC")]
+    [InlineData("CitrixViewer")]
+    public void IsRemoteProcessName_ShouldIgnoreCase(string processName)
     {
-        InvokeProcessCheck("explorer").Should().BeFalse();
+        ShortcutRemoteSessionMatcher.IsRemoteProcessName(processName).Should().BeTrue();
     }
 
-    private static bool InvokeClassCheck(string? className) =>
-        (bool)IsRemoteClassMethod.Invoke(null, new object?[] { className })!;
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("explorer")]
+    public void IsRemoteProcessName_ShouldReturnFalse_ForNonRemoteProcess(string? processName)
+    {
+        ShortcutRemoteSessionMatcher.IsRemoteProcessName(processName).Should().BeFalse();
+    }
 
-    private static bool InvokeProcessCheck(string? processName) =>
-        (bool)IsRemoteProcessMethod.Invoke(null, new object?[] { processName })!;
+    public static TheoryData<string> ExactRemoteClassNames() => new()
+    {
+        "TscShellContainerClass",
+        "TscShellContainerClass2",
+        "TSSHELLWND",
+        "TscShellWindowClass",
+        "TransparentWndClass",
+        "CitrixHDXClientWindowClass",
+        "CitrixWorkspaceDesktop",
+        "CtxGPCClass",
+        "WFICATopLevelWindow",
+        "WFICATopLevel"
+    };
+
+    public static TheoryData<string> ExactRemoteProcessNames() => new()
+    {
+        "mstsc",
+        "mstsc64",
+        "wfica32",
+        "wfcrun32",
+        "citrixworkspace",
+        "citrixviewer",
+        "selfserviceplugin",
+        "receiver",
+        "cdviewer",
+        "hdxengine"
+    };
 }
