@@ -27,7 +27,7 @@
 - TC-034 MacroPrompt: `PROMPT <変数> "メッセージ" [DEFAULT "初期値"] [TIMEOUT <ms> "タイムアウト値"]` でメッセージと初期値が表示され、OK を押すと入力値が変数へ格納され `RETURN "{{変数}}"` 等で参照できる。DEFAULT 省略時は空文字が入ること、`TIMEOUT` 指定時に指定時間経過でタイムアウト値が格納されること、キャンセル時はマクロが失敗することを確認する。
 - TC-038 MacroWaitUntil: `WAIT_UNTIL <条件> TIMEOUT <ms> [INTERVAL <ms>]` で条件成立時に次へ進むこと、`TIMEOUT` 未指定や範囲外値が構文エラーになること、条件不成立のままタイムアウトした場合にマクロが失敗することを確認する。
 - TC-036 MacroCommandApp: Macro Script 拡張モードで `COMMAND_APP <パス>` を指定すると以降の `COMMAND` の実行ファイルが差し替わり、`RESET` または `CLEAR` で元に戻ることを確認する。変数展開後のパスが空の場合は失敗することを併せて確認。
-- TC-037 MacroWifiSsid: `WIFI_SSID <変数>` で接続中 SSID が変数へ格納され、未接続時は空文字が入ることを確認する。
+- TC-037 MacroWifiSsid: `WIFI_SSID <変数>` で接続中 SSID が変数へ格納され、未接続時は空文字が入ることを確認する。SSID バイト列の UTF-8 デコードと 32 バイト上限を単体テストし、OS 表示言語や `netsh` 出力形式へ依存しないことを確認する。
 - TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。
 - TC-113 ShortcutRemoteSessionMatcher: リモートセッション判定用のウィンドウクラス名・プロセス名について、全 exact 候補、wildcard 代表、大小文字差、null/空白、不一致ケースを単体テストで確認する。
 - TC-115 ShortcutSequenceMatcher: 登録済みショートカット sequence の照合を単体テストし、単一 chord 完了、複数 chord の partial/completed、no-match 時の候補クリア、単一完了と partial が同時成立する場合の complete 優先、初回 chord の Prefix residue 利用、2 chord 目以降の residue 不使用、余分な修飾キー拒否を確認する。

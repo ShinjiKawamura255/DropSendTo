@@ -29,6 +29,10 @@ public sealed class KeyboardMacroService : IDisposable
     private const int DefaultWaitUntilIntervalMilliseconds = 50;
     private const int MaxWaitUntilIntervalMilliseconds = 5000;
     private const int NetshTimeoutMilliseconds = 3000;
+    private const uint WlanClientVersion = 2;
+    private const int WlanOpcodeCurrentConnection = 7;
+    private const int Dot11SsidMaxLength = 32;
+    private const int ErrorSuccess = 0;
     private const string MacroPopupTitle = "DropSendTo Macro";
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
@@ -2862,6 +2866,12 @@ public sealed class KeyboardMacroService : IDisposable
     {
         ssid = string.Empty;
         error = null;
+
+        if (TryGetConnectedWifiSsidFromWlanApi(out ssid, out error))
+        {
+            return true;
+        }
+
         try
         {
             var psi = new ProcessStartInfo
@@ -2915,6 +2925,157 @@ public sealed class KeyboardMacroService : IDisposable
         {
             error = $"netsh の実行に失敗しました: {ex.Message}";
             return false;
+        }
+    }
+
+    private static bool TryGetConnectedWifiSsidFromWlanApi(out string ssid, out string? error)
+    {
+        ssid = string.Empty;
+        error = null;
+        IntPtr clientHandle = IntPtr.Zero;
+        IntPtr interfaceListPtr = IntPtr.Zero;
+
+        try
+        {
+            var openResult = WlanOpenHandle(WlanClientVersion, IntPtr.Zero, out _, out clientHandle);
+            if (openResult != ErrorSuccess)
+            {
+                error = $"WLAN API の初期化に失敗しました: {openResult}";
+                return false;
+            }
+
+            var enumResult = WlanEnumInterfaces(clientHandle, IntPtr.Zero, out interfaceListPtr);
+            if (enumResult != ErrorSuccess || interfaceListPtr == IntPtr.Zero)
+            {
+                error = $"WLAN インターフェイスの列挙に失敗しました: {enumResult}";
+                return false;
+            }
+
+            var header = Marshal.PtrToStructure<WLAN_INTERFACE_INFO_LIST_HEADER>(interfaceListPtr);
+            var itemSize = Marshal.SizeOf<WLAN_INTERFACE_INFO>();
+            var itemPtr = IntPtr.Add(interfaceListPtr, Marshal.SizeOf<WLAN_INTERFACE_INFO_LIST_HEADER>());
+            var connectedInterfaceQueryFailed = false;
+
+            for (var index = 0; index < header.dwNumberOfItems; index++)
+            {
+                var info = Marshal.PtrToStructure<WLAN_INTERFACE_INFO>(IntPtr.Add(itemPtr, index * itemSize));
+                if (info.isState != WLAN_INTERFACE_STATE.wlan_interface_state_connected)
+                {
+                    continue;
+                }
+
+                if (TryQueryCurrentConnectionSsid(clientHandle, info.InterfaceGuid, out ssid, out var queryError))
+                {
+                    return true;
+                }
+
+                connectedInterfaceQueryFailed = true;
+                error = queryError;
+            }
+
+            if (connectedInterfaceQueryFailed)
+            {
+                return false;
+            }
+
+            ssid = string.Empty;
+            error = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or SEHException or ArgumentException or InvalidOperationException)
+        {
+            error = $"WLAN API の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+        finally
+        {
+            if (interfaceListPtr != IntPtr.Zero)
+            {
+                WlanFreeMemory(interfaceListPtr);
+            }
+
+            if (clientHandle != IntPtr.Zero)
+            {
+                WlanCloseHandle(clientHandle, IntPtr.Zero);
+            }
+        }
+    }
+
+    private static bool TryQueryCurrentConnectionSsid(
+        IntPtr clientHandle,
+        Guid interfaceGuid,
+        out string ssid,
+        out string? error)
+    {
+        ssid = string.Empty;
+        error = null;
+        IntPtr connectionPtr = IntPtr.Zero;
+
+        try
+        {
+            var result = WlanQueryInterface(
+                clientHandle,
+                ref interfaceGuid,
+                WlanOpcodeCurrentConnection,
+                IntPtr.Zero,
+                out _,
+                out connectionPtr,
+                out _);
+
+            if (result != ErrorSuccess || connectionPtr == IntPtr.Zero)
+            {
+                error = $"WLAN 接続情報の取得に失敗しました: {result}";
+                return false;
+            }
+
+            var attributes = Marshal.PtrToStructure<WLAN_CONNECTION_ATTRIBUTES>(connectionPtr);
+            ssid = DecodeWifiSsidBytes(
+                attributes.wlanAssociationAttributes.dot11Ssid.ucSSID,
+                attributes.wlanAssociationAttributes.dot11Ssid.uSSIDLength);
+            return true;
+        }
+        finally
+        {
+            if (connectionPtr != IntPtr.Zero)
+            {
+                WlanFreeMemory(connectionPtr);
+            }
+        }
+    }
+
+    internal static string DecodeWifiSsidBytes(byte[]? ssidBytes, uint length)
+    {
+        if (ssidBytes == null || length == 0)
+        {
+            return string.Empty;
+        }
+
+        var safeLength = (int)Math.Min(Math.Min(length, (uint)ssidBytes.Length), Dot11SsidMaxLength);
+        if (safeLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true)
+                .GetString(ssidBytes, 0, safeLength);
+        }
+        catch (DecoderFallbackException)
+        {
+            return GetFallbackWifiSsidEncoding().GetString(ssidBytes, 0, safeLength);
+        }
+    }
+
+    private static Encoding GetFallbackWifiSsidEncoding()
+    {
+        try
+        {
+            return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.ANSICodePage);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            return Encoding.Default;
         }
     }
 
@@ -5723,6 +5884,87 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         public ushort wParamH;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WLAN_INTERFACE_INFO_LIST_HEADER
+    {
+        public int dwNumberOfItems;
+        public int dwIndex;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WLAN_INTERFACE_INFO
+    {
+        public Guid InterfaceGuid;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+        public string strInterfaceDescription;
+
+        public WLAN_INTERFACE_STATE isState;
+    }
+
+    private enum WLAN_INTERFACE_STATE
+    {
+        wlan_interface_state_not_ready = 0,
+        wlan_interface_state_connected = 1,
+        wlan_interface_state_ad_hoc_network_formed = 2,
+        wlan_interface_state_disconnecting = 3,
+        wlan_interface_state_disconnected = 4,
+        wlan_interface_state_associating = 5,
+        wlan_interface_state_discovering = 6,
+        wlan_interface_state_authenticating = 7
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WLAN_CONNECTION_ATTRIBUTES
+    {
+        public WLAN_INTERFACE_STATE isState;
+        public int wlanConnectionMode;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+        public string strProfileName;
+
+        public WLAN_ASSOCIATION_ATTRIBUTES wlanAssociationAttributes;
+        public WLAN_SECURITY_ATTRIBUTES wlanSecurityAttributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WLAN_ASSOCIATION_ATTRIBUTES
+    {
+        public DOT11_SSID dot11Ssid;
+        public int dot11BssType;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+        public byte[] dot11Bssid;
+
+        public int dot11PhyType;
+        public uint uDot11PhyIndex;
+        public uint wlanSignalQuality;
+        public uint ulRxRate;
+        public uint ulTxRate;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WLAN_SECURITY_ATTRIBUTES
+    {
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool bSecurityEnabled;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool bOneXEnabled;
+
+        public int dot11AuthAlgorithm;
+        public int dot11CipherAlgorithm;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DOT11_SSID
+    {
+        public uint uSSIDLength;
+
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = Dot11SsidMaxLength)]
+        public byte[] ucSSID;
+    }
+
     private delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
     private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
@@ -6078,6 +6320,32 @@ private static extern IntPtr GetKeyboardLayout(uint idThread);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
+
+    [DllImport("wlanapi.dll")]
+    private static extern int WlanOpenHandle(
+        uint dwClientVersion,
+        IntPtr pReserved,
+        out uint pdwNegotiatedVersion,
+        out IntPtr phClientHandle);
+
+    [DllImport("wlanapi.dll")]
+    private static extern int WlanEnumInterfaces(IntPtr hClientHandle, IntPtr pReserved, out IntPtr ppInterfaceList);
+
+    [DllImport("wlanapi.dll")]
+    private static extern int WlanQueryInterface(
+        IntPtr hClientHandle,
+        ref Guid pInterfaceGuid,
+        int OpCode,
+        IntPtr pReserved,
+        out int pdwDataSize,
+        out IntPtr ppData,
+        out int pWlanOpcodeValueType);
+
+    [DllImport("wlanapi.dll")]
+    private static extern void WlanFreeMemory(IntPtr pMemory);
+
+    [DllImport("wlanapi.dll")]
+    private static extern int WlanCloseHandle(IntPtr hClientHandle, IntPtr pReserved);
 
 
     public record MacroExecutionResult(bool Success, string Message, bool Executed, bool IsCanceled)

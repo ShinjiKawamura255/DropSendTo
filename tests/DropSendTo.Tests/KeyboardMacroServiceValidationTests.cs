@@ -1,6 +1,7 @@
 using DropSendTo.Models;
 using DropSendTo.Services;
 using FluentAssertions;
+using System.Text;
 using Xunit;
 
 namespace DropSendTo.Tests;
@@ -232,6 +233,26 @@ ENDIF
         ok.Should().BeFalse();
         error.Should().NotBeNull();
         error.Should().Contain("WIFI_SSID");
+    }
+
+    [Fact]
+    public void DecodeWifiSsidBytes_ShouldDecodeUtf8Ssid()
+    {
+        var bytes = Encoding.UTF8.GetBytes("Office-5G-会議室");
+
+        var ssid = KeyboardMacroService.DecodeWifiSsidBytes(bytes, (uint)bytes.Length);
+
+        ssid.Should().Be("Office-5G-会議室");
+    }
+
+    [Fact]
+    public void DecodeWifiSsidBytes_ShouldClampToDot11SsidLength()
+    {
+        var bytes = Encoding.ASCII.GetBytes("12345678901234567890123456789012EXTRA");
+
+        var ssid = KeyboardMacroService.DecodeWifiSsidBytes(bytes, (uint)bytes.Length);
+
+        ssid.Should().Be("12345678901234567890123456789012");
     }
 
     [Fact]
