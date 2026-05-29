@@ -85,6 +85,9 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RESOLVE_LINK &lt;変数&gt; &lt;パス&gt; : .lnk / シンボリックリンクの実体パスを取得して変数に格納（リンクでなければ元パスを格納）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="READFILE &lt;変数&gt; &lt;パス&gt; [MAX &lt;バイト&gt;] : ファイル内容を変数に読み込み（既定 4096 バイトまで / それ以上は MAX 指定が必要）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WIFI_SSID &lt;変数&gt; : 接続中の Wi-Fi SSID を変数に格納（未接続時は空文字）" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="DATE/TIME/NOW &lt;変数&gt; [UTC|LOCAL] [FORMAT &quot;書式&quot;|FILENAME] : 日時文字列を変数へ格納" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PATH_DIR/NAME/BASENAME/EXT/FULL &lt;変数&gt; &lt;パス&gt; : パスを分解して変数へ格納" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MKDIR &lt;パス&gt; / COPY &lt;元&gt; &lt;先&gt; / MOVE &lt;元&gt; &lt;先&gt; : ファイル操作（COPY/MOVE は既定で上書き不可）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND_APP &lt;パス&gt; : Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="RETURN [&quot;メッセージ&quot;] : マクロを即終了（オプションのメッセージはログ/結果用）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="プレースホルダー {{名前}}   : 任意のコマンドで値を展開 (例: TEXT Hello {{UserName}})" TextWrapping="NoWrap"/>
@@ -108,6 +111,9 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDREPEAT              : ブロック終了 - 対応する REPEAT とペアで別行に記述" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_DROP &lt;変数&gt; [INDEX &lt;番号変数&gt;] : ドロップした各パスでブロックを繰り返し、{{変数}} で現在のパス、INDEX で 1 基点の番号を参照" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="ENDFOREACH             : FOREACH_DROP の終了。ドロップ 0 件ならブロックはスキップ" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="FOREACH_LINE &lt;変数&gt; IN &lt;値&gt; [INDEX &lt;番号変数&gt;] [KEEP_EMPTY] : 文字列を行単位で繰り返し" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="SPLIT &lt;変数&gt; &lt;値&gt; &quot;区切り&quot; [INDEX &lt;番号変数&gt;] [KEEP_EMPTY] : 文字列を分割して繰り返し" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="TRY / CATCH [変数] / ENDTRY : 実行時エラーを扱う構造（構文エラーとキャンセルは捕捉不可）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="COMMAND [引数]         : Macro Script 拡張モード専用。引数省略でテンプレートを展開、指定時は変数展開後の文字列をそのまま渡す" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX [SEND|ARM]      : DropSendTo の Prefix を入力（ショートカット待機状態に移行）" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="PREFIX PASSTHROUGH     : Prefix を前面アプリへそのまま送出" TextWrapping="NoWrap"/>
@@ -144,6 +150,17 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}"
                                  Text="例: COMMAND                     → Args Template（{args} など）を展開して実行。"
                                  TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}"
+                                 Text="COMMAND_WAIT / RUN_CAPTURE : shell を使わずプロセスを待機し、終了コードや標準出力/標準エラーを変数へ格納。CWD/TIMEOUT/MAX を指定できます。"
+                                 TextWrapping="NoWrap"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="ウィンドウ操作" FontSize="14" FontWeight="Bold" Margin="0,0,0,4"/>
+                <Border Background="{DynamicResource Theme.CardBackgroundBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WINDOW_FIND &lt;変数&gt; TITLE|TITLE_EXACT|CLASS|PROCESS|PID &quot;値&quot; [INDEX &lt;n&gt;] : ウィンドウ ハンドルを取得（複数一致は INDEX 必須）" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="WINDOW_ACTIVATE &lt;ハンドル変数&gt; : WINDOW_FIND で得たウィンドウをアクティブ化" TextWrapping="NoWrap"/>
                     </StackPanel>
                 </Border>
 

@@ -57,7 +57,7 @@
 - KeyboardMacroService
   - `Initialize(WindowInteropHelper)`: フォアグラウンド変更フックを登録し、直近外部ウィンドウを追跡。
 - `RunMacroAsync(script, context)`: セマフォで逐次実行し、マクロスクリプトを解釈して SendInput を発行。`context` は `Macro Script 拡張` モード時にコマンド起動デリゲートを渡し、マクロ内の `COMMAND` 命令から LauncherService を呼び出せる。結果に成功/失敗/スキップを含める。
-- SET/UNSET 命令で変数ディクショナリを管理し、各行のコマンド引数中に出現する `{{VarName}}` を解決してから `SendInput` やクリップボード処理を行う。ADD/SUB/MUL/DIV で 64bit 整数として演算し、APPEND/PREPEND で文字列結合を行う。`PREFIX [SEND|ARM|PASSTHROUGH]` で ShortcutService の Prefix 状態を操作し、MacroPassthrough 入力に切り替えてショートカット検出とアプリへの送出を両立する。拡張モード専用の `COMMAND` 命令は入力バッファをフラッシュした後にコンテキスト経由の LauncherService を呼び出し、コンテキスト未提供時は失敗として復帰する。未定義や書式不正は即座に失敗として復帰し、ログへ詳細を残す。
+- SET/UNSET 命令で変数ディクショナリを管理し、各行のコマンド引数中に出現する `{{VarName}}` を解決してから `SendInput` やクリップボード処理を行う。ADD/SUB/MUL/DIV で 64bit 整数として演算し、APPEND/PREPEND で文字列結合を行う。`PREFIX [SEND|ARM|PASSTHROUGH]` で ShortcutService の Prefix 状態を操作し、MacroPassthrough 入力に切り替えてショートカット検出とアプリへの送出を両立する。拡張モード専用の `COMMAND` 命令は入力バッファをフラッシュした後にコンテキスト経由の LauncherService を呼び出し、コンテキスト未提供時は失敗として復帰する。日時、パス分解、`MKDIR`/`COPY`/`MOVE`、`COMMAND_WAIT`/`RUN_CAPTURE`、`TRY`/`CATCH`、`WINDOW_FIND`/`WINDOW_ACTIVATE`、`FOREACH_LINE`/`SPLIT` は既存の変数展開と検証モードに統合する。未定義や書式不正は即座に失敗として復帰し、ログへ詳細を残す。
   - `Dispose()`: WinEventHook の解除・ロック解放。
 - ShortcutService
   - `Initialize(string? prefixExpression)`: Prefix を解析・正規化し、低レベルフックをセットアップする。失敗時は既定 Prefix へフォールバックする。
@@ -75,6 +75,7 @@
 - Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。`ShortcutService` は Prefix/ショートカット解析失敗を警告ログに記録し、Prefix 解析失敗時は既定値へフォールバックする。
 - UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。Prefix フォールバック時もメッセージで通知する。
 - Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロ開始/結果・スロットトリガー・コマンド起動・変数操作・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコード。
+- Macro safety: 検証モードではファイル変更、プロセス起動、ポップアップ表示、ウィンドウアクティブ化を行わない。`COPY`/`MOVE` は既定で上書きせず、`RUN_CAPTURE` は `UseShellExecute=false` で実行して stdout/stderr と完全な引数列をログへ出さない。`WINDOW_FIND` は複数一致を既定失敗にし、`WINDOW_ACTIVATE` は成功確認できない場合に失敗する。
 - Telemetry: 専用メトリクスは未実装。必要な診断はログで代替。
 
 ## DES-006 Trade-offs
@@ -87,3 +88,4 @@
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087
+- DES-004/005 ← SP-009/014 → TC-118/119/120/121/122/123/124

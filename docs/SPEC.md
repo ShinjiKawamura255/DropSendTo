@@ -98,6 +98,17 @@
 - MUST: `REPEAT <回数>` と `ENDREPEAT` でブロックを繰り返し、回数は変数展開後の整数で 0〜1000。入れ子構造もサポートする。
 - SHOULD: `FOREACH_DROP` ブロックは `REPEAT`/`IF` と入れ子にでき、ブロック展開後も変数値はループをまたいで保持される（最後に代入した値が残る）。
 
+## SP-014 Macro Script Expansion Commands
+- MUST: リポジトリには現行コマンドだけで動く Macro Script サンプル集を `docs/MACRO_SAMPLES.md` として保持し、新規コマンド追加時にサンプルが未実装コマンドへ依存しないことを確認する。
+- MUST: `DATE <変数> [UTC|LOCAL] [FORMAT "書式"|FILENAME]` / `TIME <変数> [UTC|LOCAL] [FORMAT "書式"|FILENAME]` / `NOW <変数> [UTC|LOCAL] [FORMAT "書式"|FILENAME]` は日時文字列を変数へ格納する。既定は `DATE=yyyy-MM-dd`、`TIME=HH:mm:ss`、`NOW=yyyy-MM-ddTHH:mm:ss` のロケール非依存形式とし、`FILENAME` は `yyyyMMdd-HHmmss` のファイル名安全形式を返す。無効な書式はマクロ失敗とし、`NOW` は呼び出しごとに現在時刻を取得する。
+- MUST: `PATH_DIR` / `PATH_NAME` / `PATH_BASENAME` / `PATH_EXT` / `PATH_FULL <変数> <パス>` は変数展開後のパスを分解し、それぞれ親ディレクトリ、ファイル名、拡張子なしファイル名、拡張子、絶対パスを格納する。UNC、ドライブ root、末尾 separator、拡張子なしでも失敗せず空文字または OS API の結果を返す。不正パスは失敗する。
+- MUST: `MKDIR <パス>` はディレクトリを作成し、既存ディレクトリなら成功、同名ファイルがある場合は失敗する。`COPY <元パス> <先パス>` はファイルまたはディレクトリをコピーし、`MOVE <元パス> <先パス>` は移動する。`COPY`/`MOVE` は既定で上書き不可、ワイルドカード展開不可、親ディレクトリ未存在時は失敗とし、検証モードではファイルシステムを変更しない。
+- MUST: `COMMAND_WAIT <終了コード変数> [TIMEOUT <ms>] [CWD <作業ディレクトリ>] <実行ファイル> [引数...]` は shell を使わずプロセスを起動して終了を待ち、終了コードを変数へ格納する。`RUN_CAPTURE <終了コード変数> <stdout変数> <stderr変数> [TIMEOUT <ms>] [CWD <作業ディレクトリ>] [MAX <bytes>] <実行ファイル> [引数...]` は終了コードと標準出力/標準エラーを変数へ格納する。作業ディレクトリは存在するディレクトリのみ許可し、既定 timeout は 30000ms、最大 600000ms、出力上限は既定 65536 bytes、最大 1048576 bytes とする。stdout/stderr と完全な引数列は既定でログへ出力してはならない。検証モードではプロセスを起動しない。
+- MUST: `TRY` / `CATCH [変数]` / `ENDTRY` は実行時エラーを捕捉し、`CATCH` 以降を実行してマクロを継続できる。`CATCH` 変数を指定した場合はエラーメッセージを格納し、予約変数 `{{error_message}}` / `{{error_line}}` / `{{error_command}}` も利用できる。構文エラー、キャンセル、検証モードで検出される構造エラーは捕捉不可とし、通常どおりマクロ失敗とする。
+- MUST: `WINDOW_FIND <変数> TITLE|TITLE_EXACT|CLASS|PROCESS|PID "値" [INDEX <n>]` は条件に一致するトップレベルウィンドウのハンドルを変数へ格納する。複数一致は既定で失敗し、`INDEX` 指定時のみ 1 基点の n 番目を選択する。`WINDOW_ACTIVATE <ハンドル変数>` は対象ウィンドウをアクティブ化し、成功確認できない場合は失敗する。DropSendTo 自身、UAC/高整合性ウィンドウ、権限差で操作できないウィンドウは失敗してよい。検証モードでは列挙・アクティブ化を行わない。
+- MUST: `FOREACH_LINE <変数> IN <値> [INDEX <番号変数>] [KEEP_EMPTY]` ... `ENDFOREACH_LINE` は CRLF/LF/CR を行区切りとしてブロックを展開し、既定では空行を除外する。`SPLIT <値変数> <入力> "区切り" [INDEX <番号変数>] [KEEP_EMPTY]` ... `ENDSPLIT` は区切り文字列で分割してブロックを展開する。入力長は 1MiB 以下、要素数は 1000 以下とし、超過時は失敗する。
+- MUST: すべての新規コマンドは `TryValidateScript` で構文検証でき、検証モードでは副作用を起こさず、UI Tips、スニペット挿入メニュー、単体テストに反映する。
+
 ## SP-010 Shortcut Prefix & Global Shortcuts
 - MUST: Prefix は修飾キーとメインキーの組み合わせで構成され、入力値を正規化して保存する。解析できない場合は Ctrl+Q にフォールバックし、ユーザーへ警告する。
 - MUST: Prefix を押下すると最長 4 秒間 armed 状態になり、ウィンドウ左上のインジケーターに Prefix 文字列と armed 状態をオーバーレイ表示する。マウス操作やタイムアウトで自動解除する。

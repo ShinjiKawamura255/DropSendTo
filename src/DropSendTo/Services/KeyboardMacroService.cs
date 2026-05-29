@@ -59,6 +59,12 @@ public sealed class KeyboardMacroService : IDisposable
     private static Func<string, string, string?, TimeSpan?, string?, (PromptOutcome Outcome, string? Value)>? _inputPromptOverride;
     private const int DefaultReadFileLimitBytes = 4096;
     private const int MaxReadFileLimitBytes = 1024 * 1024;
+    private const int DefaultProcessTimeoutMilliseconds = 30000;
+    private const int MaxProcessTimeoutMilliseconds = 600000;
+    private const int DefaultProcessOutputLimitBytes = 65536;
+    private const int MaxProcessOutputLimitBytes = 1024 * 1024;
+    private const int MaxForeachTextLength = 1024 * 1024;
+    private const int MaxForeachItems = 1000;
 
     internal enum PromptOutcome
     {
@@ -462,7 +468,14 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private MacroExecutionResult RunMacroInternal(string script, MacroExecutionContext? context, CancellationToken cancellationToken, MacroExecutionSession session, bool validateOnly, ref string? commandOverridePath)
+    private MacroExecutionResult RunMacroInternal(
+        string script,
+        MacroExecutionContext? context,
+        CancellationToken cancellationToken,
+        MacroExecutionSession session,
+        bool validateOnly,
+        ref string? commandOverridePath,
+        Dictionary<string, string>? sharedVariables = null)
     {
         ThrowIfPausedOrCanceled(session, cancellationToken);
         IntPtr target = ResolveTargetWindow();
@@ -478,7 +491,7 @@ public sealed class KeyboardMacroService : IDisposable
         _currentMouseTracker.Value = mouseTracker;
         var cursorScope = default(MacroCursorScope);
         bool prefixArmRequested = false;
-        var variables = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var variables = sharedVariables ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var inactiveVariableScopes = validateOnly ? new Stack<Dictionary<string, string>>() : null;
 
         if (TryGetCursorPosition(out var cursorX, out var cursorY))
@@ -732,8 +745,170 @@ public sealed class KeyboardMacroService : IDisposable
                     return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "ENDREPEAT に対応する REPEAT が見つかりません。")));
                 }
 
+                if (StartsWithCommand(line, "FOREACH_LINE") || StartsWithCommand(line, "SPLIT"))
+                {
+                    string? loopError;
+                    int loopErrorIndex;
+                    if (inactiveIfDepth > 0 && !validateOnly)
+                    {
+                        if (!TryFindMatchingTextLoopEnd(expandedLines, lineIndex, out var endIndex, out loopError, out loopErrorIndex))
+                        {
+                            int reportedLine = loopErrorIndex >= 0 ? loopErrorIndex + 1 : lineNumber;
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, loopError ?? "テキストループ ブロックの解釈に失敗しました。")));
+                        }
+                        lineIndex = endIndex;
+                        continue;
+                    }
+                    if (!TryExpandTextLoopAt(expandedLines, lineIndex, variables, specialResolver, out var nextTextLoopIndex, out loopError, out loopErrorIndex))
+                    {
+                        int reportedLine = loopErrorIndex >= 0 ? loopErrorIndex + 1 : lineNumber;
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, loopError ?? "テキストループ ブロックの解釈に失敗しました。")));
+                    }
+                    lineIndex = nextTextLoopIndex;
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "ENDFOREACH_LINE") || StartsWithCommand(line, "ENDSPLIT"))
+                {
+                    return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "テキストループの終了行に対応する開始行が見つかりません。")));
+                }
+
+                if (StartsWithCommand(line, "TRY"))
+                {
+                    var trailing = TrimInlineComment(line.Length > 3 ? line[3..].Trim() : string.Empty);
+                    if (!string.IsNullOrWhiteSpace(trailing))
+                    {
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "TRY の後ろに余分な記述があります。")));
+                    }
+                    if (!TryFindMatchingTryParts(expandedLines, lineIndex, out var catchIndex, out var endTryIndex, out var tryError, out var tryErrorIndex))
+                    {
+                        int reportedLine = tryErrorIndex >= 0 ? tryErrorIndex + 1 : lineNumber;
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(reportedLine, tryError ?? "TRY ブロックの解釈に失敗しました。")));
+                    }
+
+                    var tryLines = expandedLines
+                        .Skip(lineIndex + 1)
+                        .Take((catchIndex >= 0 ? catchIndex : endTryIndex) - lineIndex - 1)
+                        .ToArray();
+                    var catchLines = catchIndex >= 0
+                        ? expandedLines.Skip(catchIndex + 1).Take(endTryIndex - catchIndex - 1).ToArray()
+                        : Array.Empty<string>();
+                    string? catchVariable = null;
+                    if (catchIndex >= 0)
+                    {
+                        var catchLine = expandedLines[catchIndex].Trim();
+                        catchVariable = TrimInlineComment(catchLine.Length > 5 ? catchLine[5..].Trim() : string.Empty);
+                        if (catchVariable.Length > 0 && !IsValidVariableName(catchVariable))
+                        {
+                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(catchIndex + 1, $"CATCH の変数名が不正です: \"{catchVariable}\"")));
+                        }
+                    }
+
+                    var tryScript = string.Join(Environment.NewLine, tryLines);
+                    var tryResult = RunMacroInternal(tryScript, context, cancellationToken, session, validateOnly, ref commandOverridePath, variables);
+                    if (tryResult.IsCanceled)
+                    {
+                        return CompleteResult(tryResult);
+                    }
+                    if (!tryResult.Success)
+                    {
+                        if (validateOnly)
+                        {
+                            return CompleteResult(tryResult);
+                        }
+                        if (catchIndex < 0)
+                        {
+                            return CompleteResult(tryResult);
+                        }
+                        var errorMessage = tryResult.Message ?? string.Empty;
+                        variables["error_message"] = errorMessage;
+                        variables["error_line"] = lineNumber.ToString(CultureInfo.InvariantCulture);
+                        variables["error_command"] = "TRY";
+                        if (!string.IsNullOrEmpty(catchVariable))
+                        {
+                            variables[catchVariable] = errorMessage;
+                        }
+                        var catchScript = string.Join(Environment.NewLine, catchLines);
+                        var catchResult = RunMacroInternal(catchScript, context, cancellationToken, session, validateOnly, ref commandOverridePath, variables);
+                        if (!catchResult.Success)
+                        {
+                            return CompleteResult(catchResult);
+                        }
+                        if (!string.IsNullOrEmpty(catchResult.Message))
+                        {
+                            return CompleteResult(catchResult);
+                        }
+                    }
+                    lineIndex = endTryIndex;
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "CATCH"))
+                {
+                    return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "CATCH に対応する TRY が見つかりません。")));
+                }
+
+                if (StartsWithCommand(line, "ENDTRY"))
+                {
+                    return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, "ENDTRY に対応する TRY が見つかりません。")));
+                }
+
                 if (inactiveIfDepth > 0 && !validateOnly)
                 {
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "DATE") || StartsWithCommand(line, "TIME") || StartsWithCommand(line, "NOW"))
+                {
+                    if (!TryApplyDateTimeDirective(line, variables, out var dateTimeError))
+                    {
+                        var message = dateTimeError ?? "日時コマンドの解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "PATH_DIR") ||
+                    StartsWithCommand(line, "PATH_NAME") ||
+                    StartsWithCommand(line, "PATH_BASENAME") ||
+                    StartsWithCommand(line, "PATH_EXT") ||
+                    StartsWithCommand(line, "PATH_FULL"))
+                {
+                    if (!TryApplyPathDirective(line, variables, specialResolver, out var pathDirectiveError))
+                    {
+                        var message = pathDirectiveError ?? "PATH コマンドの解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "MKDIR") || StartsWithCommand(line, "COPY") || StartsWithCommand(line, "MOVE"))
+                {
+                    if (!TryApplyFileOperationDirective(line, variables, specialResolver, validateOnly, out var fileOperationError))
+                    {
+                        var message = fileOperationError ?? "ファイル操作コマンドの解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "COMMAND_WAIT") || StartsWithCommand(line, "RUN_CAPTURE"))
+                {
+                    if (!TryApplyProcessDirective(line, variables, specialResolver, validateOnly, cancellationToken, out var processError))
+                    {
+                        var message = processError ?? "プロセス実行コマンドの解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
+                    continue;
+                }
+
+                if (StartsWithCommand(line, "WINDOW_FIND") || StartsWithCommand(line, "WINDOW_ACTIVATE"))
+                {
+                    if (!TryApplyWindowDirective(line, variables, specialResolver, validateOnly, out var windowError))
+                    {
+                        var message = windowError ?? "ウィンドウ操作コマンドの解釈に失敗しました。";
+                        return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                    }
                     continue;
                 }
 
@@ -1732,6 +1907,108 @@ public sealed class KeyboardMacroService : IDisposable
         return false;
     }
 
+    private static bool TryFindMatchingEndTry(
+        IReadOnlyList<string> lines,
+        int startIndex,
+        out int endIndex,
+        out string? error,
+        out int errorIndex)
+    {
+        endIndex = -1;
+        error = null;
+        errorIndex = startIndex;
+        var depth = 0;
+        for (int i = startIndex + 1; i < lines.Count; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (StartsWithCommand(trimmed, "TRY"))
+            {
+                depth++;
+                continue;
+            }
+            if (!StartsWithCommand(trimmed, "ENDTRY"))
+            {
+                continue;
+            }
+            var remainder = TrimInlineComment(trimmed.Length > 6 ? trimmed[6..].Trim() : string.Empty);
+            if (remainder.Length > 0)
+            {
+                error = $"ENDTRY 行に余分な記述があります: \"{trimmed}\"";
+                errorIndex = i;
+                return false;
+            }
+            if (depth == 0)
+            {
+                endIndex = i;
+                return true;
+            }
+            depth--;
+        }
+        error = "TRY ブロックが ENDTRY で閉じられていません。";
+        return false;
+    }
+
+    private static bool TryFindMatchingTryParts(
+        IReadOnlyList<string> lines,
+        int startIndex,
+        out int catchIndex,
+        out int endIndex,
+        out string? error,
+        out int errorIndex)
+    {
+        catchIndex = -1;
+        endIndex = -1;
+        error = null;
+        errorIndex = startIndex;
+        var depth = 0;
+        for (int i = startIndex + 1; i < lines.Count; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (StartsWithCommand(trimmed, "TRY"))
+            {
+                depth++;
+                continue;
+            }
+            if (StartsWithCommand(trimmed, "CATCH") && depth == 0)
+            {
+                if (catchIndex >= 0)
+                {
+                    error = "TRY ブロックに CATCH を複数指定することはできません。";
+                    errorIndex = i;
+                    return false;
+                }
+                var payload = TrimInlineComment(trimmed.Length > 5 ? trimmed[5..].Trim() : string.Empty);
+                if (payload.Length > 0 && !IsValidVariableName(payload))
+                {
+                    error = $"CATCH の変数名が不正です: \"{payload}\"";
+                    errorIndex = i;
+                    return false;
+                }
+                catchIndex = i;
+                continue;
+            }
+            if (!StartsWithCommand(trimmed, "ENDTRY"))
+            {
+                continue;
+            }
+            var remainder = TrimInlineComment(trimmed.Length > 6 ? trimmed[6..].Trim() : string.Empty);
+            if (remainder.Length > 0)
+            {
+                error = $"ENDTRY 行に余分な記述があります: \"{trimmed}\"";
+                errorIndex = i;
+                return false;
+            }
+            if (depth == 0)
+            {
+                endIndex = i;
+                return true;
+            }
+            depth--;
+        }
+        error = "TRY ブロックが ENDTRY で閉じられていません。";
+        return false;
+    }
+
     private static bool TryExpandForeachDropBlocks(IReadOnlyList<string> lines, IReadOnlyList<string> dropEntries, out List<string> expanded, out string? error)
     {
         expanded = new List<string>(lines.Count);
@@ -1758,6 +2035,18 @@ public sealed class KeyboardMacroService : IDisposable
 
             if (StartsWithCommand(trimmed, "ENDFOREACH"))
             {
+                if (StartsWithCommand(trimmed, "ENDFOREACH_LINE"))
+                {
+                    if (stack.Count > 0)
+                    {
+                        stack.Peek().Lines.Add(rawLine);
+                    }
+                    else
+                    {
+                        expanded.Add(rawLine);
+                    }
+                    continue;
+                }
                 var remainder = trimmed.Length > 10 ? trimmed[10..].Trim() : string.Empty;
                 remainder = TrimInlineComment(remainder);
                 if (!string.IsNullOrWhiteSpace(remainder))
@@ -1858,6 +2147,964 @@ public sealed class KeyboardMacroService : IDisposable
 
     private static string BuildDropPathAssignment(string variableName, int oneBasedIndex) =>
         $"SET {variableName} {{{{drop_path:{oneBasedIndex}}}}}";
+
+    private static bool TryExpandTextLoopBlocks(
+        IReadOnlyList<string> lines,
+        IReadOnlyDictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out List<string> expanded,
+        out string? error)
+    {
+        expanded = new List<string>(lines.Count);
+        error = null;
+        var stack = new Stack<TextLoopFrame>();
+        for (int i = 0; i < lines.Count; i++)
+        {
+            var rawLine = lines[i];
+            var trimmed = rawLine.Trim();
+            if (StartsWithCommand(trimmed, "FOREACH_LINE"))
+            {
+                var args = TrimInlineComment(trimmed.Length > 12 ? trimmed[12..].Trim() : string.Empty);
+                if (!TryParseTextLoopHeader(args, splitMode: false, variables, specialResolver, out var frame, out error))
+                {
+                    return false;
+                }
+                stack.Push(frame);
+                continue;
+            }
+            if (StartsWithCommand(trimmed, "SPLIT"))
+            {
+                var args = TrimInlineComment(trimmed.Length > 5 ? trimmed[5..].Trim() : string.Empty);
+                if (!TryParseTextLoopHeader(args, splitMode: true, variables, specialResolver, out var frame, out error))
+                {
+                    return false;
+                }
+                stack.Push(frame);
+                continue;
+            }
+            if (StartsWithCommand(trimmed, "ENDFOREACH_LINE") || StartsWithCommand(trimmed, "ENDSPLIT"))
+            {
+                var isLineEnd = StartsWithCommand(trimmed, "ENDFOREACH_LINE");
+                var commandLength = isLineEnd ? "ENDFOREACH_LINE".Length : "ENDSPLIT".Length;
+                var remainder = TrimInlineComment(trimmed.Length > commandLength ? trimmed[commandLength..].Trim() : string.Empty);
+                if (remainder.Length > 0)
+                {
+                    error = $"{(isLineEnd ? "ENDFOREACH_LINE" : "ENDSPLIT")} 行に余分な記述があります: \"{trimmed}\"";
+                    return false;
+                }
+                if (stack.Count == 0)
+                {
+                    error = $"{(isLineEnd ? "ENDFOREACH_LINE" : "ENDSPLIT")} に対応する開始行が見つかりません。";
+                    return false;
+                }
+                var frame = stack.Pop();
+                if (frame.IsSplit == isLineEnd)
+                {
+                    error = "テキストループの開始/終了コマンドが対応していません。";
+                    return false;
+                }
+                var target = stack.Count > 0 ? stack.Peek().Lines : expanded;
+                for (int itemIndex = 0; itemIndex < frame.Items.Count; itemIndex++)
+                {
+                    target.Add($"SET {frame.VariableName} {EscapeSetValue(frame.Items[itemIndex])}");
+                    if (!string.IsNullOrEmpty(frame.IndexVariableName))
+                    {
+                        target.Add($"SET {frame.IndexVariableName} {itemIndex + 1}");
+                    }
+                    target.AddRange(frame.Lines);
+                }
+                continue;
+            }
+
+            if (stack.Count > 0)
+            {
+                stack.Peek().Lines.Add(rawLine);
+            }
+            else
+            {
+                expanded.Add(rawLine);
+            }
+        }
+
+        if (stack.Count > 0)
+        {
+            error = "テキストループ ブロックが閉じられていません。";
+            return false;
+        }
+        return true;
+    }
+
+    private static bool TryExpandTextLoopAt(
+        List<string> lines,
+        int startIndex,
+        IReadOnlyDictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out int nextIndex,
+        out string? error,
+        out int errorIndex)
+    {
+        nextIndex = startIndex;
+        error = null;
+        errorIndex = startIndex;
+        var trimmed = lines[startIndex].Trim();
+        var splitMode = StartsWithCommand(trimmed, "SPLIT");
+        var commandLength = splitMode ? 5 : 12;
+        var args = TrimInlineComment(trimmed.Length > commandLength ? trimmed[commandLength..].Trim() : string.Empty);
+        if (!TryParseTextLoopHeader(args, splitMode, variables, specialResolver, out var frame, out error))
+        {
+            return false;
+        }
+        if (!TryFindMatchingTextLoopEnd(lines, startIndex, out var endIndex, out error, out errorIndex))
+        {
+            return false;
+        }
+        var blockCount = endIndex - startIndex - 1;
+        var blockLines = blockCount > 0 ? lines.GetRange(startIndex + 1, blockCount) : new List<string>();
+        lines.RemoveRange(startIndex, endIndex - startIndex + 1);
+        if (frame.Items.Count > 0 && blockLines.Count > 0)
+        {
+            var insertion = new List<string>(frame.Items.Count * (blockLines.Count + 2));
+            for (int i = 0; i < frame.Items.Count; i++)
+            {
+                insertion.Add($"SET {frame.VariableName} {EscapeSetValue(frame.Items[i])}");
+                if (!string.IsNullOrEmpty(frame.IndexVariableName))
+                {
+                    insertion.Add($"SET {frame.IndexVariableName} {i + 1}");
+                }
+                insertion.AddRange(blockLines);
+            }
+            lines.InsertRange(startIndex, insertion);
+        }
+        nextIndex = startIndex - 1;
+        return true;
+    }
+
+    private static bool TryFindMatchingTextLoopEnd(
+        IReadOnlyList<string> lines,
+        int startIndex,
+        out int endIndex,
+        out string? error,
+        out int errorIndex)
+    {
+        endIndex = -1;
+        error = null;
+        errorIndex = startIndex;
+        var stack = new Stack<bool>();
+        stack.Push(StartsWithCommand(lines[startIndex].Trim(), "SPLIT"));
+        for (int i = startIndex + 1; i < lines.Count; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (StartsWithCommand(trimmed, "FOREACH_LINE"))
+            {
+                stack.Push(false);
+                continue;
+            }
+            if (StartsWithCommand(trimmed, "SPLIT"))
+            {
+                stack.Push(true);
+                continue;
+            }
+            var isEndSplit = StartsWithCommand(trimmed, "ENDSPLIT");
+            var isEndLine = StartsWithCommand(trimmed, "ENDFOREACH_LINE");
+            if (!isEndSplit && !isEndLine)
+            {
+                continue;
+            }
+            if (stack.Count == 0 || stack.Peek() != isEndSplit)
+            {
+                error = $"テキストループの開始/終了コマンドが対応していません: \"{trimmed}\"";
+                errorIndex = i;
+                return false;
+            }
+            var commandLength = isEndSplit ? "ENDSPLIT".Length : "ENDFOREACH_LINE".Length;
+            var remainder = TrimInlineComment(trimmed.Length > commandLength ? trimmed[commandLength..].Trim() : string.Empty);
+            if (remainder.Length > 0)
+            {
+                error = $"テキストループ終了行に余分な記述があります: \"{trimmed}\"";
+                errorIndex = i;
+                return false;
+            }
+            stack.Pop();
+            if (stack.Count == 0)
+            {
+                endIndex = i;
+                return true;
+            }
+        }
+        error = "テキストループ ブロックが閉じられていません。";
+        return false;
+    }
+
+    private static bool TryParseTextLoopHeader(
+        string args,
+        bool splitMode,
+        IReadOnlyDictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out TextLoopFrame frame,
+        out string? error)
+    {
+        frame = new TextLoopFrame(string.Empty, null, splitMode, Array.Empty<string>());
+        error = null;
+        var tokens = TokenizeMacroArguments(args, out error);
+        if (tokens == null)
+        {
+            return false;
+        }
+        if (!splitMode)
+        {
+            if (tokens.Count < 3 || !tokens[1].Equals("IN", StringComparison.OrdinalIgnoreCase))
+            {
+                error = "FOREACH_LINE の書式は FOREACH_LINE <変数> IN <値> [INDEX <番号変数>] [KEEP_EMPTY] です。";
+                return false;
+            }
+        }
+        else if (tokens.Count < 3)
+        {
+            error = "SPLIT の書式は SPLIT <変数> <入力> \"区切り\" [INDEX <番号変数>] [KEEP_EMPTY] です。";
+            return false;
+        }
+
+        var variableName = tokens[0];
+        if (!IsValidVariableName(variableName))
+        {
+            error = $"テキストループの変数名が不正です: \"{variableName}\"";
+            return false;
+        }
+
+        var inputToken = splitMode ? tokens[1] : tokens[2];
+        if (!TryExpandVariables(inputToken, variables, out var input, out var expandError, specialResolver))
+        {
+            error = expandError;
+            return false;
+        }
+        if (input.Length > MaxForeachTextLength)
+        {
+            error = $"テキストループの入力は {MaxForeachTextLength} 文字以下で指定してください。";
+            return false;
+        }
+
+        var optionStart = splitMode ? 3 : 3;
+        string? delimiter = null;
+        if (splitMode)
+        {
+            delimiter = tokens[2];
+            if (!TryExpandVariables(delimiter, variables, out delimiter, out expandError, specialResolver))
+            {
+                error = expandError;
+                return false;
+            }
+            if (string.IsNullOrEmpty(delimiter))
+            {
+                error = "SPLIT の区切り文字列を空にすることはできません。";
+                return false;
+            }
+        }
+
+        string? indexVariable = null;
+        bool keepEmpty = false;
+        for (int i = optionStart; i < tokens.Count; i++)
+        {
+            if (tokens[i].Equals("KEEP_EMPTY", StringComparison.OrdinalIgnoreCase))
+            {
+                keepEmpty = true;
+                continue;
+            }
+            if (tokens[i].Equals("INDEX", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 >= tokens.Count)
+                {
+                    error = "INDEX には変数名を指定してください。";
+                    return false;
+                }
+                indexVariable = tokens[++i];
+                if (!IsValidVariableName(indexVariable))
+                {
+                    error = $"INDEX 変数名が不正です: \"{indexVariable}\"";
+                    return false;
+                }
+                continue;
+            }
+            error = $"テキストループのオプションが不正です: \"{tokens[i]}\"";
+            return false;
+        }
+
+        var items = splitMode
+            ? input.Split(new[] { delimiter! }, StringSplitOptions.None)
+            : input.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+        var filtered = keepEmpty
+            ? items
+            : items.Where(item => item.Length > 0).ToArray();
+        if (filtered.Length > MaxForeachItems)
+        {
+            error = $"テキストループの要素数は {MaxForeachItems} 件以下で指定してください。";
+            return false;
+        }
+        frame = new TextLoopFrame(variableName, indexVariable, splitMode, filtered);
+        return true;
+    }
+
+    private static string EscapeSetValue(string value) =>
+        value.Replace("{{", "{ {", StringComparison.Ordinal).Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
+
+    private static bool TryApplyDateTimeDirective(string line, Dictionary<string, string> variables, out string? error)
+    {
+        error = null;
+        var command = ExtractCommandName(line).ToUpperInvariant();
+        var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
+        var tokens = TokenizeMacroArguments(payload, out error);
+        if (tokens == null || tokens.Count == 0)
+        {
+            error = $"{command} には変数名を指定してください。";
+            return false;
+        }
+        var variableName = tokens[0];
+        if (!IsValidVariableName(variableName))
+        {
+            error = $"日時コマンドの変数名が不正です: \"{variableName}\"";
+            return false;
+        }
+
+        bool utc = false;
+        string format = command switch
+        {
+            "DATE" => "yyyy-MM-dd",
+            "TIME" => "HH:mm:ss",
+            _ => "yyyy-MM-ddTHH:mm:ss"
+        };
+        for (int i = 1; i < tokens.Count; i++)
+        {
+            if (tokens[i].Equals("UTC", StringComparison.OrdinalIgnoreCase))
+            {
+                utc = true;
+                continue;
+            }
+            if (tokens[i].Equals("LOCAL", StringComparison.OrdinalIgnoreCase))
+            {
+                utc = false;
+                continue;
+            }
+            if (tokens[i].Equals("FILENAME", StringComparison.OrdinalIgnoreCase))
+            {
+                format = "yyyyMMdd-HHmmss";
+                continue;
+            }
+            if (tokens[i].Equals("FORMAT", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 >= tokens.Count)
+                {
+                    error = "FORMAT には書式文字列を指定してください。";
+                    return false;
+                }
+                format = tokens[++i];
+                continue;
+            }
+            error = $"日時コマンドのオプションが不正です: \"{tokens[i]}\"";
+            return false;
+        }
+
+        try
+        {
+            var now = utc ? DateTimeOffset.UtcNow : DateTimeOffset.Now;
+            variables[variableName] = now.ToString(format, CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (FormatException ex)
+        {
+            error = $"日時書式が不正です: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryApplyPathDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, out string? error)
+    {
+        error = null;
+        var command = ExtractCommandName(line).ToUpperInvariant();
+        var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
+        if (!TryParseVariableAndPath(payload, command, variables, specialResolver, out var variableName, out var path, out error))
+        {
+            return false;
+        }
+        try
+        {
+            var trimmed = TrimPathQuotes(path);
+            var result = command switch
+            {
+                "PATH_DIR" => Path.GetDirectoryName(trimmed) ?? string.Empty,
+                "PATH_NAME" => Path.GetFileName(trimmed.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "PATH_BASENAME" => Path.GetFileNameWithoutExtension(trimmed.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "PATH_EXT" => Path.GetExtension(trimmed.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+                "PATH_FULL" => Path.GetFullPath(trimmed),
+                _ => string.Empty
+            };
+            variables[variableName] = result;
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            error = $"PATH コマンドの実行に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryApplyFileOperationDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    {
+        error = null;
+        var command = ExtractCommandName(line).ToUpperInvariant();
+        var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
+        var tokens = TokenizeMacroArguments(payload, out error);
+        if (tokens == null)
+        {
+            return false;
+        }
+        try
+        {
+            if (command == "MKDIR")
+            {
+                if (tokens.Count != 1)
+                {
+                    error = "MKDIR にはパスを 1 つ指定してください。";
+                    return false;
+                }
+                if (!TryExpandVariables(tokens[0], variables, out var expandedDir, out error, specialResolver))
+                {
+                    return false;
+                }
+                var dir = TrimPathQuotes(expandedDir);
+                if (string.IsNullOrWhiteSpace(dir) || HasWildcard(dir))
+                {
+                    error = "MKDIR のパスが不正です。";
+                    return false;
+                }
+                if (validateOnly)
+                {
+                    return true;
+                }
+                if (File.Exists(dir))
+                {
+                    error = "MKDIR のパスには同名ファイルが存在します。";
+                    return false;
+                }
+                Directory.CreateDirectory(dir);
+                return true;
+            }
+
+            if (tokens.Count != 2)
+            {
+                error = $"{command} には元パスと先パスを指定してください。";
+                return false;
+            }
+            if (!TryExpandVariables(tokens[0], variables, out var expandedSource, out error, specialResolver) ||
+                !TryExpandVariables(tokens[1], variables, out var expandedDestination, out error, specialResolver))
+            {
+                return false;
+            }
+            var source = TrimPathQuotes(expandedSource);
+            var destination = TrimPathQuotes(expandedDestination);
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(destination) || HasWildcard(source) || HasWildcard(destination))
+            {
+                error = $"{command} のパスが不正です。";
+                return false;
+            }
+            if (validateOnly)
+            {
+                return true;
+            }
+            if (File.Exists(destination) || Directory.Exists(destination))
+            {
+                error = $"{command} の先パスは既に存在します。";
+                return false;
+            }
+            var parent = Path.GetDirectoryName(destination);
+            if (!string.IsNullOrEmpty(parent) && !Directory.Exists(parent))
+            {
+                error = $"{command} の先パスの親ディレクトリが存在しません。";
+                return false;
+            }
+            var sourceIsFile = File.Exists(source);
+            var sourceIsDirectory = Directory.Exists(source);
+            if (!sourceIsFile && !sourceIsDirectory)
+            {
+                error = $"{command} の元パスが存在しません。";
+                return false;
+            }
+            if (command == "COPY")
+            {
+                if (sourceIsFile)
+                {
+                    File.Copy(source, destination, overwrite: false);
+                }
+                else
+                {
+                    CopyDirectory(source, destination);
+                }
+                return true;
+            }
+            if (sourceIsFile)
+            {
+                File.Move(source, destination, overwrite: false);
+            }
+            else
+            {
+                Directory.Move(source, destination);
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            error = $"{command} の実行に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryApplyProcessDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, CancellationToken cancellationToken, out string? error)
+    {
+        error = null;
+        var command = ExtractCommandName(line).ToUpperInvariant();
+        var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
+        var tokens = TokenizeMacroArguments(payload, out error);
+        if (tokens == null)
+        {
+            return false;
+        }
+        var capture = command == "RUN_CAPTURE";
+        var requiredVariables = capture ? 3 : 1;
+        if (tokens.Count <= requiredVariables)
+        {
+            error = capture
+                ? "RUN_CAPTURE には終了コード変数、stdout変数、stderr変数、実行ファイルを指定してください。"
+                : "COMMAND_WAIT には終了コード変数と実行ファイルを指定してください。";
+            return false;
+        }
+        for (int i = 0; i < requiredVariables; i++)
+        {
+            if (!IsValidVariableName(tokens[i]))
+            {
+                error = $"プロセス実行コマンドの変数名が不正です: \"{tokens[i]}\"";
+                return false;
+            }
+        }
+
+        var timeout = DefaultProcessTimeoutMilliseconds;
+        var maxOutput = DefaultProcessOutputLimitBytes;
+        string? cwd = null;
+        int index = requiredVariables;
+        while (index < tokens.Count)
+        {
+            if (tokens[index].Equals("TIMEOUT", StringComparison.OrdinalIgnoreCase))
+            {
+                if (++index >= tokens.Count || !int.TryParse(tokens[index], NumberStyles.None, CultureInfo.InvariantCulture, out timeout) || timeout <= 0 || timeout > MaxProcessTimeoutMilliseconds)
+                {
+                    error = $"TIMEOUT は 1〜{MaxProcessTimeoutMilliseconds} の整数で指定してください。";
+                    return false;
+                }
+                index++;
+                continue;
+            }
+            if (tokens[index].Equals("CWD", StringComparison.OrdinalIgnoreCase))
+            {
+                if (++index >= tokens.Count)
+                {
+                    error = "CWD には作業ディレクトリを指定してください。";
+                    return false;
+                }
+                if (!TryExpandVariables(tokens[index], variables, out cwd, out error, specialResolver))
+                {
+                    return false;
+                }
+                cwd = TrimPathQuotes(cwd);
+                if (string.IsNullOrWhiteSpace(cwd) || !Directory.Exists(cwd))
+                {
+                    error = "CWD には存在するディレクトリを指定してください。";
+                    return false;
+                }
+                index++;
+                continue;
+            }
+            if (capture && tokens[index].Equals("MAX", StringComparison.OrdinalIgnoreCase))
+            {
+                if (++index >= tokens.Count || !int.TryParse(tokens[index], NumberStyles.None, CultureInfo.InvariantCulture, out maxOutput) || maxOutput <= 0 || maxOutput > MaxProcessOutputLimitBytes)
+                {
+                    error = $"MAX は 1〜{MaxProcessOutputLimitBytes} の整数で指定してください。";
+                    return false;
+                }
+                index++;
+                continue;
+            }
+            break;
+        }
+
+        if (index >= tokens.Count)
+        {
+            error = "プロセス実行コマンドには実行ファイルを指定してください。";
+            return false;
+        }
+        if (!TryExpandVariables(tokens[index], variables, out var fileName, out error, specialResolver))
+        {
+            return false;
+        }
+        fileName = TrimPathQuotes(fileName);
+        var arguments = new List<string>();
+        for (int i = index + 1; i < tokens.Count; i++)
+        {
+            if (!TryExpandVariables(tokens[i], variables, out var expandedArg, out error, specialResolver))
+            {
+                return false;
+            }
+            arguments.Add(expandedArg);
+        }
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            error = "実行ファイルを空にすることはできません。";
+            return false;
+        }
+        if (validateOnly)
+        {
+            variables[tokens[0]] = "0";
+            if (capture)
+            {
+                variables[tokens[1]] = string.Empty;
+                variables[tokens[2]] = string.Empty;
+            }
+            return true;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                UseShellExecute = false,
+                RedirectStandardOutput = capture,
+                RedirectStandardError = capture,
+                CreateNoWindow = true
+            };
+            if (!string.IsNullOrWhiteSpace(cwd))
+            {
+                psi.WorkingDirectory = cwd;
+            }
+            foreach (var arg in arguments)
+            {
+                psi.ArgumentList.Add(arg);
+            }
+            using var process = Process.Start(psi);
+            if (process == null)
+            {
+                error = "プロセスの起動に失敗しました。";
+                return false;
+            }
+            Task<string>? stdoutTask = null;
+            Task<string>? stderrTask = null;
+            if (capture)
+            {
+                stdoutTask = ReadStreamWithByteLimitAsync(process.StandardOutput.BaseStream, maxOutput, cancellationToken);
+                stderrTask = ReadStreamWithByteLimitAsync(process.StandardError.BaseStream, maxOutput, cancellationToken);
+            }
+            if (!process.WaitForExit(timeout))
+            {
+                TryKillProcessTree(process);
+                error = "プロセス実行がタイムアウトしました。";
+                return false;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            variables[tokens[0]] = process.ExitCode.ToString(CultureInfo.InvariantCulture);
+            if (capture)
+            {
+                variables[tokens[1]] = stdoutTask?.GetAwaiter().GetResult() ?? string.Empty;
+                variables[tokens[2]] = stderrTask?.GetAwaiter().GetResult() ?? string.Empty;
+            }
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            error = $"プロセス実行に失敗しました: {ex.Message}";
+            return false;
+        }
+    }
+
+    private static bool TryApplyWindowDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    {
+        error = null;
+        var command = ExtractCommandName(line).ToUpperInvariant();
+        var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
+        var tokens = TokenizeMacroArguments(payload, out error);
+        if (tokens == null)
+        {
+            return false;
+        }
+        if (command == "WINDOW_ACTIVATE")
+        {
+            if (tokens.Count != 1)
+            {
+                error = "WINDOW_ACTIVATE にはハンドル変数を指定してください。";
+                return false;
+            }
+            if (!TryExpandVariables(tokens[0], variables, out var handleText, out error, specialResolver))
+            {
+                return false;
+            }
+            if (validateOnly)
+            {
+                return true;
+            }
+            if (!long.TryParse(handleText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var handleValue) || handleValue == 0)
+            {
+                error = "WINDOW_ACTIVATE のハンドルが不正です。";
+                return false;
+            }
+            var hwnd = new IntPtr(handleValue);
+            if (!IsWindow(hwnd) || !SetForegroundWindow(hwnd))
+            {
+                error = "WINDOW_ACTIVATE に失敗しました。";
+                return false;
+            }
+            return true;
+        }
+
+        if (tokens.Count < 3 || !IsValidVariableName(tokens[0]))
+        {
+            error = "WINDOW_FIND の書式は WINDOW_FIND <変数> TITLE|TITLE_EXACT|CLASS|PROCESS|PID \"値\" [INDEX <n>] です。";
+            return false;
+        }
+        var variableName = tokens[0];
+        var mode = tokens[1].ToUpperInvariant();
+        if (mode is not ("TITLE" or "TITLE_EXACT" or "CLASS" or "PROCESS" or "PID"))
+        {
+            error = "WINDOW_FIND の検索種別は TITLE / TITLE_EXACT / CLASS / PROCESS / PID のいずれかを指定してください。";
+            return false;
+        }
+        if (!TryExpandVariables(tokens[2], variables, out var query, out error, specialResolver))
+        {
+            return false;
+        }
+        int requestedIndex = 0;
+        if (tokens.Count > 3)
+        {
+            if (tokens.Count != 5 || !tokens[3].Equals("INDEX", StringComparison.OrdinalIgnoreCase) ||
+                !int.TryParse(tokens[4], NumberStyles.None, CultureInfo.InvariantCulture, out requestedIndex) || requestedIndex <= 0)
+            {
+                error = "WINDOW_FIND の INDEX 指定が不正です。";
+                return false;
+            }
+        }
+        if (validateOnly)
+        {
+            variables[variableName] = "0";
+            return true;
+        }
+        var matches = FindMatchingWindows(mode, query);
+        if (matches.Count == 0)
+        {
+            error = "WINDOW_FIND の条件に一致するウィンドウが見つかりません。";
+            return false;
+        }
+        if (requestedIndex == 0 && matches.Count != 1)
+        {
+            error = "WINDOW_FIND が複数のウィンドウに一致しました。INDEX を指定してください。";
+            return false;
+        }
+        var selectedIndex = requestedIndex == 0 ? 0 : requestedIndex - 1;
+        if (selectedIndex < 0 || selectedIndex >= matches.Count)
+        {
+            error = "WINDOW_FIND の INDEX が一致数を超えています。";
+            return false;
+        }
+        variables[variableName] = matches[selectedIndex].ToInt64().ToString(CultureInfo.InvariantCulture);
+        return true;
+    }
+
+    private static bool TryParseVariableAndPath(
+        string payload,
+        string command,
+        Dictionary<string, string> variables,
+        SpecialVariableResolver? specialResolver,
+        out string variableName,
+        out string path,
+        out string? error)
+    {
+        variableName = string.Empty;
+        path = string.Empty;
+        error = null;
+        var firstSpace = FindFirstWhitespace(payload);
+        if (firstSpace < 0)
+        {
+            error = $"{command} には変数名とパスを指定してください。";
+            return false;
+        }
+        variableName = payload[..firstSpace].Trim();
+        if (!IsValidVariableName(variableName))
+        {
+            error = $"{command} の変数名が不正です: \"{variableName}\"";
+            return false;
+        }
+        var operand = payload[(firstSpace + 1)..].Trim();
+        int index = 0;
+        if (!TryParsePathOperand(operand, ref index, command, "パス", out var rawPath, out error))
+        {
+            return false;
+        }
+        if (index < operand.Length && !string.IsNullOrWhiteSpace(operand[index..]))
+        {
+            error = $"{command} のパス指定の後ろに余分な記述があります。";
+            return false;
+        }
+        if (!TryExpandVariables(rawPath, variables, out path, out error, specialResolver))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static List<string>? TokenizeMacroArguments(string input, out string? error)
+    {
+        error = null;
+        var tokens = new List<string>();
+        int index = 0;
+        while (index < input.Length)
+        {
+            while (index < input.Length && char.IsWhiteSpace(input[index]))
+            {
+                index++;
+            }
+            if (index >= input.Length)
+            {
+                break;
+            }
+            if (input[index] == '"')
+            {
+                if (!TryReadQuotedPathContent(input, ref index, "Macro", "引数", out var quoted, out error))
+                {
+                    return null;
+                }
+                tokens.Add(quoted);
+                continue;
+            }
+            int start = index;
+            while (index < input.Length && !char.IsWhiteSpace(input[index]))
+            {
+                index++;
+            }
+            tokens.Add(input[start..index]);
+        }
+        return tokens;
+    }
+
+    private static bool HasWildcard(string path) =>
+        path.IndexOfAny(new[] { '*', '?' }) >= 0;
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, directory);
+            Directory.CreateDirectory(Path.Combine(destination, relative));
+        }
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            var target = Path.Combine(destination, relative);
+            var parent = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(parent))
+            {
+                Directory.CreateDirectory(parent);
+            }
+            File.Copy(file, target, overwrite: false);
+        }
+    }
+
+    private static async Task<string> ReadStreamWithByteLimitAsync(Stream stream, int maxBytes, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[4096];
+        using var captured = new MemoryStream(Math.Min(maxBytes, 4096));
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+            if (read <= 0)
+            {
+                break;
+            }
+            var remaining = maxBytes - (int)captured.Length;
+            if (remaining > 0)
+            {
+                captured.Write(buffer, 0, Math.Min(read, remaining));
+            }
+        }
+        return Encoding.UTF8.GetString(captured.ToArray());
+    }
+
+    private static void TryKillProcessTree(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+            try
+            {
+                process.Kill();
+            }
+            catch
+            {
+                // Best-effort cleanup only.
+            }
+        }
+    }
+
+    private static List<IntPtr> FindMatchingWindows(string mode, string query)
+    {
+        var matches = new List<IntPtr>();
+        EnumWindows((hwnd, _) =>
+        {
+            if (!IsWindow(hwnd) || !IsWindowVisible(hwnd))
+            {
+                return true;
+            }
+            bool matched = false;
+            switch (mode)
+            {
+                case "TITLE":
+                    matched = TryGetWindowText(hwnd, out var title) &&
+                        title.Contains(query, StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "TITLE_EXACT":
+                    matched = TryGetWindowText(hwnd, out title) &&
+                        string.Equals(title, query, StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "CLASS":
+                    matched = TryGetWindowClassName(hwnd, out var className) &&
+                        string.Equals(className, query, StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "PROCESS":
+                    GetWindowThreadProcessId(hwnd, out var pid);
+                    try
+                    {
+                        using var process = Process.GetProcessById((int)pid);
+                        matched = string.Equals(process.ProcessName, query, StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch
+                    {
+                        matched = false;
+                    }
+                    break;
+                case "PID":
+                    matched = uint.TryParse(query, NumberStyles.None, CultureInfo.InvariantCulture, out var requestedPid) &&
+                        GetWindowThreadProcessId(hwnd, out var actualPid) != 0 &&
+                        requestedPid == actualPid;
+                    break;
+            }
+            if (matched)
+            {
+                matches.Add(hwnd);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return matches;
+    }
 
     private static bool IsAsciiLetter(char ch) =>
         (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
@@ -5592,6 +6839,23 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
         public List<string> Lines { get; } = new();
     }
 
+    private sealed class TextLoopFrame
+    {
+        public TextLoopFrame(string variableName, string? indexVariableName, bool isSplit, IReadOnlyList<string> items)
+        {
+            VariableName = variableName;
+            IndexVariableName = indexVariableName;
+            IsSplit = isSplit;
+            Items = items;
+        }
+
+        public string VariableName { get; }
+        public string? IndexVariableName { get; }
+        public bool IsSplit { get; }
+        public IReadOnlyList<string> Items { get; }
+        public List<string> Lines { get; } = new();
+    }
+
     private bool TryFocusTarget(IntPtr hwnd, out string? error)
     {
         error = null;
@@ -6275,6 +7539,9 @@ private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
 [DllImport("user32.dll")]
 private static extern bool IsWindow(IntPtr hWnd);
+
+[DllImport("user32.dll")]
+private static extern bool IsWindowVisible(IntPtr hWnd);
 
 [DllImport("user32.dll")]
 private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);

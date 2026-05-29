@@ -26,6 +26,13 @@
 - TC-033 MacroRename: `RENAME` でファイル/フォルダ名を変数展開後に変更でき、存在しない元パスやアクセス不可/重複等でマクロが失敗することを確認する。
 - TC-034 MacroPrompt: `PROMPT <変数> "メッセージ" [DEFAULT "初期値"] [TIMEOUT <ms> "タイムアウト値"]` でメッセージと初期値が表示され、OK を押すと入力値が変数へ格納され `RETURN "{{変数}}"` 等で参照できる。DEFAULT 省略時は空文字が入ること、`TIMEOUT` 指定時に指定時間経過でタイムアウト値が格納されること、キャンセル時はマクロが失敗することを確認する。
 - TC-038 MacroWaitUntil: `WAIT_UNTIL <条件> TIMEOUT <ms> [INTERVAL <ms>]` で条件成立時に次へ進むこと、`TIMEOUT` 未指定や範囲外値が構文エラーになること、条件不成立のままタイムアウトした場合にマクロが失敗することを確認する。
+- TC-118 MacroSamples: `docs/MACRO_SAMPLES.md` の各サンプルが現行実装済みコマンドだけを使っており、構文チェック可能な形になっていることを確認する。
+- TC-119 MacroDatePath: `DATE`/`TIME`/`NOW` の既定形式、`UTC`/`LOCAL`、`FORMAT`、`FILENAME`、無効書式を確認し、`PATH_*` が UNC、root、末尾 separator、拡張子なしを期待通り分解することを確認する。
+- TC-120 MacroFileOps: `MKDIR` が既存ディレクトリで成功し同名ファイルで失敗すること、`COPY`/`MOVE` がファイル/ディレクトリを処理し、宛先存在・親ディレクトリ未存在・ワイルドカード・検証モード副作用なしを確認する。
+- TC-121 MacroProcessCapture: `COMMAND_WAIT` と `RUN_CAPTURE` が shell 無効で起動し、作業ディレクトリ、timeout、終了コード、stdout/stderr、出力上限、検証モード副作用なし、stdout/stderr 非ログを確認する。
+- TC-122 MacroTryCatch: `TRY`/`CATCH`/`ENDTRY` が実行時エラーを捕捉し、エラー変数を格納すること、構文エラーとキャンセルは捕捉しないこと、ネストと未閉鎖検証を確認する。
+- TC-123 MacroWindow: `WINDOW_FIND` が title/class/process/pid で検索でき、複数一致は既定失敗、`INDEX` 指定で選択、`WINDOW_ACTIVATE` は成功確認できない場合に失敗し、検証モードで副作用がないことを確認する。
+- TC-124 MacroLineSplit: `FOREACH_LINE` と `SPLIT` が CRLF/LF/CR、空要素の保持/除外、INDEX、上限超過、未閉鎖ブロック、ネストを期待通り扱うことを確認する。
 - TC-036 MacroCommandApp: Macro Script 拡張モードで `COMMAND_APP <パス>` を指定すると以降の `COMMAND` の実行ファイルが差し替わり、`RESET` または `CLEAR` で元に戻ることを確認する。変数展開後のパスが空の場合は失敗することを併せて確認。
 - TC-037 MacroWifiSsid: `WIFI_SSID <変数>` で接続中 SSID が変数へ格納され、未接続時は空文字が入ることを確認する。SSID バイト列の UTF-8 デコードと 32 バイト上限を単体テストし、OS 表示言語や `netsh` 出力形式へ依存しないことを確認する。
 - TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。

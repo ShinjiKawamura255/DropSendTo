@@ -108,6 +108,10 @@ public partial class RegisterDialog : Window
             new MacroSnippet("RENAME <元パス> <新しいパス>", "RENAME {{drop_path}} {{drop_path}}.bak"),
             new MacroSnippet("READFILE <変数> <パス> [MAX n]", "READFILE Body {{drop_path}}"),
             new MacroSnippet("WIFI_SSID <変数>", "WIFI_SSID CurrentSsid"),
+            new MacroSnippet("DATE/TIME/NOW <変数>", "NOW Stamp FILENAME"),
+            new MacroSnippet("PATH_* <変数> <パス>", "PATH_BASENAME Name {{drop_path}}"),
+            new MacroSnippet("MKDIR <パス>", "MKDIR \"C:\\\\work\\\\out\""),
+            new MacroSnippet("COPY/MOVE <元> <先>", "COPY {{drop_path}} \"C:\\\\work\\\\copy.txt\""),
             new MacroSnippet("PROMPT <名前> \"メッセージ\"", "PROMPT InputValue \"値を入力してください\""),
             new MacroSnippet("PROMPT ... TIMEOUT <ms> \"値\"", "PROMPT InputValue \"値を入力してください\" TIMEOUT 5000 \"(timeout)\""),
             new MacroSnippet("POPUP \"メッセージ\"", "POPUP \"{{drop_path}} が見つかりません\"")
@@ -118,6 +122,9 @@ public partial class RegisterDialog : Window
             new MacroSnippet("WAIT_UNTIL <条件> TIMEOUT <ms>", "WAIT_UNTIL {{clipboard}} CONTAINS \".txt\" TIMEOUT 3000 INTERVAL 100"),
             new MacroSnippet("REPEAT ... ENDREPEAT", "REPEAT 3\n    \nENDREPEAT"),
             new MacroSnippet("FOREACH_DROP ... ENDFOREACH", "FOREACH_DROP Item INDEX i\n    TEXT [{{i}}] {{Item}}\nENDFOREACH"),
+            new MacroSnippet("FOREACH_LINE ... ENDFOREACH_LINE", "FOREACH_LINE Line IN {{clipboard}} INDEX i\n    TEXT [{{i}}] {{Line}}\nENDFOREACH_LINE"),
+            new MacroSnippet("SPLIT ... ENDSPLIT", "SPLIT Part {{clipboard}} \",\" INDEX i\n    TEXT [{{i}}] {{Part}}\nENDSPLIT"),
+            new MacroSnippet("TRY / CATCH / ENDTRY", "TRY\n    COMMAND {{drop_args}}\nCATCH ErrorMessage\n    POPUP \"{{ErrorMessage}}\"\nENDTRY"),
             new MacroSnippet("IF / ELSE / ENDIF", "IF {{Flag}}\n    TEXT matched\nELSE\n    TEXT missed\nENDIF"),
             new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
             new MacroSnippet("COMMAND [引数指定]", "COMMAND {{clipboard}}"),
@@ -139,7 +146,9 @@ public partial class RegisterDialog : Window
         {
             new MacroSnippet("COMMAND (テンプレ展開)", "COMMAND"),
             new MacroSnippet("COMMAND [引数指定]", "COMMAND {{drop_args}}"),
-            new MacroSnippet("COMMAND_APP <パス>", "COMMAND_APP \"C:\\\\apps\\\\custom.exe\"")
+            new MacroSnippet("COMMAND_APP <パス>", "COMMAND_APP \"C:\\\\apps\\\\custom.exe\""),
+            new MacroSnippet("COMMAND_WAIT <終了コード変数>", "COMMAND_WAIT ExitCode TIMEOUT 30000 \"cmd.exe\" \"/c\" \"exit 0\""),
+            new MacroSnippet("RUN_CAPTURE <終了/stdout/stderr>", "RUN_CAPTURE ExitCode Out Err TIMEOUT 30000 MAX 65536 \"cmd.exe\" \"/c\" \"echo ok\"")
         }),
         new MacroSnippetGroup("マウス操作", new[]
         {
@@ -155,6 +164,12 @@ public partial class RegisterDialog : Window
             new MacroSnippet("MOUSEMIDDLEDOWN / MOUSEMIDDLEUP", "MOUSEMIDDLEDOWN\nMOUSEMIDDLEUP"),
             new MacroSnippet("MOUSESCROLLDOWN [回数]", "MOUSESCROLLDOWN 3"),
             new MacroSnippet("MOUSESCROLLLEFT/RIGHT [回数]", "MOUSESCROLLLEFT 1")
+        }),
+        new MacroSnippetGroup("ウィンドウ操作", new[]
+        {
+            new MacroSnippet("WINDOW_FIND <変数> TITLE", "WINDOW_FIND Hwnd TITLE \"Notepad\""),
+            new MacroSnippet("WINDOW_FIND ... INDEX", "WINDOW_FIND Hwnd PROCESS \"notepad\" INDEX 1"),
+            new MacroSnippet("WINDOW_ACTIVATE <変数>", "WINDOW_ACTIVATE {{Hwnd}}")
         }),
         new MacroSnippetGroup("プレースホルダー / 予約語", new[]
         {
