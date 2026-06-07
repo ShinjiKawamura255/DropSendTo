@@ -4,7 +4,7 @@
 - `src/DropSendTo/`: Main .NET 10 Windows app (WPF).
 - `tests/DropSendTo.Tests/`: Unit/integration tests mirroring `src` namespaces.
 - `img/`: Icons・トレイ用リソース一式（過去の `assets/` は廃止済み）。
-- `docs/`: REQUIREMENTS, SPEC, DESIGN, TESTPLAN and architecture notes.
+- `docs/`: CURRENT_STATUS, REQUIREMENTS, SPEC, DESIGN, TESTPLAN and architecture notes.
 - `scripts/`: PowerShell 自動化スクリプト（ビルド/配布/検証）。
 - `dist/`: `scripts/Build-Release.ps1` が生成する配布成果物（`latest/` シンボリック コピー含む）。
 

@@ -4,7 +4,7 @@
 
 ## 開発環境
 - Windows 10/11
-- .NET SDK 8.x
+- .NET SDK 10.x
 
 WSL からビルド/テストする場合は PowerShell 経由で実行してください。
 
@@ -21,7 +21,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -Litera
 4. UI 変更がある場合はスクリーンショット/GIF を添付してください。
 
 ## コーディング規約
-- C# 12 / .NET 8
+- C# 14 / .NET 10
 - インデント: 4 spaces
 - public API は XML ドキュメントを付与
 - UI 文言の既定は日本語。追加する場合は英語も併記

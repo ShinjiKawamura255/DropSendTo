@@ -76,6 +76,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -Litera
 ```
 
 ## ドキュメント / Documentation
+- 現在状態 / Current status: `docs/CURRENT_STATUS.md`
 - 要件 / Requirements: `docs/REQUIREMENTS.md`
 - 仕様 / Spec: `docs/SPEC.md`
 - 設計 / Design: `docs/DESIGN.md`
