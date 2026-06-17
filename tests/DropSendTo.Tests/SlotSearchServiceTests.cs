@@ -167,6 +167,164 @@ public class SlotSearchServiceTests
             .Equal(new SlotSearchResult(0, 2));
     }
 
+    [Fact]
+    public void Search_ShouldMatchExactSubstring_WhenSingleQuotePrefixIsUsed()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "VLC Media Player")
+                ]
+            }
+        };
+
+        // Exact substring matches "Visual" but doesn't fuzzy match "vsc"
+        SlotSearchService.Search(layers, "'Visual", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+
+        // Without quote, fuzzy matching matches "vsc"
+        SlotSearchService.Search(layers, "vsc", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+
+        // Exact substring with 'v matches both VLC and Visual (since both contain 'v' or 'V')
+        SlotSearchService.Search(layers, "'v", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0), new SlotSearchResult(0, 1));
+    }
+
+    [Fact]
+    public void Search_ShouldExcludeSlots_WhenExclamationPrefixIsUsed()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "VLC Media Player"),
+                    Slot(title: "Notepad")
+                ]
+            }
+        };
+
+        // Exclude slots matching "Visual"
+        SlotSearchService.Search(layers, "!Visual", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 1), new SlotSearchResult(0, 2));
+
+        // Exclude slots matching exact "VLC"
+        SlotSearchService.Search(layers, "!'VLC", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0), new SlotSearchResult(0, 2));
+    }
+
+    [Fact]
+    public void Search_ShouldMatchAnchoredStart_WhenCaretPrefixIsUsed()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "Another Visual Tool")
+                ]
+            }
+        };
+
+        // Starts with "Visual" (fuzzy or exact)
+        SlotSearchService.Search(layers, "^Visual", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+
+        // Starts with exact "Visual"
+        SlotSearchService.Search(layers, "^'Visual", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+    }
+
+    [Fact]
+    public void Search_ShouldMatchAnchoredEnd_WhenDollarSuffixIsUsed()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "Code Runner")
+                ]
+            }
+        };
+
+        // Ends with "Code"
+        SlotSearchService.Search(layers, "Code$", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+
+        // Ends with exact "Code"
+        SlotSearchService.Search(layers, "'Code$", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+    }
+
+    [Fact]
+    public void Search_ShouldMatchAlternatives_WhenPipeIsUsed()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "Notepad++"),
+                    Slot(title: "VLC Media Player")
+                ]
+            }
+        };
+
+        // OR search
+        SlotSearchService.Search(layers, "studio|notepad", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0), new SlotSearchResult(0, 1));
+
+        // Anchored OR search
+        SlotSearchService.Search(layers, "^'Visual|^'Notepad", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0), new SlotSearchResult(0, 1));
+    }
+
+    [Fact]
+    public void Search_ShouldCombineOperatorsCorrectly()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "Another Visual Tool")
+                ]
+            }
+        };
+
+        // "Visual" AND NOT "Tool"
+        SlotSearchService.Search(layers, "Visual !Tool", IsSlotEmpty)
+            .Should()
+            .Equal(new SlotSearchResult(0, 0));
+    }
+
     private static SlotModel Slot(
         string? title = null,
         string? keywords = null,

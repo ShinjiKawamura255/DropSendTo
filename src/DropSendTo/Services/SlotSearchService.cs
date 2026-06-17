@@ -18,8 +18,8 @@ internal static class SlotSearchService
         if (isSlotEmpty == null) throw new ArgumentNullException(nameof(isSlotEmpty));
 
         var results = new List<SlotSearchResult>();
-        var tokens = Tokenize(query);
-        bool matchAll = tokens.Count == 0;
+        var spec = ParseQuery(query);
+        bool matchAll = spec.IncludeTerms.Count == 0 && spec.ExcludeTerms.Count == 0;
 
         for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
         {
@@ -34,7 +34,7 @@ internal static class SlotSearchService
                     continue;
                 }
 
-                if (matchAll || MatchesAllTokens(BuildSlotSearchTargets(slot), tokens))
+                if (matchAll || MatchesQuery(BuildSlotSearchTargets(slot), spec))
                 {
                     results.Add(new SlotSearchResult(layerIndex, slotIndex));
                 }
@@ -90,26 +90,135 @@ internal static class SlotSearchService
         return NormalizeForSearch(cleaned);
     }
 
-    internal static bool MatchesAllTokens(IReadOnlyList<string> haystacks, IReadOnlyList<string> tokens)
+    internal static QuerySpec ParseQuery(string? query)
     {
-        if (tokens.Count == 0 || haystacks.Count == 0)
+        var spec = new QuerySpec();
+        query = (query ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            return spec;
+        }
+
+        var tokens = query.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var token in tokens)
+        {
+            if (token == "!" || token == "'")
+            {
+                continue;
+            }
+
+            if (token.StartsWith('!'))
+            {
+                var stripped = token[1..];
+                if (!string.IsNullOrEmpty(stripped))
+                {
+                    var compiled = CompileAlternativeSet(stripped);
+                    foreach (var alt in compiled.Alternatives)
+                    {
+                        alt.Exact = true; // Exclude terms are always exact substring matches
+                    }
+                    if (compiled.Alternatives.Count > 0)
+                    {
+                        spec.ExcludeTerms.Add(compiled);
+                    }
+                }
+                continue;
+            }
+
+            var includeCompiled = CompileAlternativeSet(token);
+            if (includeCompiled.Alternatives.Count > 0)
+            {
+                spec.IncludeTerms.Add(includeCompiled);
+            }
+        }
+
+        return spec;
+    }
+
+    private static AlternativeSet CompileAlternativeSet(string term)
+    {
+        var set = new AlternativeSet();
+        var alts = term.Split('|', StringSplitOptions.RemoveEmptyEntries);
+        if (alts.Length == 0)
+        {
+            alts = new[] { term };
+        }
+
+        foreach (var alt in alts)
+        {
+            var (exact, parsed) = ParseIncludeAlternative(alt);
+            if (string.IsNullOrEmpty(parsed)) continue;
+
+            var (anchoredStart, anchoredEnd, core) = SplitAnchor(parsed);
+            if (string.IsNullOrEmpty(core)) continue;
+
+            var normalizedCore = NormalizeTokenForSearch(core);
+            if (string.IsNullOrEmpty(normalizedCore)) continue;
+
+            set.Alternatives.Add(new MatcherPattern
+            {
+                Exact = exact,
+                AnchoredStart = anchoredStart,
+                AnchoredEnd = anchoredEnd,
+                Core = normalizedCore
+            });
+        }
+
+        return set;
+    }
+
+    private static (bool exact, string parsed) ParseIncludeAlternative(string candidate)
+    {
+        if (string.IsNullOrEmpty(candidate))
+        {
+            return (false, string.Empty);
+        }
+        if (candidate.StartsWith("^'", StringComparison.Ordinal))
+        {
+            return (true, "^" + candidate[2..]);
+        }
+        if (candidate.StartsWith('\''))
+        {
+            return (true, candidate[1..]);
+        }
+        return (false, candidate);
+    }
+
+    private static (bool anchoredStart, bool anchoredEnd, string core) SplitAnchor(string term)
+    {
+        bool anchoredStart = term.StartsWith('^');
+        bool anchoredEnd = term.EndsWith('$');
+        string core = term;
+        if (anchoredStart)
+        {
+            core = core[1..];
+        }
+        if (anchoredEnd && core.Length > 0)
+        {
+            core = core[..^1];
+        }
+        return (anchoredStart, anchoredEnd, core);
+    }
+
+    internal static bool MatchesQuery(IReadOnlyList<string> haystacks, QuerySpec spec)
+    {
+        if (haystacks.Count == 0)
         {
             return false;
         }
 
-        foreach (var token in tokens)
+        foreach (var excludeSet in spec.ExcludeTerms)
         {
-            bool matched = false;
-            foreach (var haystack in haystacks)
+            if (MatchesAlternativeSet(excludeSet, haystacks))
             {
-                if (IsFuzzyMatch(haystack, token))
-                {
-                    matched = true;
-                    break;
-                }
+                return false;
             }
+        }
 
-            if (!matched)
+        foreach (var includeSet in spec.IncludeTerms)
+        {
+            if (!MatchesAlternativeSet(includeSet, haystacks))
             {
                 return false;
             }
@@ -118,19 +227,76 @@ internal static class SlotSearchService
         return true;
     }
 
-    internal static bool IsFuzzyMatch(string haystack, string token)
+    private static bool MatchesAlternativeSet(AlternativeSet set, IReadOnlyList<string> haystacks)
     {
-        if (string.IsNullOrEmpty(token))
+        foreach (var pattern in set.Alternatives)
         {
-            return true;
+            foreach (var haystack in haystacks)
+            {
+                if (MatchesPattern(pattern, haystack))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool MatchesPattern(MatcherPattern pattern, string haystack)
+    {
+        if (pattern.Exact)
+        {
+            return MatchesExact(pattern, haystack);
+        }
+        else
+        {
+            return MatchesFuzzy(pattern, haystack);
+        }
+    }
+
+    private static bool MatchesExact(MatcherPattern pattern, string haystack)
+    {
+        if (pattern.AnchoredStart && pattern.AnchoredEnd)
+        {
+            return string.Equals(haystack, pattern.Core, StringComparison.OrdinalIgnoreCase);
+        }
+        if (pattern.AnchoredStart)
+        {
+            return haystack.StartsWith(pattern.Core, StringComparison.OrdinalIgnoreCase);
+        }
+        if (pattern.AnchoredEnd)
+        {
+            return haystack.EndsWith(pattern.Core, StringComparison.OrdinalIgnoreCase);
+        }
+        return haystack.IndexOf(pattern.Core, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool MatchesFuzzy(MatcherPattern pattern, string haystack)
+    {
+        if (pattern.AnchoredStart)
+        {
+            if (haystack.Length == 0 || pattern.Core.Length == 0)
+            {
+                return false;
+            }
+            if (char.ToLowerInvariant(haystack[0]) != pattern.Core[0])
+            {
+                return false;
+            }
+        }
+        if (pattern.AnchoredEnd)
+        {
+            if (haystack.Length == 0 || pattern.Core.Length == 0)
+            {
+                return false;
+            }
+            if (char.ToLowerInvariant(haystack[^1]) != pattern.Core[^1])
+            {
+                return false;
+            }
         }
 
-        if (haystack.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return true;
-        }
-
-        return IsSubsequence(haystack, token);
+        return IsSubsequence(haystack, pattern.Core);
     }
 
     internal static bool IsSubsequence(string haystack, string token)
@@ -320,7 +486,11 @@ internal static class SlotSearchService
         ["みょ"] = "myo",
         ["りゃ"] = "rya",
         ["りゅ"] = "ryu",
-        ["りょ"] = "ryo"
+        ["りょ"] = "ryo",
+        ["ゔぁ"] = "va", ["ゔぃ"] = "vi", ["ゔぅ"] = "vu", ["ゔぇ"] = "ve", ["ゔぉ"] = "vo",
+        ["てぃ"] = "ti", ["でぃ"] = "di", ["ちぇ"] = "che", ["しぇ"] = "she", ["じぇ"] = "je",
+        ["ふぁ"] = "fa", ["ふぃ"] = "fi", ["ふぇ"] = "fe", ["ふぉ"] = "fo",
+        ["うぃ"] = "wi", ["うぇ"] = "we", ["うぉ"] = "wo"
     };
 
     private static readonly Dictionary<char, string> SingleKanaRomaji = new()
@@ -341,9 +511,28 @@ internal static class SlotSearchService
         ['だ'] = "da", ['ぢ'] = "ji", ['づ'] = "zu", ['で'] = "de", ['ど'] = "do",
         ['ば'] = "ba", ['び'] = "bi", ['ぶ'] = "bu", ['べ'] = "be", ['ぼ'] = "bo",
         ['ぱ'] = "pa", ['ぴ'] = "pi", ['ぷ'] = "pu", ['ぺ'] = "pe", ['ぽ'] = "po",
-        ['ゔ'] = "vu",
+        ['ゔ'] = "vu", ['ゐ'] = "i", ['ゑ'] = "e",
         ['ー'] = string.Empty
     };
 }
 
 internal readonly record struct SlotSearchResult(int LayerIndex, int SlotIndex);
+
+internal class QuerySpec
+{
+    public List<AlternativeSet> IncludeTerms { get; } = new();
+    public List<AlternativeSet> ExcludeTerms { get; } = new();
+}
+
+internal class AlternativeSet
+{
+    public List<MatcherPattern> Alternatives { get; } = new();
+}
+
+internal class MatcherPattern
+{
+    public bool Exact { get; set; }
+    public bool AnchoredStart { get; set; }
+    public bool AnchoredEnd { get; set; }
+    public string Core { get; set; } = string.Empty;
+}
