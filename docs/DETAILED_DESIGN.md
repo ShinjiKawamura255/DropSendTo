@@ -213,7 +213,7 @@ stateDiagram-v2
 - Responsibility: Macro Script の構文検証、実行、Win32 入力送出、フォアグラウンドターゲット追跡、マクロ並行制御の基盤。
 - Public Interface: `Initialize(WindowInteropHelper)`, `TryValidateScript(...)`, `RunMacroAsync(...)`, `CancelAllRunningMacrosAsync(...)`, `SuspendCurrentMacroAsync(...)`, `Dispose()`。
 - Inputs / Outputs: 入力はスクリプト文字列、`MacroExecutionContext`、キャンセルトークン。出力は `MacroExecutionResult`、SendInput によるキーボード/マウス入力、必要時のダイアログ/ポップアップ。
-- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。拡張コマンドの引数分割と Windows パス用クォート終端判定は `MacroArgumentTokenizer` へ委譲する。検証モードではダイアログやファイル変更を抑止する。変数操作や `RETURN` の通常ログは値ではなく長さ・件数・状態を記録する。
+- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`MacroConcurrencyCoordinator` は同一スロット再実行、排他拒否、cancel 完了後の割り込み開始、一時停止 lease の取得・全終了経路での解放、多段 LIFO 再開を UI trigger から分離して制御する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。拡張コマンドの引数分割と Windows パス用クォート終端判定は `MacroArgumentTokenizer` へ委譲する。検証モードではダイアログやファイル変更を抑止する。変数操作や `RETURN` の通常ログは値ではなく長さ・件数・状態を記録する。
 - Dependencies: Win32 SendInput/WinEventHook、WPF Clipboard、WLAN API、`IAppLogger`, `MacroArgumentTokenizer`, `MacroConditionEvaluator`, `MacroQuotedTextReader`, `MacroExecutionContext`。
 - Failure Modes: 未知コマンド、範囲外値、未閉鎖ブロック、変数展開失敗、SendInput 失敗、キャンセル、サスペンド再開順序不一致。失敗時は押下中のキー/マウスを可能な限り解放してから結果を返す。
 
@@ -224,7 +224,7 @@ stateDiagram-v2
 - Inputs / Outputs: 入力はグローバルキー/マウスイベントと設定。出力は MainWindow へ dispatch されるイベントと、必要な入力抑止。
 - Internal Logic: Prefix 押下で 4 秒 armed 状態へ入り、再入力は passthrough、Enter/Alt+Space/Shift+Enter/Ctrl+D などは特殊コマンドへ解決する。スロットショートカットは `ShortcutSequenceMatcher` が partial/completed を返し、部分一致中はキーを抑止する。
 - Dependencies: Win32 low-level hooks、`KeyChordParser`, `ShortcutSequenceParser`, `ShortcutSequenceMatcher`, `ShortcutSpecialCommandResolver`, `MouseGestureDetector`, `ShortcutPresentationModeDetector`, `ShortcutRemoteSessionMatcher`。
-- Failure Modes: フック設置失敗、Prefix 解析失敗、リモートセッション検出失敗、システム復帰後の modifier ラッチ。Prefix 解析失敗は既定 Prefix へフォールバックし、復帰/セッション切替時は状態をクリアする。
+- Failure Modes: フック設置失敗、Prefix 解析失敗、リモートセッション検出失敗、システム復帰後の modifier ラッチ。Change Prefix ダイアログの不正入力は保存前に拒否し、既存またはインポート済み設定を実行時に解析できない場合だけ既定 Prefix へフォールバックする。復帰/セッション切替時は状態をクリアする。
 
 ### 7.9 Search and Slot Organization Services
 
@@ -240,7 +240,7 @@ stateDiagram-v2
 - Responsibility: ウィンドウ配置補正、マルチモニター DPI 対応、テーマ適用、ログ出力とローテーション。
 - Public Interface: `WindowPlacementService.Clamp(...)`, `ScreenBoundsResolver.ForWindow/ForRect/ForPoint`, `ThemeService.ApplyTheme`, `IAppLogger.Info/Warn/Error`。
 - Inputs / Outputs: 入力はウィンドウ座標、スクリーン情報、テーマ enum、ログメッセージ。出力は補正座標、ResourceDictionary、ログファイル。
-- Internal Logic: `ScreenBoundsResolver` は Windows Forms Screen と `GetDpiForMonitor` から WPF DIP の作業領域を求める。`WindowPlacementService` は NaN/Infinity を作業領域左上へ戻し、サイズ込みで可視範囲へ clamp する。`LoggerService` は 1MB 超でタイムスタンプ付きログへローテーションし、7 日超を削除する。`LauncherService` と `KeyboardMacroService` へは `IAppLogger` を注入でき、`NullAppLogger` または capture logger で副作用なしに検証できる。
+- Internal Logic: `ScreenBoundsResolver` は Windows Forms Screen と `GetDpiForMonitor` から WPF DIP の作業領域を求める。`WindowPlacementService` は NaN/Infinity を作業領域左上へ戻し、サイズ込みで可視範囲へ clamp する。`LoggerService` は 1MB 超でタイムスタンプ付きログへローテーションし、同秒名衝突を連番 suffix で回避する。rotation 失敗時も current log への追記を試み、UTC 最終更新が7日を超えたログだけ削除する。`AppDataPathResolver` は通常の Known Folder を返し、startup probe marker と絶対 data root が揃った測定プロセスだけ config/log を一時ルートへ隔離する。`LauncherService` と `KeyboardMacroService` へは `IAppLogger` を注入でき、`NullAppLogger` または capture logger で副作用なしに検証できる。
 - Dependencies: WPF, Windows Forms, shcore.dll/user32.dll, ファイル I/O。
 - Failure Modes: DPI API 不在時は scale=1。ログ出力失敗は握りつぶし、アプリ操作を妨げない。
 
@@ -810,7 +810,7 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 | SP-005 Persistence | 7.4, 9.3, 10.1 | `ConfigService`, `ConfigFileSystem`, `AppConfig` | `ConfigServiceTests` |
 | SP-006 Menus | 7.2, 7.11 | `MainWindow`, dialogs | UI/manual plus targeted service tests |
 | SP-007 Error Handling | 12 | `LoggerService`, `App`, services | `ConfigServiceTests`, launcher/macro failure tests |
-| SP-008 Platform | 13.2, 13.3 | `.csproj`, release scripts, CI | `Test-Release-Version.ps1`, format/test/build |
+| SP-008 Platform | 13.2, 13.3 | `.csproj`, release scripts, CI, `AppDataPathResolver` | `Test-Release-Version.ps1`, `Measure-WarmStartup.ps1`, format/test/build |
 | SP-009 Macro Script Syntax | 9.2, 11.2 | `KeyboardMacroService`, `MacroArgumentTokenizer`, macro helpers | `KeyboardMacroService*Tests`, `MacroArgumentTokenizerTests`, `MacroConditionEvaluatorTests` |
 | SP-010 Shortcut Prefix | 9.4, 11.3 | `ShortcutService`, shortcut helpers | `ShortcutServicePrefix*Tests`, `ShortcutSequence*Tests` |
 | SP-011 Macro Concurrency | 9.2 | `KeyboardMacroService`, `MainWindow` macro state | macro concurrency related tests |

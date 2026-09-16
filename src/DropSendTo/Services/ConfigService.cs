@@ -19,7 +19,7 @@ public class ConfigService
 
     internal ConfigService(string? baseDir, IConfigFileSystem fileSystem, IAppLogger logger)
     {
-        _baseDir = baseDir ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        _baseDir = baseDir ?? AppDataPathResolver.ResolveBaseDirectory();
         _fileSystem = fileSystem;
         _logger = logger;
     }

@@ -9,18 +9,45 @@ public class LoggerService : IAppLogger
     private static readonly Lazy<LoggerService> _lazy = new(() => new LoggerService());
     public static LoggerService Instance => _lazy.Value;
 
-    private readonly string _logDir;
+    private const long DefaultMaxLogBytes = 1_000_000;
     private const int RetentionDays = 7;
+    private readonly string _logDir;
     private readonly string _logPath;
+    private readonly Func<DateTime> _localNow;
+    private readonly Func<DateTime> _utcNow;
+    private readonly long _maxLogBytes;
     private readonly TimeSpan _retentionPeriod = TimeSpan.FromDays(RetentionDays);
     private readonly object _lock = new();
 
     public string LogDirectory => _logDir;
 
     private LoggerService()
+        : this(
+            Path.Combine(
+                AppDataPathResolver.ResolveBaseDirectory(),
+                "DropSendTo",
+                "logs"),
+            () => DateTime.Now,
+            () => DateTime.UtcNow,
+            DefaultMaxLogBytes)
     {
-        var baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "DropSendTo");
-        _logDir = Path.Combine(baseDir, "logs");
+    }
+
+    internal LoggerService(
+        string logDirectory,
+        Func<DateTime> localNow,
+        Func<DateTime> utcNow,
+        long maxLogBytes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(logDirectory);
+        ArgumentNullException.ThrowIfNull(localNow);
+        ArgumentNullException.ThrowIfNull(utcNow);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxLogBytes);
+
+        _logDir = logDirectory;
+        _localNow = localNow;
+        _utcNow = utcNow;
+        _maxLogBytes = maxLogBytes;
         Directory.CreateDirectory(_logDir);
         _logPath = Path.Combine(_logDir, "app.log");
         CleanupOldLogs();
@@ -39,7 +66,7 @@ public class LoggerService : IAppLogger
                 return;
             }
 
-            var cutoff = DateTime.UtcNow - _retentionPeriod;
+            var cutoff = _utcNow() - _retentionPeriod;
             foreach (var file in Directory.GetFiles(_logDir, "app*.log"))
             {
                 try
@@ -66,21 +93,42 @@ public class LoggerService : IAppLogger
     {
         try
         {
-            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}";
+            var now = _localNow();
+            var line = $"{now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}";
             lock (_lock)
             {
-                // naive rotation ~1MB
-                if (File.Exists(_logPath) && new FileInfo(_logPath).Length > 1_000_000)
+                if (File.Exists(_logPath) && new FileInfo(_logPath).Length > _maxLogBytes)
                 {
-                    var bak = Path.Combine(_logDir, $"app-{DateTime.Now:yyyyMMddHHmmss}.log");
-                    File.Move(_logPath, bak, overwrite: false);
+                    TryRotate(now);
                 }
+
                 File.AppendAllText(_logPath, line, Encoding.UTF8);
             }
         }
         catch
         {
             // swallow logging errors
+        }
+    }
+
+    private void TryRotate(DateTime now)
+    {
+        try
+        {
+            var timestamp = now.ToString("yyyyMMddHHmmss");
+            var archivePath = Path.Combine(_logDir, $"app-{timestamp}.log");
+            var suffix = 1;
+            while (File.Exists(archivePath))
+            {
+                archivePath = Path.Combine(_logDir, $"app-{timestamp}-{suffix}.log");
+                suffix++;
+            }
+
+            File.Move(_logPath, archivePath, overwrite: false);
+        }
+        catch
+        {
+            // Rotation failure must not prevent appending to a still-writable current log.
         }
     }
 }

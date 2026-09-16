@@ -101,6 +101,23 @@ public class ConfigServiceTests
         reloaded.Version.Should().Be(CurrentConfigVersion);
     }
 
+    [Theory]
+    [InlineData(MacroConcurrencyMode.Exclusive)]
+    [InlineData(MacroConcurrencyMode.Interrupt)]
+    [InlineData(MacroConcurrencyMode.SuspendAndResume)]
+    public void Save_Should_Persist_MacroConcurrencyMode(MacroConcurrencyMode mode)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        var svc = new ConfigService(temp);
+        var cfg = svc.LoadOrCreate();
+        cfg.MacroConcurrencyMode = mode;
+
+        svc.Save(cfg);
+
+        svc.LoadOrCreate().MacroConcurrencyMode.Should().Be(mode);
+    }
+
     [Fact]
     public void LoadOrCreate_Should_Migrate_V3_Config_And_Add_Macro_Field()
     {

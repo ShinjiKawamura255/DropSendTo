@@ -43,6 +43,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
     private readonly WindowPlacementService _placement = new();
     private readonly System.Windows.Threading.DispatcherTimer _layerHoverTimer;
     private readonly KeyboardMacroService _macroService = new();
+    private readonly MacroConcurrencyCoordinator _macroConcurrencyCoordinator;
     private readonly ShortcutService _shortcutService = new();
     private readonly ConfigTransferService _configTransferService = new();
     private readonly ConfigImportCoordinator _configImportCoordinator = new();
@@ -384,6 +385,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         InitializeNotifyIcon();
         _configService = new ConfigService();
         _launcher = new LauncherService();
+        _macroConcurrencyCoordinator = new MacroConcurrencyCoordinator(_macroService, _logger);
         _config = _configService.LoadOrCreate();
         _keyboardPlacementMode = _config.KeyboardPlacementMode;
         _mousePlacementMode = _config.MousePlacementMode;
@@ -3285,30 +3287,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         UpdateSlotVisual(context);
     }
 
-    private async Task ResumeSuspendedMacroScopeAsync(IAsyncDisposable suspension, SlotRunContext? pausedContext)
-    {
-        try
-        {
-            if (pausedContext != null)
-            {
-                SetSlotPaused(pausedContext, false);
-            }
-            await suspension.DisposeAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.Warn($"Failed to resume suspended macro: {ex}");
-            if (pausedContext != null)
-            {
-                ClearSlotMacroState(pausedContext.LayerIndex, pausedContext.SlotIndex);
-            }
-            else
-            {
-                await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
-            }
-        }
-    }
-
     private void ForceClearAllSlotStates()
     {
         _slotRunStack.Clear();
@@ -5711,78 +5689,79 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
         bool shouldRunMacro = mode != SlotExecutionMode.Command && macroConfigured;
 
-        IAsyncDisposable? suspension = null;
-        SlotRunContext? pausedContext = null;
-        try
-        {
-            if (_macroService.IsMacroRunning)
+        bool isSameSlotRunning = IsSlotCurrentlyRunning(layerIndex, slotIndex);
+        SlotRunContext? pausedContext = _currentSlotRun;
+        var triggerDescription = $"layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}";
+        var concurrencyRequest = new MacroConcurrencyRequest(
+            _config.MacroConcurrencyMode,
+            shouldRunMacro,
+            isSameSlotRunning,
+            triggerDescription,
+            () =>
             {
-                if (shouldRunMacro && IsSlotCurrentlyRunning(layerIndex, slotIndex))
+                var cancelingContext = isSameSlotRunning
+                    ? GetSlotContext(layerIndex, slotIndex)
+                    : _currentSlotRun;
+                if (cancelingContext != null)
                 {
-                    if (_macroService.CancelCurrentMacro())
-                    {
-                        _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                        MarkSlotMacroCanceling(layerIndex, slotIndex);
-                    }
-                    return;
+                    MarkSlotMacroCanceling(cancelingContext.LayerIndex, cancelingContext.SlotIndex);
                 }
-
-                if (shouldRunMacro)
+            },
+            paused => SetSlotPaused(pausedContext, paused),
+            reason =>
+            {
+                if (reason == MacroConcurrencyRejection.Exclusive)
                 {
-                    switch (_config.MacroConcurrencyMode)
-                    {
-                        case MacroConcurrencyMode.Exclusive:
-                            if (IsSlotCurrentlyRunning(layerIndex, slotIndex))
-                            {
-                                if (_macroService.CancelCurrentMacro())
-                                {
-                                    _logger.Info($"Requested cancel for running macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                                    MarkSlotMacroCanceling(layerIndex, slotIndex);
-                                }
-                            }
-                            else
-                            {
-                                _logger.Warn($"Rejected trigger while another macro is running (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                                WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
-                            }
-                            return;
-                        case MacroConcurrencyMode.Interrupt:
-                            _logger.Info($"Interrupting running macro before executing slot (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                            if (_currentSlotRun != null)
-                            {
-                                MarkSlotMacroCanceling(_currentSlotRun.LayerIndex, _currentSlotRun.SlotIndex);
-                            }
-                            await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
-                            break;
-                        case MacroConcurrencyMode.SuspendAndResume:
-                            pausedContext = _currentSlotRun;
-                            SetSlotPaused(pausedContext, true);
-                            try
-                            {
-                                suspension = await _macroService.SuspendCurrentMacroAsync(TimeSpan.FromSeconds(3), CancellationToken.None);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.Warn($"Failed to suspend macro for nested execution (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {ex}");
-                                suspension = null;
-                            }
-
-                            if (suspension == null)
-                            {
-                                SetSlotPaused(pausedContext, false);
-                                pausedContext = null;
-                                WpfMessageBox.Show("現在のマクロを一時停止できませんでした。実行中のマクロが落ち着くまで少し待ってから再度実行してください。", "Macro Busy", MessageBoxButton.OK, MessageBoxImage.Information);
-                                return;
-                            }
-                            break;
-                    }
+                    WpfMessageBox.Show("別のスロットのマクロが実行中です。完了または停止してから再度実行してください。", "Macro Running", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
-                    _logger.Info($"Command-only slot triggered while macro is active (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                    WpfMessageBox.Show("現在のマクロを一時停止できませんでした。実行中のマクロが落ち着くまで少し待ってから再度実行してください。", "Macro Busy", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-            }
+            },
+            async _ =>
+            {
+                if (pausedContext != null)
+                {
+                    ClearSlotMacroState(pausedContext.LayerIndex, pausedContext.SlotIndex);
+                }
+                else
+                {
+                    await _macroService.CancelAllRunningMacrosAsync(CancellationToken.None);
+                }
+            });
+        await _macroConcurrencyCoordinator.ExecuteAsync(
+            concurrencyRequest,
+            _ => ExecuteAdmittedSlotAsync(
+                layerIndex,
+                slotIndex,
+                trigger,
+                slot,
+                slotTitle,
+                dropPathsOrEmpty,
+                mode,
+                script,
+                commandConfigured,
+                shouldRunMacro,
+                allowMinimize),
+            CancellationToken.None);
+    }
 
+    private async Task ExecuteAdmittedSlotAsync(
+        int layerIndex,
+        int slotIndex,
+        SlotTriggerKind trigger,
+        SlotModel slot,
+        string slotTitle,
+        string[] dropPathsOrEmpty,
+        SlotExecutionMode mode,
+        string script,
+        bool commandConfigured,
+        bool shouldRunMacro,
+        bool allowMinimize)
+    {
+        try
+        {
             MacroExecutionContext? macroContext = null;
             if (mode == SlotExecutionMode.MacroScriptExtended && commandConfigured)
             {
@@ -5876,11 +5855,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
         finally
         {
-            if (suspension != null)
-            {
-                await ResumeSuspendedMacroScopeAsync(suspension, pausedContext);
-            }
-
             if (!_macroService.IsMacroRunning && HasAnyRunningSlot())
             {
                 _logger.Warn("Macro state mismatch detected. Clearing slot run context.");

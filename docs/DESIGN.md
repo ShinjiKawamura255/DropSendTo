@@ -5,6 +5,7 @@
 - Entry: `App` が起動時引数を評価し、CLI 処理成功時は UI を表示せずに終了。
 - Persistence: `%AppData%/DropSendTo/config.json`（JSON + `.bak` バックアップ）。
 - Logging: `%AppData%/DropSendTo/logs/app.log` にローテーション出力（1MB 超で世代化、7日保持）。
+- Startup measurement: `AppDataPathResolver` は通常起動では Windows の ApplicationData Known Folder を使う。`DROPSENDTO_STARTUP_PROBE=1` と絶対パスの `DROPSENDTO_DATA_ROOT` が両方ある測定プロセスだけ保存先を隔離し、`Measure-WarmStartup.ps1` が実ユーザーの config/log 不変を検証する。
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
@@ -23,7 +24,7 @@
 - MacroQuotedTextReader: Macro Script の通常クォート文字列を読み取る純粋サービス。`\n`/`\r`/`\t`、escaped quote、バックスラッシュ直後の終端クォート、コメント直前の終端判定を共通化し、`KeyboardMacroService` と `MacroConditionEvaluator` のクォート解釈を一致させる。
 - MacroArgumentTokenizer: Macro Script 拡張コマンドの空白区切り引数と Windows パス用クォートを解析する純粋サービス。末尾バックスラッシュ直後の quote は、後続が行末またはコメントの場合だけ終端として扱う。
 - MacroConditionEvaluator: 変数展開後の Macro Script 条件式を token 化し、truthy 判定、比較演算子、`AND`/`OR`（`AND` 優先）を評価する純粋サービス。条件式内のクォート文字列は Macro Script と同等の escape 処理を行い、引用符内の `AND`/`OR`/`#` は構文要素として扱わない。
-- KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。`MacroExecutionSession` と `_macroStack` で実行中のマクロ/キャンセレーショントークンを追跡し、`_suspensionStack` で一時停止中セッションを管理する。排他モードはセマフォで直列化し、割り込みモードは `CancelAllRunningMacrosAsync` で段階的にキャンセル、一時停止モードは `SuspendCurrentMacroAsync` が `MacroSuspensionHandle` を返して外部処理中は入力を停止、`DisposeAsync`（再開）時にセマフォを再取得して処理を続行する。文字列変形は `SET`/`APPEND`/`PREPEND` のほか Ordinal 置換用の `REPLACE <Var> "検索" "置換"`、拡張正規表現用の `REPLACE_REGEX <Var> "正規表現" "置換" [オプション]` をサポートしており、後者は .NET Regex の `IGNORECASE`/`MULTILINE` 等をオプション指定できる。ユーザー入力を受けたい場合は `PROMPT` でメッセージ付きダイアログを開き、初期値は変数展開後に渡し、`TIMEOUT` 指定時は一定時間で自動クローズしてタイムアウト値を採用する。検証モードはダイアログを出さず初期値のみ設定する。Macro Script 拡張では `COMMAND_APP` で一時的に実行ファイルを差し替えてから `COMMAND` を呼び出せる。条件分岐は `IF`/`ELSEIF`/`ELSE`/`ENDIF` を再帰的に処理する `Stack<IfBlockState>` で管理し、親ブロックが非アクティブな場合は子の条件式を評価せずスキップできるよう `inactiveIfDepth` カウンタでスキップ状態を追跡する。条件式は変数展開後に `MacroConditionEvaluator` へ委譲する。
+- KeyboardMacroService: 前面ウィンドウの変化をフックし、スクリプトをパースして SendInput API でキーストロークを送信。`MacroExecutionSession` と `_macroStack` で実行中のマクロ/キャンセレーショントークンを追跡し、`_suspensionStack` で一時停止中セッションを管理する。`MacroConcurrencyCoordinator` が同一スロット再実行、排他拒否、割り込み時の cancel 完了待ち、一時停止 lease の LIFO 解放を統括し、command-only は各モードで並列実行を許可する。文字列変形は `SET`/`APPEND`/`PREPEND` のほか Ordinal 置換用の `REPLACE <Var> "検索" "置換"`、拡張正規表現用の `REPLACE_REGEX <Var> "正規表現" "置換" [オプション]` をサポートしており、後者は .NET Regex の `IGNORECASE`/`MULTILINE` 等をオプション指定できる。ユーザー入力を受けたい場合は `PROMPT` でメッセージ付きダイアログを開き、初期値は変数展開後に渡し、`TIMEOUT` 指定時は一定時間で自動クローズしてタイムアウト値を採用する。検証モードはダイアログを出さず初期値のみ設定する。Macro Script 拡張では `COMMAND_APP` で一時的に実行ファイルを差し替えてから `COMMAND` を呼び出せる。条件分岐は `IF`/`ELSEIF`/`ELSE`/`ENDIF` を再帰的に処理する `Stack<IfBlockState>` で管理し、親ブロックが非アクティブな場合は子の条件式を評価せずスキップできるよう `inactiveIfDepth` カウンタでスキップ状態を追跡する。条件式は変数展開後に `MacroConditionEvaluator` へ委譲する。
 - ShortcutRemoteSessionMatcher: リモートデスクトップ/Citrix 系のウィンドウクラス名・プロセス名を exact/wildcard で判定する純粋サービス。`ShortcutService` は Win32 から前景ウィンドウ、root owner、root のクラス名/プロセス名を取得し、判定のみをこのサービスへ委譲する。
 - ShortcutSequenceMatcher: Prefix 待機中に入力されたキーが登録済み `ShortcutSequence` に一致するかを判定する純粋サービス。単一 chord の即時完了、複数 chord の partial/completed 遷移、Prefix と同じ修飾キーを初回 chord にだけ流用する residue 判定、余分な修飾キーの拒否を扱う。`ShortcutService` は hook 状態と候補リストの反映を保持し、照合計算のみをこのサービスへ委譲する。
 - ShortcutSpecialCommandResolver: Prefix 待機中の特殊操作（Enter/Tab/Alt+Space/Alt+Enter/Shift+Enter/Ctrl+D）を `ShortcutSpecialCommandType` へ解決する純粋サービス。active modifier と Prefix residue の許可条件、Drop Capture 有効フラグ、余分な修飾キー拒否を扱い、`ShortcutService` は解決結果を nested `ShortcutAction` に mapping して既存 dispatch を維持する。
@@ -83,6 +84,8 @@
 - Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。`ShortcutService` は Prefix/ショートカット解析失敗を警告ログに記録し、Prefix 解析失敗時は既定値へフォールバックする。
 - UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。Prefix フォールバック時もメッセージで通知する。
 - Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロ開始/結果・スロットトリガー・コマンド起動・変数操作・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコードとし、展開済み引数、コマンドパス、スロットタイトル、クリップボード/ドロップ値、マクロ変数/`RETURN` 値は記録せず、件数・長さ・状態へ置き換える。OS/API 例外メッセージは診断経路として残り得るため、外部共有前に確認する。
+- Log lifecycle: current log が 1MB を超えた後の次回書込で世代化し、同秒衝突は連番 suffix で回避する。rotation に失敗しても current log が書込可能なら今回のメッセージを追記し、最終更新が UTC 基準で7日ちょうどのログは保持、7日を超えたログだけ削除する。
+- Startup performance: Release build を専用 data root で起動し、process start から WPF process の input-idle までを warm-up 1 回と測定 5 回以上で計測する。最大値 1000ms 未満、保存先 containment、実ユーザー config/log の hash・mtime 不変を検証する。
 - Release validation: clean な完全一致タグ以外の自動バージョンには短縮 SHA と必要な dirty marker を含める。CI は release-version 回帰、format verify、test/build を実行し、TRX は追跡対象外に置く。
 - Macro safety: 検証モードではファイル変更、プロセス起動、ポップアップ表示、ウィンドウアクティブ化を行わない。`COPY`/`MOVE` は既定で上書きせず、`RUN_CAPTURE` は `UseShellExecute=false` で実行して stdout/stderr と完全な引数列をログへ出さない。`WINDOW_FIND` は複数一致を既定失敗にし、`WINDOW_ACTIVATE` は成功確認できない場合に失敗する。
 - Telemetry: 専用メトリクスは未実装。必要な診断はログで代替。
@@ -98,5 +101,5 @@
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010/015 → TC-030/035/095/085/086/087/127
-- DES-001/005 ← SP-008 → TC-001/128
+- DES-001/005 ← SP-008 → TC-001/128/131
 - DES-004/005 ← SP-009/014 → TC-118/119/120/121/122/123/124

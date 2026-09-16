@@ -71,6 +71,7 @@
 
 ## SP-008 Platform
 - MUST: .NET 10（Windows）でビルド/実行。WSL の .NET は非対象。
+- MUST: Release 実行ファイルの温スタートは、既存インスタンスがない Windows デスクトップで、隔離した空のデータルートを warm-up 1 回後に 5 回以上測定し、process start から WPF process の input-idle までの最大値を 1000ms 未満とする。測定中は実ユーザーの config/log を変更しない。
 - MUST: 自動算出する配布バージョンは clean な完全一致タグだけをそのまま使用し、タグ後のコミット、dirty worktree、タグなしの状態では短縮 SHA（dirty 時は dirty marker も）を含めて一意にする。`Build-Release.ps1 -Version` による明示指定は自動算出より優先する。
 - MUST: CI は release-version の回帰テスト、`dotnet format --verify-no-changes`、test/build を必須検証とし、生成するテストレポートは `.gitignore` の対象に置く。
 
@@ -122,7 +123,7 @@
 - SHOULD: OS/API 例外のメッセージは障害診断のため残し得るため、外部共有前のログ確認・マスク対象とする。
 
 ## SP-010 Shortcut Prefix & Global Shortcuts
-- MUST: Prefix は修飾キーとメインキーの組み合わせで構成され、入力値を正規化して保存する。解析できない場合は Ctrl+Q にフォールバックし、ユーザーへ警告する。
+- MUST: Prefix は修飾キーとメインキーの組み合わせで構成され、Change Prefix ダイアログでは入力値を正規化して保存し、解析できない値は保存前に拒否する。既存またはインポート済み設定の値を実行時に解析できない場合だけ Ctrl+Q にフォールバックし、ユーザー通知と警告ログを残す。
 - MUST: Prefix を押下すると最長 4 秒間 armed 状態になり、ウィンドウ左上のインジケーターに Prefix 文字列と armed 状態をオーバーレイ表示する。マウス操作やタイムアウトで自動解除する。
 - MUST: Armed 中に Prefix を再度押下すると解除しつつ前面ウィンドウへ Prefix のキー入力を送る（Prefix パススルー）。
 - MUST: Armed 中に追加修飾のない `Enter` を押下した場合、DropSendTo のウィンドウを前面に復帰させてアクティブ化する（常時最前面状態には切り替えない）。
@@ -183,7 +184,7 @@
 - SP-004 → DES-002/004 → TC-020/021/025/080/087
 - SP-006 → DES-002/003 → TC-065/090/108
 - SP-007/015 → DES-005 → TC-030/095/127
-- SP-008 → DES-001/005 → TC-001/128
+- SP-008 → DES-001/005 → TC-001/128/131
 - SP-009 → DES-002/004 → TC-025/027/031/037/112/114
 - SP-010 → DES-002/003/005 → TC-035/085/086/099/100/101/111/113/115/116/117
 - SP-011 → DES-004 → TC-102/103/104

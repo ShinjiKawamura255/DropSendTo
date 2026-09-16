@@ -18,7 +18,13 @@ using DropSendTo.Models;
 
 namespace DropSendTo.Services;
 
-public sealed class KeyboardMacroService : IDisposable
+internal interface IMacroWindowAdapter
+{
+    IReadOnlyList<IntPtr> FindMatchingWindows(string mode, string query);
+    bool TryActivate(IntPtr hwnd);
+}
+
+public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
 {
     private const int MaxRepeatCount = 1000;
     private const int TextSendInterCharacterDelayMilliseconds = 18;
@@ -38,6 +44,9 @@ public sealed class KeyboardMacroService : IDisposable
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly object _stateLock = new();
     private readonly IAppLogger _logger;
+    private readonly Func<DateTimeOffset> _utcNowProvider;
+    private readonly Func<DateTimeOffset> _localNowProvider;
+    private readonly IMacroWindowAdapter _windowAdapter;
     private readonly Stack<MacroExecutionEntry> _macroStack = new();
     private readonly Stack<(MacroSuspensionHandle Handle, MacroExecutionSession Session)> _suspensionStack = new();
     private TaskCompletionSource<object?> _macroIdleTcs = CreateIdleTask(completed: true);
@@ -77,9 +86,16 @@ public sealed class KeyboardMacroService : IDisposable
     {
     }
 
-    internal KeyboardMacroService(IAppLogger logger)
+    internal KeyboardMacroService(
+        IAppLogger logger,
+        Func<DateTimeOffset>? utcNowProvider = null,
+        Func<DateTimeOffset>? localNowProvider = null,
+        IMacroWindowAdapter? windowAdapter = null)
     {
         _logger = logger;
+        _utcNowProvider = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
+        _localNowProvider = localNowProvider ?? (() => DateTimeOffset.Now);
+        _windowAdapter = windowAdapter ?? NativeMacroWindowAdapter.Instance;
     }
 
     public void Initialize(WindowInteropHelper helper)
@@ -165,6 +181,9 @@ public sealed class KeyboardMacroService : IDisposable
         using var service = new KeyboardMacroService();
         return service.TryValidateScriptInternal(script, mode, out error);
     }
+
+    internal bool TryValidateScriptWithDependencies(string? script, SlotExecutionMode mode, out string? error) =>
+        TryValidateScriptInternal(script, mode, out error);
 
     private bool TryValidateScriptInternal(string? script, SlotExecutionMode mode, out string? error)
     {
@@ -2441,7 +2460,7 @@ public sealed class KeyboardMacroService : IDisposable
     private static string EscapeSetValue(string value) =>
         value.Replace("{{", "{ {", StringComparison.Ordinal).Replace("\r", "\\r", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
 
-    private static bool TryApplyDateTimeDirective(string line, Dictionary<string, string> variables, out string? error)
+    private bool TryApplyDateTimeDirective(string line, Dictionary<string, string> variables, out string? error)
     {
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
@@ -2499,7 +2518,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         try
         {
-            var now = utc ? DateTimeOffset.UtcNow : DateTimeOffset.Now;
+            var now = utc ? _utcNowProvider() : _localNowProvider();
             variables[variableName] = now.ToString(format, CultureInfo.InvariantCulture);
             return true;
         }
@@ -2765,22 +2784,7 @@ public sealed class KeyboardMacroService : IDisposable
 
         try
         {
-            var psi = new ProcessStartInfo
-            {
-                FileName = fileName,
-                UseShellExecute = false,
-                RedirectStandardOutput = capture,
-                RedirectStandardError = capture,
-                CreateNoWindow = true
-            };
-            if (!string.IsNullOrWhiteSpace(cwd))
-            {
-                psi.WorkingDirectory = cwd;
-            }
-            foreach (var arg in arguments)
-            {
-                psi.ArgumentList.Add(arg);
-            }
+            var psi = CreateProcessStartInfoForTesting(fileName, arguments, cwd, capture);
             using var process = Process.Start(psi);
             if (process == null)
             {
@@ -2820,7 +2824,32 @@ public sealed class KeyboardMacroService : IDisposable
         }
     }
 
-    private static bool TryApplyWindowDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
+    internal static ProcessStartInfo CreateProcessStartInfoForTesting(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string? workingDirectory,
+        bool capture)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            UseShellExecute = false,
+            RedirectStandardOutput = capture,
+            RedirectStandardError = capture,
+            CreateNoWindow = true
+        };
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+        }
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+        return startInfo;
+    }
+
+    private bool TryApplyWindowDirective(string line, Dictionary<string, string> variables, SpecialVariableResolver? specialResolver, bool validateOnly, out string? error)
     {
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
@@ -2851,7 +2880,7 @@ public sealed class KeyboardMacroService : IDisposable
                 return false;
             }
             var hwnd = new IntPtr(handleValue);
-            if (!IsWindow(hwnd) || !SetForegroundWindow(hwnd))
+            if (!_windowAdapter.TryActivate(hwnd))
             {
                 error = "WINDOW_ACTIVATE に失敗しました。";
                 return false;
@@ -2890,7 +2919,7 @@ public sealed class KeyboardMacroService : IDisposable
             variables[variableName] = "0";
             return true;
         }
-        var matches = FindMatchingWindows(mode, query);
+        var matches = _windowAdapter.FindMatchingWindows(mode, query);
         if (matches.Count == 0)
         {
             error = "WINDOW_FIND の条件に一致するウィンドウが見つかりません。";
@@ -3014,6 +3043,21 @@ public sealed class KeyboardMacroService : IDisposable
                 // Best-effort cleanup only.
             }
         }
+    }
+
+    private sealed class NativeMacroWindowAdapter : IMacroWindowAdapter
+    {
+        public static NativeMacroWindowAdapter Instance { get; } = new();
+
+        private NativeMacroWindowAdapter()
+        {
+        }
+
+        public IReadOnlyList<IntPtr> FindMatchingWindows(string mode, string query) =>
+            KeyboardMacroService.FindMatchingWindows(mode, query);
+
+        public bool TryActivate(IntPtr hwnd) =>
+            IsWindow(hwnd) && SetForegroundWindow(hwnd) && GetForegroundWindow() == hwnd;
     }
 
     private static List<IntPtr> FindMatchingWindows(string mode, string query)

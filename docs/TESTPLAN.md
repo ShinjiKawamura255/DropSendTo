@@ -24,6 +24,7 @@
 - TC-128 ReleaseIdentity: `Test-Release-Version.ps1` の 9 ケースで clean exact tag、post-tag、dirty、タグなし、明示 override 等の識別子を検証する。CI が version test、format verify、test/build を実行し、生成した TRX が `.gitignore` 対象であることも確認する。
 - TC-129 ConfigTransferCompleteness: `AppConfig`、`Layer`、`SlotModel`、`SlotMinimizeOptions` の公開永続プロパティが対応 snapshot に存在することを reflection inventory で保証し、全非既定値（`WindowPlacementMode`、`MacroConcurrencyMode`、`MouseGestureMinRadiusPixels` を含む）の暗号化 round-trip と旧 payload の既定値を確認する。package UTF-8 16 MiB、KDF 1,000,000、Salt/Nonce/Tag 固定長、CipherText 8 MiB の違反は復号前に拒否する。
 - TC-130 ConfigImportTrustAndRuntime: 復号候補を `ConfigService.NormalizeForUse` で正規化し、コマンド/マクロ/起動時実行件数を日英のモデルレス確認画面に表示する。拒否時と保存失敗時は runtime を変更せず、Core/Theme/Shortcuts/MouseGestures/LayoutAndWindow/LanguageAndMenus の各適用段階で失敗を注入した場合は旧設定が disk/runtime に再適用されること、成功時は各段階が一度ずつ適用されることを確認する。
+- TC-131 WarmStartup: Release 実行ファイルを既存 instance なし・隔離した空 data root で起動し、warm-up 1 回を除外して 5 回以上、process start から WPF process の input-idle までを測定する。各 sample、median、max を出力し `max < 1000ms` を要求する。解決済み config/log が一時 root 内にあること、子プロセスを必ず終了すること、実ユーザー config/log の hash・mtime が前後で不変であることも確認する。
 - TC-031 MacroReplace: `REPLACE` コマンドで `{clipboard}` を変数へ取り込み、半角空白や特定文字列を `""` や別文字列へ置換できる。検索文字列が空のときはエラーになる。また `REPLACE_REGEX` で `IGNORECASE`/`MULTILINE` 等のオプションや `$1` を使用した正規表現置換が機能すること、無効なパターン/オプションでマクロが失敗することを確認する。
 - TC-032 MacroConditional: `IF`/`ELSEIF`（`ELSE IF`）/`ELSE`/`ENDIF` で条件分岐を書き、`==`/`!=`/`>`/`<`/`>=`/`<=` の数値比較および `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH` の文字列比較が期待通り評価されること、`AND`/`OR` の結合が期待通り評価され（`AND` 優先）、`IF {{Flag}}` の真偽値評価（空/0/false が偽）が期待通りであること、`ELSE` を 2 回書くとエラーになること、`ELSEIF` が前段成立後は評価されず未定義変数でも失敗しないこと、親の `IF` が偽のとき内側の `IF` 条件式は評価されないこと、`ENDIF` が不足するとマクロ全体が失敗することを確認する。
 - TC-112 MacroConditionEvaluator: 変数展開済みの条件式評価を単体テストし、比較演算子/別名、truthy 値、`AND` 優先 `OR`、UNC literal、escaped quote、末尾 backslash、未閉じ quote、引用符内の `AND`/`OR`/`#` が期待通り扱われることを確認する。
@@ -40,7 +41,7 @@
 - TC-124 MacroLineSplit: `FOREACH_LINE` と `SPLIT` が CRLF/LF/CR、空要素の保持/除外、INDEX、上限超過、未閉鎖ブロック、ネストを期待通り扱うことを確認する。
 - TC-036 MacroCommandApp: Macro Script 拡張モードで `COMMAND_APP <パス>` を指定すると以降の `COMMAND` の実行ファイルが差し替わり、`RESET` または `CLEAR` で元に戻ることを確認する。変数展開後のパスが空の場合は失敗することを併せて確認。
 - TC-037 MacroWifiSsid: `WIFI_SSID <変数>` で接続中 SSID が変数へ格納され、未接続時は空文字が入ることを確認する。SSID バイト列の UTF-8 デコードと 32 バイト上限を単体テストし、OS 表示言語や `netsh` 出力形式へ依存しないことを確認する。
-- TC-035 PrefixFallback: Prefix/ショートカット解析が失敗した場合に Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残る。
+- TC-035 PrefixFallback: Change Prefix ダイアログの不正入力は保存前にエラー表示で拒否されることを確認する。既存またはインポート済み設定の Prefix が実行時に解析できない場合は Ctrl+Q へフォールバックし、ユーザー通知・警告ログが残ることを確認する。
 - TC-113 ShortcutRemoteSessionMatcher: リモートセッション判定用のウィンドウクラス名・プロセス名について、全 exact 候補、wildcard 代表、大小文字差、null/空白、不一致ケースを単体テストで確認する。
 - TC-115 ShortcutSequenceMatcher: 登録済みショートカット sequence の照合を単体テストし、単一 chord 完了、複数 chord の partial/completed、no-match 時の候補クリア、単一完了と partial が同時成立する場合の complete 優先、初回 chord の Prefix residue 利用、2 chord 目以降の residue 不使用、余分な修飾キー拒否を確認する。
 - TC-116 ShortcutSpecialCommandResolver: Prefix 特殊操作の解決を単体テストし、Tab/Enter/Alt+Space/Alt+Enter/Shift+Enter/Ctrl+D、有効/無効フラグ、Alt+Space と Ctrl+D の residue 許可、Tab/Enter/Alt+Enter/Shift+Enter の residue 拒否、余分な修飾キー拒否を確認する。合わせて `ProcessKeyDown` の薄い統合テストで resolver 結果が `ShortcutAction` へ mapping されることを確認する。
@@ -73,7 +74,7 @@
 - TC-125 StartupRegistration: メニューの「スタートアップに登録」を ON/OFF して HKCU の Run 値が作成/削除され、メニュー再表示時に実状態がチェックへ反映されることを確認する。標準ユーザー権限で登録でき、登録値が引用符付きの現在の起動コマンドになることを確認する。サービスの登録/解除/Windows パス引用は `StartupRegistrationServiceTests` で検証する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
-- TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
+- TC-095 LoggingRetention: current log は 1MB ちょうどでは維持し、1MB を超えた後の書込でローテーションする。同秒の反復 rotation と既存 archive 衝突では一意名を使い、rotation 失敗時も current log が書込可能なら今回のメッセージを失わない。UTC 最終更新が7日ちょうどの `app*.log` は保持し、7日を超えたものだけ削除することを `LoggerServiceTests` で確認する。
 - TC-097 CommandOnlyParallel: マクロ実行中（排他/割り込み/一時停止いずれのモードでも）でもコマンドのみのスロットはショートカット/クリックから並列に実行でき、ログには「Command-only slot triggered while macro is active」が記録される。
 - TC-102 MacroModeExclusive: モード=排他のとき、実行中スロットを再トリガーするとキャンセルが発行され UI が「キャンセル中...」表示になる。他スロットからの実行は警告ダイアログで拒否され、設定を切り替えても再起動後に保持される。
 - TC-103 MacroModeInterrupt: モード=割り込み実行のとき、新規マクロ要求で実行中マクロがキャンセルされ、ログに interrupt が記録されてから新しいマクロが開始される。旧マクロが完全に停止するまで新マクロが開始されないことを確認。
@@ -83,6 +84,7 @@
 ## Execution
 - Unit: `dotnet test tests/DropSendTo.Tests -c Release`。
 - Release/CI contract: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1`、`dotnet format --verify-no-changes`、Release test/build を実行する。
+- Warm-start: Release build 後に `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Measure-WarmStartup.ps1` を実行し、TC-131 の隔離・不変・閾値を検証する。
 - Manual: 手順
   1) アプリ起動→常時最前面・半透明・角丸・ボタンスタイルを確認。
   2) スロットを Edit で登録（Browse 使用、タイトル反映、ショートカットとマクロ設定）→再起動後も設定/ショートカット/クリック有効が保持されることを確認。
@@ -96,7 +98,7 @@
  10) ウィンドウ位置を移動→再起動後に復元。画面外に移動しても補正されることを確認。
  11) スロット hover/drag/クリックの視覚変化を確認し、クリック有効/無効トグルが尊重されることを確認。
  12) メニューボタンから Open Config/Open Logs/Change Prefix/Slot Layout/スタートアップ登録/Exit が動作することを確認（Open Logs はフォルダを開く）。「スタートアップに登録」を ON にして Windows サインイン後に自動起動し、OFF にして登録が解除されることを確認する。
- 13) Prefix（例: Ctrl+Q）を押下して左上インジケーター点灯→修飾キーを押し直さずに `X` を押し `Ctrl+X` ショートカットが起動すること、必要に応じ修飾キーを離して押し直しても動作すること、Prefix 再入力で前面ウィンドウへ送出されること、Prefix 変更ダイアログで不正入力時にエラー表示・既定値フォールバックが行われることを確認。さらにマクロスクリプトに `PREFIX ARM` → `KEY X` → `PREFIX PASSTHROUGH` を記述し、Prefix 待機の擬似入力からショートカット発動→前面アプリ送出まで自動化できること、ログにマクロ PREFIX 操作が記録されることを確認。Prefix 待機中に `Enter` を入力すると DropSendTo ウィンドウが前面に復帰し（タスクトレイ格納時も復帰）、常時最前面設定が変化しないことも確認する。
+ 13) Prefix（例: Ctrl+Q）を押下して左上インジケーター点灯→修飾キーを押し直さずに `X` を押し `Ctrl+X` ショートカットが起動すること、必要に応じ修飾キーを離して押し直しても動作すること、Prefix 再入力で前面ウィンドウへ送出されることを確認する。Prefix 変更ダイアログの不正入力はエラー表示後も保存されないこと、別途不正な保存値を読み込ませた場合だけ既定値へフォールバックして通知・警告ログが残ることを確認する。さらにマクロスクリプトに `PREFIX ARM` → `KEY X` → `PREFIX PASSTHROUGH` を記述し、Prefix 待機の擬似入力からショートカット発動→前面アプリ送出まで自動化できること、ログにマクロ PREFIX 操作が記録されることを確認。Prefix 待機中に `Enter` を入力すると DropSendTo ウィンドウが前面に復帰し（タスクトレイ格納時も復帰）、常時最前面設定が変化しないことも確認する。
  14) Prefix 待機中に `Shift+Enter` を押してウィンドウがタスクトレイへ最小化されること、タスクトレイアイコンの左クリックでウィンドウが復帰すること、`Minimize to Tray` メニューからも同じ結果になることを確認する。
  15) エクスプローラーでファイル/フォルダを複数コピーし、`ArgumentsTemplate` に `{clipboard_args}` を指定したスロットをショートカット起動して全行が引用付きで渡されること、`{clipboard_args:2}` 指定で直近 2 行のみが古い順に渡されること、および `{clipboard}` 指定で生文字列が渡されることを確認。
  16) `%AppData%/DropSendTo/logs` にテスト用ログを作成し、1MB 超でローテーションすることと、7 日より古いファイルが `CleanupOldLogs` 後に削除されることを確認（ファイルの最終更新日時を調整して検証）。
@@ -109,12 +111,12 @@
 
 ## Environment & Data
 - OS: Windows 10 22H2+ / 11、.NET SDK 10.x。
-- Data: 一時フォルダにテストファイル作成。`%AppData%/DropSendTo` はテスト毎にクリーン。
+- Data: 一時フォルダにテストファイル作成。unit test は明示した一時 base directory を使用する。TC-131 だけは測定 marker と絶対 data root を子プロセスへ渡し、通常の `%AppData%/DropSendTo` を変更しない。
 - Macro: マクロ試験では同一デスクトップの通常権限ウィンドウ（例: メモ帳）を事前にフォーカスしておく。
 
 ## Entry/Exit Criteria
 - Entry: 主要仕様の実装、ログ/設定ディレクトリ作成可能。
-- Exit: 重要 TC（010/020/021/025/030/035/040/045/065/085/086/087/126/127/128）合格、回帰なし。
+- Exit: 重要 TC（010/020/021/025/030/035/040/045/065/085/086/087/095/119〜131）合格、回帰なし。
 
 ## Reporting
 - 必要時は `dotnet test --results-directory TestResults -l "trx;LogFileName=test_results.trx"` で追跡対象外の場所へレポート出力する。
@@ -122,7 +124,7 @@
 ## Traceability (excerpt)
 - FR-001 → SP-001 → DES-002/003 → TC-010/065
 - FR-002 → SP-004 → DES-004 → TC-020/021
-- FR-004 → SP-005 → DES-002/004 → TC-126
+- FR-004 → SP-005 → DES-002/004/005 → TC-126/129/130
 - FR-006 → SP-007/015 → DES-005 → TC-030/127
 - FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112/114
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
@@ -140,4 +142,5 @@
 - FR-037 → SP-002/004 → DES-002 → TC-073
 - FR-038 → SP-005/006 → DES-002/003 → TC-110
 - NFR-001 → SP-008 → DES-001/005 → TC-001/128
+- NFR-002 → SP-008 → DES-001/005 → TC-131
 - NFR-003 → SP-001 → DES-003 → TC-040/045
