@@ -37,7 +37,7 @@ public sealed class KeyboardMacroService : IDisposable
 
     private readonly SemaphoreSlim _macroLock = new(1, 1);
     private readonly object _stateLock = new();
-    private readonly LoggerService _logger = LoggerService.Instance;
+    private readonly IAppLogger _logger;
     private readonly Stack<MacroExecutionEntry> _macroStack = new();
     private readonly Stack<(MacroSuspensionHandle Handle, MacroExecutionSession Session)> _suspensionStack = new();
     private TaskCompletionSource<object?> _macroIdleTcs = CreateIdleTask(completed: true);
@@ -71,6 +71,15 @@ public sealed class KeyboardMacroService : IDisposable
         Confirmed,
         Canceled,
         TimedOut
+    }
+
+    public KeyboardMacroService() : this(LoggerService.Instance)
+    {
+    }
+
+    internal KeyboardMacroService(IAppLogger logger)
+    {
+        _logger = logger;
     }
 
     public void Initialize(WindowInteropHelper helper)
@@ -429,7 +438,7 @@ public sealed class KeyboardMacroService : IDisposable
                 }
                 else if (!string.IsNullOrEmpty(result.Message))
                 {
-                    _logger.Info($"Macro execution skipped: {result.Message}");
+                    _logger.Info($"Macro execution skipped (messageLength={result.Message.Length}).");
                 }
                 else
                 {
@@ -442,9 +451,7 @@ public sealed class KeyboardMacroService : IDisposable
             }
             else
             {
-                _logger.Warn(string.IsNullOrEmpty(result.Message)
-                    ? "Macro execution failed."
-                    : $"Macro execution failed: {result.Message}");
+                _logger.Warn("Macro execution failed.");
             }
 
             return result;
@@ -1283,14 +1290,14 @@ public sealed class KeyboardMacroService : IDisposable
                 if (StartsWithCommand(line, "ADD") || StartsWithCommand(line, "SUB") ||
                     StartsWithCommand(line, "MUL") || StartsWithCommand(line, "DIV"))
                 {
-                    if (!TryApplyMathDirective(line, variables, out var mathName, out var beforeValue, out var operandValue, out var resultValue, out var mathError, specialResolver))
+                    if (!TryApplyMathDirective(line, variables, out var mathName, out _, out _, out _, out var mathError, specialResolver))
                     {
                         var message = mathError ?? $"数値演算の解釈に失敗しました: \"{line}\"";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
                     if (!string.IsNullOrEmpty(mathName))
                     {
-                        _logger.Info($"Macro variable math: {mathName} ({beforeValue}) -> {resultValue} (operand={operandValue}, op={ExtractCommandName(line)})");
+                        _logger.Info($"Macro variable math: {mathName} (op={ExtractCommandName(line)})");
                     }
                     continue;
                 }
@@ -1305,7 +1312,7 @@ public sealed class KeyboardMacroService : IDisposable
                     }
                     if (!string.IsNullOrEmpty(concatName))
                     {
-                        _logger.Info($"Macro variable {(prepend ? "prepend" : "append")}: {concatName} -> \"{TruncateForLog(newValue)}\"");
+                        _logger.Info($"Macro variable {(prepend ? "prepend" : "append")}: {concatName} (length={newValue?.Length ?? 0})");
                     }
                     continue;
                 }
@@ -1319,7 +1326,7 @@ public sealed class KeyboardMacroService : IDisposable
                     }
                     if (!string.IsNullOrEmpty(regexName))
                     {
-                        _logger.Info($"Macro variable regex replace: {regexName} (replaced {regexReplacements} match(es)) -> \"{TruncateForLog(regexValue)}\"");
+                        _logger.Info($"Macro variable regex replace: {regexName} (replaced={regexReplacements}, length={regexValue?.Length ?? 0})");
                     }
                     continue;
                 }
@@ -1333,7 +1340,7 @@ public sealed class KeyboardMacroService : IDisposable
                     }
                     if (!string.IsNullOrEmpty(replaceName))
                     {
-                        _logger.Info($"Macro variable replace: {replaceName} (replaced {replacements} occurrence(s)) -> \"{TruncateForLog(replaceValue)}\"");
+                        _logger.Info($"Macro variable replace: {replaceName} (replaced={replacements}, length={replaceValue?.Length ?? 0})");
                     }
                     continue;
                 }
@@ -1458,7 +1465,7 @@ public sealed class KeyboardMacroService : IDisposable
 
                     if (!validateOnly && !string.IsNullOrWhiteSpace(returnMessage))
                     {
-                        _logger.Info($"Macro RETURN: {returnMessage}");
+                        _logger.Info($"Macro RETURN (length={returnMessage.Length}).");
                     }
                     return CompleteResult(MacroExecutionResult.Ok(returnMessage));
                 }
@@ -1597,22 +1604,10 @@ public sealed class KeyboardMacroService : IDisposable
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
 
-                    var slotLabel = (context.SlotTitle ?? string.Empty).ReplaceLineEndings(" ").Trim();
-                    if (slotLabel.Length == 0)
-                    {
-                        slotLabel = "(untitled)";
-                    }
                     var overrideInfo = overrideArguments == null
                         ? "template arguments used"
                         : $"override length={overrideArguments.Length}";
-                    var commandPath = string.IsNullOrWhiteSpace(commandOverridePath)
-                        ? context.CommandPath
-                        : commandOverridePath;
-                    if (string.IsNullOrWhiteSpace(commandPath))
-                    {
-                        commandPath = "(unspecified)";
-                    }
-                    _logger.Info($"Slot command invoked via macro (slot=\"{slotLabel}\", command=\"{commandPath}\", {overrideInfo}).");
+                    _logger.Info($"Slot command invoked via macro ({overrideInfo}).");
                     continue;
                 }
 
@@ -5132,14 +5127,6 @@ public sealed class KeyboardMacroService : IDisposable
     {
         int idx = FindFirstWhitespace(line);
         return (idx < 0 ? line : line[..idx]).Trim().ToUpperInvariant();
-    }
-
-    private static string TruncateForLog(string? value)
-    {
-        if (value == null) return string.Empty;
-        const int MaxLength = 48;
-        if (value.Length <= MaxLength) return value;
-        return value[..MaxLength] + "...";
     }
 
     private static bool TryReadQuotedPathContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)

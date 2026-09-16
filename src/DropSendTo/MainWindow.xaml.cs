@@ -3920,7 +3920,7 @@ public partial class MainWindow : Window
         slot.IconPath = slot.IconPath ?? string.Empty;
 
         _configService.Save(_config);
-        _logger.Info($"Registered slot via edit-mode drop (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slot.Title}\", command=\"{slot.Command}\").");
+        _logger.Info($"Registered slot via edit-mode drop (layer={layerIndex + 1}, slot={slotIndex + 1}).");
         RefreshUi();
         return true;
     }
@@ -5593,7 +5593,7 @@ public partial class MainWindow : Window
         var script = slot.KeyboardMacroScript ?? string.Empty;
         var macroConfigured = !string.IsNullOrWhiteSpace(script);
         var commandConfigured = !string.IsNullOrWhiteSpace(slot.Command);
-        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\", source={trigger}, mode={mode}, macroConfigured={macroConfigured}, commandConfigured={commandConfigured})");
+        _logger.Info($"Trigger requested (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}, mode={mode}, macroConfigured={macroConfigured}, commandConfigured={commandConfigured})");
 
         if (!macroConfigured && !commandConfigured) return;
 
@@ -5700,7 +5700,7 @@ public partial class MainWindow : Window
                         var launchResult = _launcher.Launch(slotOverride, dropPathsOrEmpty, overrideArgs);
                         if (!launchResult.Success)
                         {
-                            _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {launchResult.Message}");
+                            _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                         }
                         return launchResult;
                     },
@@ -5723,7 +5723,7 @@ public partial class MainWindow : Window
                         }
                         else
                         {
-                            _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {macroResult.Message}");
+                            _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                         }
                         if (!macroResult.IsCanceled)
                         {
@@ -5748,11 +5748,11 @@ public partial class MainWindow : Window
 
             if (mode == SlotExecutionMode.Command && commandConfigured)
             {
-                _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
+                _logger.Info($"Launching command (layer={layerIndex + 1}, slot={slotIndex + 1}).");
                 var result = _launcher.Launch(slot, dropPathsOrEmpty);
                 if (!result.Success)
                 {
-                    _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {result.Message}");
+                    _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
                     WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
                 else

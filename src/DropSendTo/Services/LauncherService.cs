@@ -12,7 +12,16 @@ namespace DropSendTo.Services;
 
 public class LauncherService
 {
-    private readonly LoggerService _logger = LoggerService.Instance;
+    private readonly IAppLogger _logger;
+
+    public LauncherService() : this(LoggerService.Instance)
+    {
+    }
+
+    internal LauncherService(IAppLogger logger)
+    {
+        _logger = logger;
+    }
 
     public LaunchResult Launch(SlotModel slot, string[] paths, string? argumentOverride = null)
     {
@@ -42,7 +51,7 @@ public class LauncherService
                     WorkingDirectory = slot.Command,
                     Arguments = string.Empty
                 };
-                _logger.Info($"Launching directory \"{startInfo.FileName}\" for slot \"{slotTitle}\".");
+                _logger.Info($"Launching directory (slotTitleLength={slotTitle.Length}).");
                 try
                 {
                     p = StartProcess(startInfo);
@@ -70,7 +79,7 @@ public class LauncherService
                 };
                 var arguments = argumentOverride ?? BuildArguments(slot.ArgumentsTemplate ?? "{args}", paths);
                 startInfo.Arguments = arguments;
-                _logger.Info($"Launching process \"{startInfo.FileName}\" for slot \"{slotTitle}\" with arguments \"{arguments}\" (paths={paths.Length}).");
+                _logger.Info($"Launching process (slotTitleLength={slotTitle.Length}, argumentLength={arguments.Length}, paths={paths.Length}).");
                 p = StartProcess(startInfo);
             }
 
@@ -124,12 +133,12 @@ public class LauncherService
             {
                 if (await TryPromoteProcessWindowToForegroundAsync(processId).ConfigureAwait(false))
                 {
-                    _logger.Info($"Foreground promotion succeeded (pid={processId}, slot=\"{slotTitle}\").");
+                    _logger.Info($"Foreground promotion succeeded (pid={processId}).");
                 }
             }
             catch (Exception ex)
             {
-                _logger.Warn($"Foreground promotion failed (pid={processId}, slot=\"{slotTitle}\"): {ex.Message}");
+                _logger.Warn($"Foreground promotion failed (pid={processId}): {ex.Message}");
             }
         });
     }
