@@ -59,7 +59,7 @@ function Get-SafeVariantName($name, $index) {
 $wpfTrimmingSupported = $false
 if ($PortableTrim) {
     if (-not $wpfTrimmingSupported) {
-        Write-Warning "PortableTrim は WPF アプリではサポートされないため無効化します。"
+        Write-Warning "PortableTrim is not supported for this WPF application and has been disabled."
         $PortableTrim = $false
     }
 }
