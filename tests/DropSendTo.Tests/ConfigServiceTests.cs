@@ -148,11 +148,11 @@ public class ConfigServiceTests
         cfg.StartupBehavior.Should().Be(StartupWindowBehavior.AlwaysShow);
         cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
         foreach (var layer in cfg.Layers)
-        foreach (var slot in layer.Slots)
-        {
-            slot.KeyboardMacroScript.Should().Be(string.Empty);
-            slot.ExecutionMode.Should().Be(SlotExecutionMode.Command);
-        }
+            foreach (var slot in layer.Slots)
+            {
+                slot.KeyboardMacroScript.Should().Be(string.Empty);
+                slot.ExecutionMode.Should().Be(SlotExecutionMode.Command);
+            }
     }
 
     [Fact]

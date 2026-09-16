@@ -3092,9 +3092,9 @@ public partial class MainWindow : Window
         var cm = new ContextMenu();
         var miEdit = new MenuItem { Header = "Edit..." };
         miEdit.Click += (_, _) => EditSlot(fe);
-        var miMove = new MenuItem { Header = "Move to..." , IsEnabled = sourceHasContent && hasMoveTargets };
+        var miMove = new MenuItem { Header = "Move to...", IsEnabled = sourceHasContent && hasMoveTargets };
         miMove.Click += async (_, _) => await MoveSlotAsync(layerIndex, slotIndex);
-        var miCopy = new MenuItem { Header = "Copy to..." , IsEnabled = sourceHasContent && hasCopyTargets };
+        var miCopy = new MenuItem { Header = "Copy to...", IsEnabled = sourceHasContent && hasCopyTargets };
         miCopy.Click += async (_, _) => await CopySlotAsync(layerIndex, slotIndex);
         var miClear = new MenuItem { Header = "Clear..." };
         miClear.Click += (_, _) => ClearSlot(fe);
@@ -5671,96 +5671,96 @@ public partial class MainWindow : Window
                 }
             }
 
-        MacroExecutionContext? macroContext = null;
-        if (mode == SlotExecutionMode.MacroScriptExtended && commandConfigured)
-        {
-            var contextTitle = slotTitle;
-            macroContext = new MacroExecutionContext(
-                SlotExecutionMode.MacroScriptExtended,
-                (overrideArgs, overrideCommandPath) =>
-                {
-                    var effectiveCommand = string.IsNullOrWhiteSpace(overrideCommandPath)
-                        ? slot.Command
-                        : overrideCommandPath;
-                    var slotOverride = new SlotModel
-                    {
-                        Title = slot.Title,
-                        Command = effectiveCommand,
-                        ArgumentsTemplate = slot.ArgumentsTemplate,
-                        IconPath = slot.IconPath,
-                        ClickEnabled = slot.ClickEnabled,
-                        RunOnStartup = slot.RunOnStartup,
-                        ShortcutKey = slot.ShortcutKey,
-                        KeyboardMacroScript = slot.KeyboardMacroScript,
-                        ExecutionMode = slot.ExecutionMode,
-                        AccentColor = slot.AccentColor,
-                        MinimizeOptions = slot.MinimizeOptions,
-                        SearchKeywords = slot.SearchKeywords
-                    };
-                    var launchResult = _launcher.Launch(slotOverride, dropPathsOrEmpty, overrideArgs);
-                    if (!launchResult.Success)
-                    {
-                        _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {launchResult.Message}");
-                    }
-                    return launchResult;
-                },
-                contextTitle,
-                slot.Command ?? string.Empty,
-                dropPathsOrEmpty);
-        }
-
-        if (shouldRunMacro)
-        {
-            BeginSlotMacro(layerIndex, slotIndex);
-            try
+            MacroExecutionContext? macroContext = null;
+            if (mode == SlotExecutionMode.MacroScriptExtended && commandConfigured)
             {
-                var macroResult = await _macroService.RunMacroAsync(script, macroContext);
-                if (!macroResult.Success)
+                var contextTitle = slotTitle;
+                macroContext = new MacroExecutionContext(
+                    SlotExecutionMode.MacroScriptExtended,
+                    (overrideArgs, overrideCommandPath) =>
+                    {
+                        var effectiveCommand = string.IsNullOrWhiteSpace(overrideCommandPath)
+                            ? slot.Command
+                            : overrideCommandPath;
+                        var slotOverride = new SlotModel
+                        {
+                            Title = slot.Title,
+                            Command = effectiveCommand,
+                            ArgumentsTemplate = slot.ArgumentsTemplate,
+                            IconPath = slot.IconPath,
+                            ClickEnabled = slot.ClickEnabled,
+                            RunOnStartup = slot.RunOnStartup,
+                            ShortcutKey = slot.ShortcutKey,
+                            KeyboardMacroScript = slot.KeyboardMacroScript,
+                            ExecutionMode = slot.ExecutionMode,
+                            AccentColor = slot.AccentColor,
+                            MinimizeOptions = slot.MinimizeOptions,
+                            SearchKeywords = slot.SearchKeywords
+                        };
+                        var launchResult = _launcher.Launch(slotOverride, dropPathsOrEmpty, overrideArgs);
+                        if (!launchResult.Success)
+                        {
+                            _logger.Warn($"Command launch failed via macro (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {launchResult.Message}");
+                        }
+                        return launchResult;
+                    },
+                    contextTitle,
+                    slot.Command ?? string.Empty,
+                    dropPathsOrEmpty);
+            }
+
+            if (shouldRunMacro)
+            {
+                BeginSlotMacro(layerIndex, slotIndex);
+                try
                 {
-                    if (macroResult.IsCanceled)
+                    var macroResult = await _macroService.RunMacroAsync(script, macroContext);
+                    if (!macroResult.Success)
                     {
-                        _logger.Info($"Macro canceled (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                        if (macroResult.IsCanceled)
+                        {
+                            _logger.Info($"Macro canceled (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                        }
+                        else
+                        {
+                            _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {macroResult.Message}");
+                        }
+                        if (!macroResult.IsCanceled)
+                        {
+                            WpfMessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                        return;
                     }
-                    else
-                    {
-                        _logger.Warn($"Macro failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {macroResult.Message}");
-                    }
-                    if (!macroResult.IsCanceled)
-                    {
-                        WpfMessageBox.Show(macroResult.Message, "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                    MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: true, allowMinimize: allowMinimize);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {ex}");
+                    WpfMessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
-                _logger.Info($"Macro completed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: true, allowMinimize: allowMinimize);
+                finally
+                {
+                    ClearSlotMacroState(layerIndex, slotIndex);
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.Error($"Macro execution failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {ex}");
-                WpfMessageBox.Show("マクロの実行に失敗しました。ログを確認してください。", "Macro Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-            finally
-            {
-                ClearSlotMacroState(layerIndex, slotIndex);
-            }
-        }
 
-        if (mode == SlotExecutionMode.Command && commandConfigured)
-        {
-            _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
-            var result = _launcher.Launch(slot, dropPathsOrEmpty);
-            if (!result.Success)
+            if (mode == SlotExecutionMode.Command && commandConfigured)
             {
-                _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {result.Message}");
-                WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                _logger.Info($"Launching command for layer={layerIndex + 1}, slot={slotIndex + 1}, title=\"{slotTitle}\": {slot.Command}");
+                var result = _launcher.Launch(slot, dropPathsOrEmpty);
+                if (!result.Success)
+                {
+                    _logger.Warn($"Command launch failed (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}): {result.Message}");
+                    WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                else
+                {
+                    _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
+                    MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: false, allowMinimize: allowMinimize);
+                }
             }
-            else
-            {
-                _logger.Info($"Command launch succeeded (layer={layerIndex + 1}, slot={slotIndex + 1}, source={trigger}).");
-                MaybeMinimizeAfterSlot(slot, trigger, macroExecuted: false, allowMinimize: allowMinimize);
-            }
-        }
         }
         finally
         {
@@ -6945,7 +6945,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-        _logger.Warn($"Failed to position window for search anchor: {ex.Message}");
+            _logger.Warn($"Failed to position window for search anchor: {ex.Message}");
         }
     }
 

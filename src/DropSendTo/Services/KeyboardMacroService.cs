@@ -500,8 +500,8 @@ public sealed class KeyboardMacroService : IDisposable
         }
         else
         {
-        _logger.Warn("Failed to capture initial cursor position for macro execution.");
-    }
+            _logger.Warn("Failed to capture initial cursor position for macro execution.");
+        }
 
         static string FormatLineError(int number, string message) =>
             $"行 {number}: {message}";
@@ -1428,11 +1428,11 @@ public sealed class KeyboardMacroService : IDisposable
                     {
                         int argIndex = 0;
                         if (payload[0] == '"')
-                    {
-                        if (!TryParseQuotedArgument(payload, ref argIndex, "RETURN", "メッセージ", out var messageLiteral, out var returnParseError))
                         {
-                            var message = returnParseError ?? "RETURN のメッセージ指定が不正です。";
-                            return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
+                            if (!TryParseQuotedArgument(payload, ref argIndex, "RETURN", "メッセージ", out var messageLiteral, out var returnParseError))
+                            {
+                                var message = returnParseError ?? "RETURN のメッセージ指定が不正です。";
+                                return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                             }
                             if (argIndex < payload.Length && !string.IsNullOrWhiteSpace(payload[argIndex..]))
                             {
@@ -6369,152 +6369,152 @@ public sealed class KeyboardMacroService : IDisposable
             ? Array.Empty<string>()
             : args.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
 
-private static bool TryParseAbsoluteMouseArguments(string args, out int x, out int y, out string? error)
-{
-    error = null;
-    x = 0;
-    y = 0;
-
-    var tokens = SplitArguments(args);
-    if (tokens.Length == 1)
+    private static bool TryParseAbsoluteMouseArguments(string args, out int x, out int y, out string? error)
     {
-        return TryResolveWindowCoordinateToken(tokens[0], out x, out y, out error);
+        error = null;
+        x = 0;
+        y = 0;
+
+        var tokens = SplitArguments(args);
+        if (tokens.Length == 1)
+        {
+            return TryResolveWindowCoordinateToken(tokens[0], out x, out y, out error);
+        }
+
+        if (tokens.Length == 2)
+        {
+            if (!int.TryParse(tokens[0], out x) || !int.TryParse(tokens[1], out y))
+            {
+                error = "MOUSEMOVEABS の引数は整数で指定するか、座標予約語を使用してください。";
+                return false;
+            }
+            return true;
+        }
+
+        error = "MOUSEMOVEABS には座標予約語 1 個、または 2 個の整数引数を指定してください。";
+        return false;
     }
 
-    if (tokens.Length == 2)
+    private static bool TryResolveWindowCoordinateToken(string token, out int x, out int y, out string? error)
     {
-        if (!int.TryParse(tokens[0], out x) || !int.TryParse(tokens[1], out y))
+        x = 0;
+        y = 0;
+        error = null;
+
+        if (token.EndsWith("_X", StringComparison.OrdinalIgnoreCase) ||
+            token.EndsWith("_Y", StringComparison.OrdinalIgnoreCase))
         {
-            error = "MOUSEMOVEABS の引数は整数で指定するか、座標予約語を使用してください。";
+            error = $"MOUSEMOVEABS の座標予約語が不正です: \"{token}\"";
             return false;
         }
-        return true;
-    }
 
-    error = "MOUSEMOVEABS には座標予約語 1 個、または 2 個の整数引数を指定してください。";
-    return false;
-}
-
-private static bool TryResolveWindowCoordinateToken(string token, out int x, out int y, out string? error)
-{
-    x = 0;
-    y = 0;
-    error = null;
-
-    if (token.EndsWith("_X", StringComparison.OrdinalIgnoreCase) ||
-        token.EndsWith("_Y", StringComparison.OrdinalIgnoreCase))
-    {
-        error = $"MOUSEMOVEABS の座標予約語が不正です: \"{token}\"";
-        return false;
-    }
-
-    if (!TryResolveWindowCoordinatePoint(token, out var px, out var py, out error))
-    {
-        return false;
-    }
-
-    x = (int)px;
-    y = (int)py;
-    return true;
-}
-
-private static bool TryResolveWindowCoordinatePoint(string token, out long x, out long y, out string? error)
-{
-    x = 0;
-    y = 0;
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(token))
-    {
-        error = "座標予約語が空です。";
-        return false;
-    }
-
-    if (TryResolveCursorCoordinate(token, out var cursorX, out var cursorY, out error))
-    {
-        if (error != null)
+        if (!TryResolveWindowCoordinatePoint(token, out var px, out var py, out error))
         {
             return false;
         }
 
-        x = cursorX;
-        y = cursorY;
+        x = (int)px;
+        y = (int)py;
         return true;
     }
 
-    if (!TryGetActiveWindowBounds(out var rect, out error))
+    private static bool TryResolveWindowCoordinatePoint(string token, out long x, out long y, out string? error)
     {
-        error ??= "アクティブウィンドウの座標を取得できませんでした。";
-        return false;
-    }
+        x = 0;
+        y = 0;
+        error = null;
 
-    long left = rect.Left;
-    long top = rect.Top;
-    long right = rect.Right - 1L;
-    long bottom = rect.Bottom - 1L;
-
-    if (right < left)
-    {
-        right = left;
-    }
-    if (bottom < top)
-    {
-        bottom = top;
-    }
-
-    long middleX = left + ((right - left) / 2L);
-    long middleY = top + ((bottom - top) / 2L);
-
-    var normalized = token.Replace("_", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
-    switch (normalized)
-    {
-        case "WINTOPLEFT":
-            x = left;
-            y = top;
-            return true;
-        case "WINTOPCENTER":
-        case "WINTOPMIDDLE":
-            x = middleX;
-            y = top;
-            return true;
-        case "WINTOPRIGHT":
-            x = right;
-            y = top;
-            return true;
-        case "WINLEFTCENTER":
-        case "WINLEFTMIDDLE":
-            x = left;
-            y = middleY;
-            return true;
-        case "WINRIGHTCENTER":
-        case "WINRIGHTMIDDLE":
-            x = right;
-            y = middleY;
-            return true;
-        case "WINBOTTOMLEFT":
-            x = left;
-            y = bottom;
-            return true;
-        case "WINBOTTOMCENTER":
-        case "WINBOTTOMMIDDLE":
-            x = middleX;
-            y = bottom;
-            return true;
-        case "WINBOTTOMRIGHT":
-            x = right;
-            y = bottom;
-            return true;
-        case "WINCENTER":
-        case "WINMIDDLE":
-        case "WINMID":
-            x = middleX;
-            y = middleY;
-            return true;
-        default:
-            error = $"座標予約語が不正です: \"{token}\"";
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            error = "座標予約語が空です。";
             return false;
+        }
+
+        if (TryResolveCursorCoordinate(token, out var cursorX, out var cursorY, out error))
+        {
+            if (error != null)
+            {
+                return false;
+            }
+
+            x = cursorX;
+            y = cursorY;
+            return true;
+        }
+
+        if (!TryGetActiveWindowBounds(out var rect, out error))
+        {
+            error ??= "アクティブウィンドウの座標を取得できませんでした。";
+            return false;
+        }
+
+        long left = rect.Left;
+        long top = rect.Top;
+        long right = rect.Right - 1L;
+        long bottom = rect.Bottom - 1L;
+
+        if (right < left)
+        {
+            right = left;
+        }
+        if (bottom < top)
+        {
+            bottom = top;
+        }
+
+        long middleX = left + ((right - left) / 2L);
+        long middleY = top + ((bottom - top) / 2L);
+
+        var normalized = token.Replace("_", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        switch (normalized)
+        {
+            case "WINTOPLEFT":
+                x = left;
+                y = top;
+                return true;
+            case "WINTOPCENTER":
+            case "WINTOPMIDDLE":
+                x = middleX;
+                y = top;
+                return true;
+            case "WINTOPRIGHT":
+                x = right;
+                y = top;
+                return true;
+            case "WINLEFTCENTER":
+            case "WINLEFTMIDDLE":
+                x = left;
+                y = middleY;
+                return true;
+            case "WINRIGHTCENTER":
+            case "WINRIGHTMIDDLE":
+                x = right;
+                y = middleY;
+                return true;
+            case "WINBOTTOMLEFT":
+                x = left;
+                y = bottom;
+                return true;
+            case "WINBOTTOMCENTER":
+            case "WINBOTTOMMIDDLE":
+                x = middleX;
+                y = bottom;
+                return true;
+            case "WINBOTTOMRIGHT":
+                x = right;
+                y = bottom;
+                return true;
+            case "WINCENTER":
+            case "WINMIDDLE":
+            case "WINMID":
+                x = middleX;
+                y = middleY;
+                return true;
+            default:
+                error = $"座標予約語が不正です: \"{token}\"";
+                return false;
+        }
     }
-}
 
     private static bool TryGetActiveWindowBounds(out RECT rect, out string? error)
     {
@@ -7531,32 +7531,32 @@ private static bool TryResolveWindowCoordinatePoint(string token, out long x, ou
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-[DllImport("user32.dll")]
-private static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
 
-[DllImport("user32.dll")]
-private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-[DllImport("user32.dll")]
-private static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
 
-[DllImport("user32.dll")]
-private static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
 
-[DllImport("user32.dll")]
-private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
-[DllImport("user32.dll", CharSet = CharSet.Unicode)]
-private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
-[DllImport("user32.dll", CharSet = CharSet.Unicode)]
-private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
-[DllImport("user32.dll")]
-private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
-[DllImport("user32.dll")]
-private static extern IntPtr GetKeyboardLayout(uint idThread);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
 
     [DllImport("user32.dll")]
     private static extern short VkKeyScanEx(char ch, IntPtr dwhkl);

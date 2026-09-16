@@ -1077,14 +1077,14 @@ public partial class RegisterDialog : Window
         return winMenu;
     }
 
-private static MenuItem CreateWinSnippetItem(string content, RoutedEventHandler insertHandler)
-{
-    var item = new MenuItem { Header = EscapeAccessKey(content), Tag = content };
-    item.Click += insertHandler;
-    return item;
-}
+    private static MenuItem CreateWinSnippetItem(string content, RoutedEventHandler insertHandler)
+    {
+        var item = new MenuItem { Header = EscapeAccessKey(content), Tag = content };
+        item.Click += insertHandler;
+        return item;
+    }
 
-private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
+    private static string EscapeAccessKey(string text) => text.Replace("_", "__", StringComparison.Ordinal);
 }
 
 public sealed class SlotSavedEventArgs : EventArgs
