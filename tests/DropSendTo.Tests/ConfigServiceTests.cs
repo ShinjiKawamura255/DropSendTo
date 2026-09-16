@@ -351,6 +351,70 @@ public class ConfigServiceTests
     }
 
     [Fact]
+    public void Save_Should_Restore_Primary_When_Backup_Promotion_Fails_Without_Existing_Backup()
+    {
+        var temp = CreateTempRoot();
+        var physical = new PhysicalConfigFileSystem();
+        var initialService = CreateService(temp, physical);
+        initialService.Save(new AppConfig { AlwaysOnTop = false });
+        var configDir = Path.Combine(temp, "DropSendTo");
+        var primaryPath = Path.Combine(configDir, "config.json");
+        var backupPath = Path.Combine(configDir, "config.json.bak");
+        var primaryBefore = File.ReadAllText(primaryPath);
+        var fileSystem = new FaultInjectingConfigFileSystem(physical)
+        {
+            Failure = ConfigFileFailure.BackupPromotion
+        };
+        var service = CreateService(temp, fileSystem);
+
+        var action = () => service.Save(new AppConfig { AlwaysOnTop = true });
+
+        action.Should().Throw<IOException>();
+        File.ReadAllText(primaryPath).Should().Be(primaryBefore);
+        File.Exists(backupPath).Should().BeFalse();
+        Directory.GetFiles(configDir, "config.json.*.tmp").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Save_Should_Preserve_Primary_And_Backup_When_Backup_Promotion_Fails()
+    {
+        var temp = CreateTempRoot();
+        var fileSystem = PreparePrimaryAndBackup(temp, out var primaryBefore, out var backupBefore);
+        fileSystem.Failure = ConfigFileFailure.BackupPromotion;
+        var service = CreateService(temp, fileSystem);
+
+        var action = () => service.Save(new AppConfig { AlwaysOnTop = false });
+
+        action.Should().Throw<IOException>();
+        AssertPrimaryBackupAndTemps(temp, primaryBefore, backupBefore);
+    }
+
+    [Fact]
+    public void Save_Should_Preserve_Recovery_Artifact_When_Backup_Promotion_And_Rollback_Fail()
+    {
+        var temp = CreateTempRoot();
+        var physical = new PhysicalConfigFileSystem();
+        var initialService = CreateService(temp, physical);
+        initialService.Save(new AppConfig { AlwaysOnTop = false });
+        var configDir = Path.Combine(temp, "DropSendTo");
+        var primaryPath = Path.Combine(configDir, "config.json");
+        var primaryBefore = File.ReadAllText(primaryPath);
+        var fileSystem = new FaultInjectingConfigFileSystem(physical)
+        {
+            Failure = ConfigFileFailure.BackupPromotionAndRollback
+        };
+        var service = CreateService(temp, fileSystem);
+
+        var action = () => service.Save(new AppConfig { AlwaysOnTop = true });
+
+        action.Should().Throw<IOException>();
+        var recoveryArtifacts = Directory.GetFiles(configDir, "config.json.previous.*.recovery");
+        recoveryArtifacts.Should().ContainSingle();
+        File.ReadAllText(recoveryArtifacts[0]).Should().Be(primaryBefore);
+        Directory.GetFiles(configDir, "config.json.*.tmp").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Save_Should_Remove_Stale_Owned_Temp_Files()
     {
         var temp = CreateTempRoot();
@@ -421,7 +485,9 @@ public class ConfigServiceTests
         None,
         Write,
         Flush,
-        Replace
+        Replace,
+        BackupPromotion,
+        BackupPromotionAndRollback
     }
 
     private sealed class FaultInjectingConfigFileSystem(IConfigFileSystem inner) : IConfigFileSystem
@@ -449,11 +515,25 @@ public class ConfigServiceTests
         public void ReplaceFile(string sourcePath, string destinationPath, string? backupPath)
         {
             if (Failure == ConfigFileFailure.Replace) throw new IOException("Injected replace failure.");
+            if (Failure == ConfigFileFailure.BackupPromotionAndRollback &&
+                backupPath == null &&
+                sourcePath.Contains("config.json.previous.", StringComparison.Ordinal))
+            {
+                throw new IOException("Injected primary rollback failure.");
+            }
             inner.ReplaceFile(sourcePath, destinationPath, backupPath);
         }
 
-        public void MoveFile(string sourcePath, string destinationPath, bool overwrite = false) =>
+        public void MoveFile(string sourcePath, string destinationPath, bool overwrite = false)
+        {
+            if ((Failure == ConfigFileFailure.BackupPromotion ||
+                 Failure == ConfigFileFailure.BackupPromotionAndRollback) &&
+                destinationPath.EndsWith("config.json.bak", StringComparison.Ordinal))
+            {
+                throw new IOException("Injected backup promotion failure.");
+            }
             inner.MoveFile(sourcePath, destinationPath, overwrite);
+        }
         public void DeleteFile(string path) => inner.DeleteFile(path);
     }
 

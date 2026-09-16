@@ -186,9 +186,9 @@ stateDiagram-v2
 - Responsibility: 設定 JSON の読み書き、`.bak` バックアップ、バリデーション、バージョンマイグレーション、レイヤー/スロット容量保証。
 - Public Interface: `LoadOrCreate()`, `Save(AppConfig)`, `GetConfigPath()`。
 - Inputs / Outputs: 入力は `%AppData%/DropSendTo/config.json` と `AppConfig`。出力は正規化済み `AppConfig`、保存済み JSON、`.bak`。
-- Internal Logic: 読み込み成功後に `Validate` と `Migrate` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。保存は primary と同じディレクトリの一時ファイルへ書き込み、flush 後に replace/move で原子的に確定する。backup 復旧時は正常な backup を上書きせず、同じ原子的経路で primary だけを修復する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
+- Internal Logic: 読み込み成功後に `Validate` と `Migrate` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。保存は primary と同じディレクトリの一時ファイルへ書き込み、flush 後に replace/move で原子的に確定する。backup 昇格失敗時は replace が生成した旧 primary 候補を primary へ戻し、ロールバックにも失敗した場合は `config.json.previous.*.recovery` として保持する。backup 復旧時は正常な backup を上書きせず、同じ原子的経路で primary だけを修復する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
 - Dependencies: `System.Text.Json`, `IAppLogger`, `ConfigFileSystem`, `AppConfig`。
-- Failure Modes: JSON 破損、バックアップ破損、write/flush/replace の I/O 失敗。保存失敗時は既存 primary/backup を保持し、残留一時ファイルは次回保存前に除去する。
+- Failure Modes: JSON 破損、バックアップ破損、write/flush/replace/backup promotion の I/O 失敗。backup promotion 失敗は旧 primary を復元して例外化し、復元失敗時は recovery artifact を保持する。通常の保存失敗では既存 primary/backup を保持し、残留一時ファイルは次回保存前に除去する。
 
 ### 7.5 ConfigTransferService
 
@@ -691,7 +691,7 @@ sequenceDiagram
 
 リカバリ方針:
 - 設定破損は `.bak`、それも失敗なら既定値へフォールバックする。
-- 設定保存の write/flush/replace 失敗では既存 primary/backup を維持し、backup 復旧時も復旧元を保持する。
+- 設定保存の write/flush/replace 失敗では既存 primary/backup を維持する。backup promotion 失敗では旧 primary をロールバックし、ロールバック不能時は recovery artifact を保持する。backup 復旧時も復旧元を保持する。
 - 個別スロット起動失敗は MessageBox とログに止め、アプリ本体を継続する。
 - ログ出力失敗は握りつぶし、ユーザー操作を止めない。
 - Prefix 解析失敗は既定 `CTRL+Q` へフォールバックする。
@@ -737,7 +737,7 @@ sequenceDiagram
 - UI レイアウトは XAML 定数とサービス境界をテストし、実フォーカスが必要なものは STA + Dispatcher を使う。
 
 主要テスト対応:
-- Config/転送: `ConfigServiceTests.cs`（write/flush/replace 失敗、stale temp、backup 修復を含む）, `ConfigTransferServiceTests.cs`
+- Config/転送: `ConfigServiceTests.cs`（write/flush/replace/backup promotion/rollback 失敗、stale temp、backup 修復を含む）, `ConfigTransferServiceTests.cs`
 - 引数展開/起動: `ArgumentTemplateExpanderTests.cs`, `LauncherServiceTests.cs`
 - ログ privacy: `LoggingPrivacyTests.cs` で sentinel が通常ログへ出ないことを確認する。
 - リリース識別子: `scripts/Test-Release-Version.ps1` で Git 状態別の 9 ケースを確認する。

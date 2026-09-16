@@ -136,6 +136,7 @@ public class ConfigService
         var operationId = Guid.NewGuid().ToString("N");
         var tempPath = Path.Combine(ConfigDir, $"config.json.{operationId}.tmp");
         string? backupCandidatePath = null;
+        bool deleteBackupCandidate = true;
         try
         {
             _fileSystem.WriteAllText(tempPath, json);
@@ -152,7 +153,7 @@ public class ConfigService
                 return;
             }
 
-            backupCandidatePath = Path.Combine(ConfigDir, $"config.json.bak.{operationId}.tmp");
+            backupCandidatePath = Path.Combine(ConfigDir, $"config.json.previous.{operationId}.recovery");
             _fileSystem.ReplaceFile(tempPath, ConfigPath, backupCandidatePath);
             try
             {
@@ -161,13 +162,31 @@ public class ConfigService
             }
             catch (Exception ex)
             {
-                _logger.Warn($"Config was saved, but its backup could not be refreshed: {ex.Message}");
+                try
+                {
+                    _fileSystem.ReplaceFile(backupCandidatePath, ConfigPath, backupPath: null);
+                    backupCandidatePath = null;
+                }
+                catch (Exception rollbackEx)
+                {
+                    deleteBackupCandidate = false;
+                    throw new IOException(
+                        "Config backup refresh and primary rollback both failed; the previous config recovery artifact was preserved.",
+                        new AggregateException(ex, rollbackEx));
+                }
+
+                throw new IOException(
+                    "Config backup refresh failed; the previous primary config was restored.",
+                    ex);
             }
         }
         finally
         {
             DeleteOwnedTempIfPresent(tempPath);
-            if (backupCandidatePath != null) DeleteOwnedTempIfPresent(backupCandidatePath);
+            if (deleteBackupCandidate && backupCandidatePath != null)
+            {
+                DeleteOwnedTempIfPresent(backupCandidatePath);
+            }
         }
     }
 

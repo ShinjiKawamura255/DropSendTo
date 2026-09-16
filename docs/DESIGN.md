@@ -12,7 +12,7 @@
 - DropCaptureWindow: ドラッグ中のホイールクリックで表示するドロップ専用ウィンドウ。ファイル/フォルダのドロップを受け取り、MainWindow にドロップパスを通知してインジケーター表示と `{args}` 展開のための状態を更新する。
 - Window position persistence: 固定位置モードかつユーザーによる移動時のみ座標を保存し、`_suppressFixedCapture`/`_suppressFixedCaptureDuringSearch`/`_suppressFixedCaptureFromTransientShow`/`_blockLocationSave` を使って一時配置（マウスフォロー、画面中央、検索レイヤー表示、ドラッグ中のホイールクリック表示など）では保存を抑止する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey、Language（既定=Japanese）を保持する。
-- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。保存は同一ディレクトリの一時ファイルへ書き込み・flush してから原子的に置換し、失敗時は既存 primary/backup を保持する。backup 復旧時は正常な backup を残したまま primary を修復する。
+- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。保存は同一ディレクトリの一時ファイルへ書き込み・flush してから原子的に置換し、失敗時は既存 primary/backup を保持する。backup 昇格に失敗した場合は旧 primary をロールバックし、ロールバックにも失敗した場合は旧 primary の recovery artifact を保持して失敗を通知する。backup 復旧時は正常な backup を残したまま primary を修復する。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基に `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}`/`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を展開する純粋関数。
@@ -55,7 +55,7 @@
   - Output: `LaunchResult`（Success/Message）。例外は捕捉してメッセージ化。
 - ConfigService
   - `LoadOrCreate()`: JSON を読み込み、検証・マイグレーションを実行。失敗時は `.bak` または既定値にフォールバックし、正常な backup を保持したまま primary を原子的に修復する。
-  - `Save(AppConfig)`: バリデーション後、同一ディレクトリの一時ファイルへ整形済み JSON を書き、flush 後の原子的な replace/move で確定する。失敗時は正常な primary/backup を維持する。
+  - `Save(AppConfig)`: バリデーション後、同一ディレクトリの一時ファイルへ整形済み JSON を書き、flush 後の原子的な replace/move で確定する。backup 昇格失敗時は旧 primary を復元して例外を返し、復元にも失敗した場合は recovery artifact を削除せず例外を返す。
   - `GetConfigPath()`: Open Config 用の絶対パスを返す。
 - KeyboardMacroService
   - `Initialize(WindowInteropHelper)`: フォアグラウンド変更フックを登録し、直近外部ウィンドウを追跡。
