@@ -12,7 +12,7 @@
 - DropCaptureWindow: ドラッグ中のホイールクリックで表示するドロップ専用ウィンドウ。ファイル/フォルダのドロップを受け取り、MainWindow にドロップパスを通知してインジケーター表示と `{args}` 展開のための状態を更新する。
 - Window position persistence: 固定位置モードかつユーザーによる移動時のみ座標を保存し、`_suppressFixedCapture`/`_suppressFixedCaptureDuringSearch`/`_suppressFixedCaptureFromTransientShow`/`_blockLocationSave` を使って一時配置（マウスフォロー、画面中央、検索レイヤー表示、ドラッグ中のホイールクリック表示など）では保存を抑止する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey、Language（既定=Japanese）を保持する。
-- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。
+- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。保存は同一ディレクトリの一時ファイルへ書き込み・flush してから原子的に置換し、失敗時は既存 primary/backup を保持する。backup 復旧時は正常な backup を残したまま primary を修復する。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基に `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}`/`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を展開する純粋関数。
@@ -28,7 +28,8 @@
 - WindowPlacementService: ScreenBoundsResolver が取得したモニターの作業領域を使い、保存済みのウィンドウ位置をタスクバー等の予約領域に重ならないよう Clamp する。NaN/Infinity が渡された場合は作業領域の左上へ戻す。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
 - RegisterDialog / PrefixDialog: スロット情報および Prefix の編集 UI。KeyChordParser で入力を検証し、正規化された結果を反映する。
-- LoggerService: UTF-8 でログを追記し、1MB 超でタイムスタンプ付きへローテーション。7日より古いファイルを起動時に削除する。
+- LoggerService / IAppLogger: UTF-8 でログを追記し、1MB 超でタイムスタンプ付きへローテーション。7日より古いファイルを起動時に削除する。起動・マクロ経路は注入可能な `IAppLogger` を共有し、通常ログにはユーザー制御値そのものではなく件数・長さ・状態を記録する。
+- Release-Version scripts: `Release-Version.ps1` が Git 状態から配布識別子を一意に算出し、`Test-Release-Version.ps1` が clean tag、post-tag、dirty、タグなし等の回帰ケースを検証する。`Build-Release.ps1 -VersionOnly` は成果物を生成せず算出結果だけを返す。
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
 ## DES-003 UI Flows
@@ -51,8 +52,8 @@
   - Input: `SlotModel slot`, `string[] paths`（0..n）。`ArgumentTemplateExpander` が `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}` をクォート済みで展開し、`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を ClipboardHistoryService が返す履歴から解決する（`{clipboard_args:n}` は直近 n 行を古い順で展開）。
   - Output: `LaunchResult`（Success/Message）。例外は捕捉してメッセージ化。
 - ConfigService
-  - `LoadOrCreate()`: JSON を読み込み、検証・マイグレーションを実行。失敗時は `.bak` または既定値にフォールバック。
-  - `Save(AppConfig)`: バリデーション後、既存 `config.json` を `.bak` へコピーし、整形済み JSON を書き込む。
+  - `LoadOrCreate()`: JSON を読み込み、検証・マイグレーションを実行。失敗時は `.bak` または既定値にフォールバックし、正常な backup を保持したまま primary を原子的に修復する。
+  - `Save(AppConfig)`: バリデーション後、同一ディレクトリの一時ファイルへ整形済み JSON を書き、flush 後の原子的な replace/move で確定する。失敗時は正常な primary/backup を維持する。
   - `GetConfigPath()`: Open Config 用の絶対パスを返す。
 - KeyboardMacroService
   - `Initialize(WindowInteropHelper)`: フォアグラウンド変更フックを登録し、直近外部ウィンドウを追跡。
@@ -74,7 +75,8 @@
 ## DES-005 Errors/Timeout/Telemetry
 - Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。`ShortcutService` は Prefix/ショートカット解析失敗を警告ログに記録し、Prefix 解析失敗時は既定値へフォールバックする。
 - UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。Prefix フォールバック時もメッセージで通知する。
-- Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロ開始/結果・スロットトリガー・コマンド起動・変数操作・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコード。
+- Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロ開始/結果・スロットトリガー・コマンド起動・変数操作・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコードとし、展開済み引数、コマンドパス、スロットタイトル、クリップボード/ドロップ値、マクロ変数/`RETURN` 値は記録せず、件数・長さ・状態へ置き換える。OS/API 例外メッセージは診断経路として残り得るため、外部共有前に確認する。
+- Release validation: clean な完全一致タグ以外の自動バージョンには短縮 SHA と必要な dirty marker を含める。CI は release-version 回帰、format verify、test/build を実行し、TRX は追跡対象外に置く。
 - Macro safety: 検証モードではファイル変更、プロセス起動、ポップアップ表示、ウィンドウアクティブ化を行わない。`COPY`/`MOVE` は既定で上書きせず、`RUN_CAPTURE` は `UseShellExecute=false` で実行して stdout/stderr と完全な引数列をログへ出さない。`WINDOW_FIND` は複数一致を既定失敗にし、`WINDOW_ACTIVATE` は成功確認できない場合に失敗する。
 - Telemetry: 専用メトリクスは未実装。必要な診断はログで代替。
 
@@ -85,7 +87,9 @@
 
 ## Traceability (excerpt)
 - DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114/115/116/117
+- DES-002/004 ← SP-005 → TC-126
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
-- DES-005 ← SP-004/007/010 → TC-030/035/095/085/086/087
+- DES-005 ← SP-004/007/010/015 → TC-030/035/095/085/086/087/127
+- DES-001/005 ← SP-008 → TC-001/128
 - DES-004/005 ← SP-009/014 → TC-118/119/120/121/122/123/124

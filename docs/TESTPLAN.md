@@ -10,7 +10,7 @@
 
 ## Test Cases (excerpt)
 - TC-001 Platform: Windows の .NET 10 でビルド/実行できる。
-- TC-010 Slots: 現在の行列構成（2〜8 × 2〜4）で全スロットの登録/解除/復元が可能で、タイトル/コマンド/引数/マクロ/ショートカット/クリック可否が保存される。
+- TC-010 Slots: 現在の行列構成（2〜8 × 2〜8）で全スロットの登録/解除/復元が可能で、タイトル/コマンド/引数/マクロ/ショートカット/クリック可否が保存される。
 - TC-020 LaunchDrop: ファイル/フォルダのドロップで `{args}` がクォートされ、登録コマンドに渡る。
 - TC-021 LaunchCli: CLI 引数で現在レイヤー優先→全レイヤー検索が行われる。失敗時は UI 表示とログ出力。
 - TC-025 MacroScriptHappy: `KEY`/`WAIT`/`WAIT_UNTIL`/`TEXT`/`REPEAT`/`FOREACH_DROP` など代表的な命令が期待通り展開・送信され、複数ドロップ時に各パスへ `SET`/`REPLACE` を適用できる。
@@ -19,6 +19,9 @@
 - TC-028 MacroScriptExtended: Macro Script 拡張モードでマクロが実行され、`COMMAND` 命令から登録済みコマンドが呼び出される。引数省略時はスロットの引数テンプレートが展開され、引数を指定した場合は変数展開後の文字列がそのまま渡される。さらにスロットへファイルをドロップした際はマクロ内で `{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` が参照でき、`drop_path:n` の不正指定でマクロが失敗すること、加工後の文字列を `COMMAND` 引数に渡すと登録済みコマンドへそのまま引き継がれることを確認する。
 - TC-029 MacroCommandValidation: `COMMAND` 命令を Macro Script 拡張モード以外で使用するとエラーとなり、ログに失敗理由が出力される。
 - TC-030 Errors: 実行不可パスやマクロエラーでメッセージが表示され、ログに ERROR が残る。
+- TC-126 ConfigAtomicPersistence: write/flush/replace の各失敗で既存 primary/backup が維持され、stale temp が次回保存前に除去されること、破損 primary を正常 backup から修復しても backup 自体を上書きしないことを `ConfigServiceTests` で確認する。
+- TC-127 LoggingPrivacy: sentinel をコマンド、引数、タイトル、clipboard/drop、マクロ変数、`RETURN` 値へ設定しても `LauncherService` / `KeyboardMacroService` の通常 capture log に現れないことを `LoggingPrivacyTests` で確認し、MainWindow の統合ログも値を直接出さないことを静的監査する。OS/API 例外メッセージが残り得ることは共有時の確認対象とする。
+- TC-128 ReleaseIdentity: `Test-Release-Version.ps1` の 9 ケースで clean exact tag、post-tag、dirty、タグなし、明示 override 等の識別子を検証する。CI が version test、format verify、test/build を実行し、生成した TRX が `.gitignore` 対象であることも確認する。
 - TC-031 MacroReplace: `REPLACE` コマンドで `{clipboard}` を変数へ取り込み、半角空白や特定文字列を `""` や別文字列へ置換できる。検索文字列が空のときはエラーになる。また `REPLACE_REGEX` で `IGNORECASE`/`MULTILINE` 等のオプションや `$1` を使用した正規表現置換が機能すること、無効なパターン/オプションでマクロが失敗することを確認する。
 - TC-032 MacroConditional: `IF`/`ELSEIF`（`ELSE IF`）/`ELSE`/`ENDIF` で条件分岐を書き、`==`/`!=`/`>`/`<`/`>=`/`<=` の数値比較および `CONTAINS`/`NOTCONTAINS`/`STARTSWITH`/`ENDSWITH` の文字列比較が期待通り評価されること、`AND`/`OR` の結合が期待通り評価され（`AND` 優先）、`IF {{Flag}}` の真偽値評価（空/0/false が偽）が期待通りであること、`ELSE` を 2 回書くとエラーになること、`ELSEIF` が前段成立後は評価されず未定義変数でも失敗しないこと、親の `IF` が偽のとき内側の `IF` 条件式は評価されないこと、`ENDIF` が不足するとマクロ全体が失敗することを確認する。
 - TC-112 MacroConditionEvaluator: 変数展開済みの条件式評価を単体テストし、比較演算子/別名、truthy 値、`AND` 優先 `OR`、UNC literal、escaped quote、末尾 backslash、未閉じ quote、引用符内の `AND`/`OR`/`#` が期待通り扱われることを確認する。
@@ -76,6 +79,7 @@
 
 ## Execution
 - Unit: `dotnet test tests/DropSendTo.Tests -c Release`。
+- Release/CI contract: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1`、`dotnet format --verify-no-changes`、Release test/build を実行する。
 - Manual: 手順
   1) アプリ起動→常時最前面・半透明・角丸・ボタンスタイルを確認。
   2) スロットを Edit で登録（Browse 使用、タイトル反映、ショートカットとマクロ設定）→再起動後も設定/ショートカット/クリック有効が保持されることを確認。
@@ -107,14 +111,16 @@
 
 ## Entry/Exit Criteria
 - Entry: 主要仕様の実装、ログ/設定ディレクトリ作成可能。
-- Exit: 重要 TC（010/020/021/025/030/035/040/045/065/085/086/087）合格、回帰なし。
+- Exit: 重要 TC（010/020/021/025/030/035/040/045/065/085/086/087/126/127/128）合格、回帰なし。
 
 ## Reporting
-- `dotnet test -l "trx;LogFileName=test_results.trx"` でレポート出力。
+- 必要時は `dotnet test --results-directory TestResults -l "trx;LogFileName=test_results.trx"` で追跡対象外の場所へレポート出力する。
 
 ## Traceability (excerpt)
 - FR-001 → SP-001 → DES-002/003 → TC-010/065
 - FR-002 → SP-004 → DES-004 → TC-020/021
+- FR-004 → SP-005 → DES-002/004 → TC-126
+- FR-006 → SP-007/015 → DES-005 → TC-030/127
 - FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112/114
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
@@ -130,4 +136,5 @@
 - FR-036 → SP-013 → DES-003 → TC-109
 - FR-037 → SP-002/004 → DES-002 → TC-073
 - FR-038 → SP-005/006 → DES-002/003 → TC-110
+- NFR-001 → SP-008 → DES-001/005 → TC-001/128
 - NFR-003 → SP-001 → DES-003 → TC-040/045

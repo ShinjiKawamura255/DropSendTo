@@ -6,6 +6,7 @@ DropSendTo is a Windows-only .NET 10 WPF launcher. The canonical implementation 
 
 The current architecture and behavior are documented through the SDD/TDD set:
 
+- Document map: `docs/INDEX.md`
 - Requirements: `docs/REQUIREMENTS.md`
 - Spec: `docs/SPEC.md`
 - Design: `docs/DESIGN.md`
@@ -27,9 +28,10 @@ Run commands on Windows with .NET SDK 10.x:
 
 ```powershell
 dotnet restore
-dotnet build
-dotnet test
-dotnet format
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1
+dotnet format --verify-no-changes --no-restore
+dotnet test -c Release --no-restore
+dotnet build -c Release --no-restore
 ```
 
 From WSL, call Windows PowerShell as documented in `AGENTS.md` and `README.md`.
@@ -46,6 +48,8 @@ For release packaging:
 powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64 -Version vX.Y.Z
 ```
 
+`-Version` を省略した場合は Git 状態から一意な識別子を算出します。成果物を作らず値だけ確認するには `Build-Release.ps1 -VersionOnly` を使います。clean な完全一致タグ以外は短縮 SHA を含み、dirty worktree では dirty marker も付きます。
+
 ## Validation Matrix
 
 - Docs-only change: check affected links, headings, version mentions, and traceability references.
@@ -53,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x6
 - UI change: run relevant automated tests and perform a Windows GUI smoke check where practical; include screenshots/GIFs for PRs.
 - Config model change: update `ConfigTransferService` export/import snapshots and `tests/DropSendTo.Tests/ConfigTransferServiceTests.cs`.
 - Macro command change: update `KeyboardMacroService` validation mode, `src/DropSendTo/MacroTipsWindow.xaml`, `src/DropSendTo/RegisterDialog.xaml.cs` snippet groups, unit tests, `docs/SPEC.md`, and `docs/MACRO_SAMPLES.md` when applicable.
-- Release change: use `scripts/Build-Release.ps1`; do not hand-edit `dist/` output.
+- Release change: run `scripts/Test-Release-Version.ps1`, format verify, Release test/build; use `scripts/Build-Release.ps1` and do not hand-edit `dist/` output. TRX is ignored by `.gitignore` and must not be committed.
 
 ## Open Gaps
 

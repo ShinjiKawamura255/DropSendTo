@@ -186,9 +186,9 @@ stateDiagram-v2
 - Responsibility: 設定 JSON の読み書き、`.bak` バックアップ、バリデーション、バージョンマイグレーション、レイヤー/スロット容量保証。
 - Public Interface: `LoadOrCreate()`, `Save(AppConfig)`, `GetConfigPath()`。
 - Inputs / Outputs: 入力は `%AppData%/DropSendTo/config.json` と `AppConfig`。出力は正規化済み `AppConfig`、保存済み JSON、`.bak`。
-- Internal Logic: 読み込み成功後に `Validate` と `Migrate` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
-- Dependencies: `System.Text.Json`, `LoggerService`, `AppConfig`。
-- Failure Modes: JSON 破損、バックアップ破損、I/O 失敗。可能な限り既定値へフォールバックする。
+- Internal Logic: 読み込み成功後に `Validate` と `Migrate` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。保存は primary と同じディレクトリの一時ファイルへ書き込み、flush 後に replace/move で原子的に確定する。backup 復旧時は正常な backup を上書きせず、同じ原子的経路で primary だけを修復する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
+- Dependencies: `System.Text.Json`, `IAppLogger`, `ConfigFileSystem`, `AppConfig`。
+- Failure Modes: JSON 破損、バックアップ破損、write/flush/replace の I/O 失敗。保存失敗時は既存 primary/backup を保持し、残留一時ファイルは次回保存前に除去する。
 
 ### 7.5 ConfigTransferService
 
@@ -204,8 +204,8 @@ stateDiagram-v2
 - Responsibility: スロットのコマンド/ディレクトリ起動、引数テンプレート展開、起動後フォアグラウンド昇格。
 - Public Interface: `LauncherService.Launch(SlotModel, string[] paths, string? argumentOverride = null)`, `ArgumentTemplateExpander.Expand(...)`。
 - Inputs / Outputs: 入力は `SlotModel`, ドロップ/CLI パス、クリップボード snapshot。出力は `LaunchResult` と `ProcessStartInfo` に基づくプロセス起動。
-- Internal Logic: ディレクトリは `UseShellExecute=true` で開き、失敗時は `explorer.exe` へフォールバックする。ファイル/実行ファイルは `ArgumentsTemplate` を `{args}` / `{drop_*}` / `{clipboard*}` で展開し、起動後にウィンドウを前面化する非同期試行を行う。
-- Dependencies: `Process.Start`, WPF Clipboard, `ClipboardHistoryService`, Win32 foreground APIs。
+- Internal Logic: ディレクトリは `UseShellExecute=true` で開き、失敗時は `explorer.exe` へフォールバックする。ファイル/実行ファイルは `ArgumentsTemplate` を `{args}` / `{drop_*}` / `{clipboard*}` で展開し、起動後にウィンドウを前面化する非同期試行を行う。通常ログは command/arguments/title の値を出さず、入力件数や展開後引数長だけを記録する。
+- Dependencies: `Process.Start`, WPF Clipboard, `ClipboardHistoryService`, `IAppLogger`, Win32 foreground APIs。
 - Failure Modes: コマンド未設定、起動失敗、クリップボード読み取り失敗、GUI でないプロセスの foreground 失敗。起動失敗のみ `LaunchResult.Fail`、foreground 失敗は警告ログで継続する。
 
 ### 7.7 KeyboardMacroService
@@ -213,8 +213,8 @@ stateDiagram-v2
 - Responsibility: Macro Script の構文検証、実行、Win32 入力送出、フォアグラウンドターゲット追跡、マクロ並行制御の基盤。
 - Public Interface: `Initialize(WindowInteropHelper)`, `TryValidateScript(...)`, `RunMacroAsync(...)`, `CancelAllRunningMacrosAsync(...)`, `SuspendCurrentMacroAsync(...)`, `Dispose()`。
 - Inputs / Outputs: 入力はスクリプト文字列、`MacroExecutionContext`、キャンセルトークン。出力は `MacroExecutionResult`、SendInput によるキーボード/マウス入力、必要時のダイアログ/ポップアップ。
-- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。検証モードではダイアログやファイル変更を抑止する。
-- Dependencies: Win32 SendInput/WinEventHook、WPF Clipboard、WLAN API、`MacroConditionEvaluator`, `MacroQuotedTextReader`, `MacroExecutionContext`。
+- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。検証モードではダイアログやファイル変更を抑止する。変数操作や `RETURN` の通常ログは値ではなく長さ・件数・状態を記録する。
+- Dependencies: Win32 SendInput/WinEventHook、WPF Clipboard、WLAN API、`IAppLogger`, `MacroConditionEvaluator`, `MacroQuotedTextReader`, `MacroExecutionContext`。
 - Failure Modes: 未知コマンド、範囲外値、未閉鎖ブロック、変数展開失敗、SendInput 失敗、キャンセル、サスペンド再開順序不一致。失敗時は押下中のキー/マウスを可能な限り解放してから結果を返す。
 
 ### 7.8 ShortcutService and Shortcut Helpers
@@ -238,9 +238,9 @@ stateDiagram-v2
 ### 7.10 Placement, Screen, Theme, Logging
 
 - Responsibility: ウィンドウ配置補正、マルチモニター DPI 対応、テーマ適用、ログ出力とローテーション。
-- Public Interface: `WindowPlacementService.Clamp(...)`, `ScreenBoundsResolver.ForWindow/ForRect/ForPoint`, `ThemeService.ApplyTheme`, `LoggerService.Info/Warn/Error`。
+- Public Interface: `WindowPlacementService.Clamp(...)`, `ScreenBoundsResolver.ForWindow/ForRect/ForPoint`, `ThemeService.ApplyTheme`, `IAppLogger.Info/Warn/Error`。
 - Inputs / Outputs: 入力はウィンドウ座標、スクリーン情報、テーマ enum、ログメッセージ。出力は補正座標、ResourceDictionary、ログファイル。
-- Internal Logic: `ScreenBoundsResolver` は Windows Forms Screen と `GetDpiForMonitor` から WPF DIP の作業領域を求める。`WindowPlacementService` は NaN/Infinity を作業領域左上へ戻し、サイズ込みで可視範囲へ clamp する。`LoggerService` は 1MB 超でタイムスタンプ付きログへローテーションし、7 日超を削除する。
+- Internal Logic: `ScreenBoundsResolver` は Windows Forms Screen と `GetDpiForMonitor` から WPF DIP の作業領域を求める。`WindowPlacementService` は NaN/Infinity を作業領域左上へ戻し、サイズ込みで可視範囲へ clamp する。`LoggerService` は 1MB 超でタイムスタンプ付きログへローテーションし、7 日超を削除する。`LauncherService` と `KeyboardMacroService` へは `IAppLogger` を注入でき、`NullAppLogger` または capture logger で副作用なしに検証できる。
 - Dependencies: WPF, Windows Forms, shcore.dll/user32.dll, ファイル I/O。
 - Failure Modes: DPI API 不在時は scale=1。ログ出力失敗は握りつぶし、アプリ操作を妨げない。
 
@@ -256,9 +256,9 @@ stateDiagram-v2
 ### 7.12 Build and Release Scripts
 
 - Responsibility: Windows .NET SDK による restore/build/test/release publish、成果物配置、ZIP 化、署名オプション。
-- Public Interface: `scripts/Run-Tests-And-Build.ps1`, `scripts/Build-Release.ps1`。
-- Inputs / Outputs: 入力は PowerShell パラメータ、`DOTNET_EXE`、RID、Version。出力は `test_results.trx`, `dist/DropSendTo_<Rid>_<Version>/`, `dist/latest/`, ZIP。
-- Internal Logic: 必要に応じて起動中プロセスを終了し、Framework Dependent / Self-contained / Portable のバリアントを作る。
+- Public Interface: `scripts/Run-Tests-And-Build.ps1`, `scripts/Build-Release.ps1`, `scripts/Release-Version.ps1`, `scripts/Test-Release-Version.ps1`。
+- Inputs / Outputs: 入力は PowerShell パラメータ、`DOTNET_EXE`、RID、Version、Git 状態。出力は `.gitignore` 対象の `test_results.trx`, `dist/DropSendTo_<Rid>_<Version>/`, `dist/latest/`, ZIP、または `-VersionOnly` の識別子。
+- Internal Logic: 必要に応じて起動中プロセスを終了し、Framework Dependent / Self-contained / Portable のバリアントを作る。自動バージョンは clean な完全一致タグだけをそのまま使い、それ以外は短縮 SHA と dirty marker を含める。CI は version test、format verify、test/build を順に実行する。
 - Dependencies: Windows PowerShell, .NET 10 SDK, optional signing certificate。
 - Failure Modes: SDK 不一致、実行中プロセスロック、署名失敗、ZIP 作成失敗。
 
@@ -355,12 +355,13 @@ flowchart LR
   Read["Read config.json"] --> Deserialize
   Deserialize --> Validate1["Validate normalize ranges/enums/capacity"]
   Validate1 --> Migrate["Migrate Version < 37"]
-  Migrate --> SaveIfChanged["Save when migrated"]
+  Migrate --> SaveIfChanged["Write same-directory temp + flush + atomic replace"]
   Read -->|failure| ReadBak["Read config.json.bak"]
   ReadBak --> ValidateBak["Validate + migrate backup"]
   ReadBak -->|failure| Fresh["Create default AppConfig"]
+  ValidateBak --> Repair["Repair primary atomically; preserve backup"]
   SaveIfChanged --> Ready["Ready AppConfig"]
-  ValidateBak --> Ready
+  Repair --> Ready
   Fresh --> Ready
 ```
 
@@ -686,6 +687,7 @@ sequenceDiagram
 
 リカバリ方針:
 - 設定破損は `.bak`、それも失敗なら既定値へフォールバックする。
+- 設定保存の write/flush/replace 失敗では既存 primary/backup を維持し、backup 復旧時も復旧元を保持する。
 - 個別スロット起動失敗は MessageBox とログに止め、アプリ本体を継続する。
 - ログ出力失敗は握りつぶし、ユーザー操作を止めない。
 - Prefix 解析失敗は既定 `CTRL+Q` へフォールバックする。
@@ -694,6 +696,7 @@ sequenceDiagram
 
 可観測性:
 - `LoggerService` が `%AppData%/DropSendTo/logs/app.log` へ INFO/WARN/ERROR を出力する。
+- 起動・マクロ・UI 統合経路は `IAppLogger` 契約を共有し、通常ログにはユーザー制御値を出さず件数・長さ・状態を出力する。
 - 専用メトリクス/トレース基盤はない。診断はログと UI メッセージで行う。
 
 [[↑ Back to Top]](#top)
@@ -704,7 +707,7 @@ sequenceDiagram
 
 - 設定エクスポートは AES-GCM と PBKDF2-SHA256 200,000 iterations を使用する。Salt/Nonce/Tag/CipherText は Base64 で JSON 化される。
 - payload にはスロット登録情報、コマンド、引数テンプレート、マクロが含まれる。共有時はパスワードを別チャネルで渡し、Git/Issue 等へ password と payload を同時保存しない。
-- ログにはコマンドや引数が出る可能性があるため、認証情報や PII を含むコマンドを登録する場合は注意が必要。
+- 通常ログから展開済み引数、コマンドパス、スロットタイトル、クリップボード/ドロップ値、マクロ変数/`RETURN` 値を除外する。OS/API 例外メッセージは診断のため残り得るため、外部共有前に確認・マスクする。
 - Macro Script はファイル操作、入力送出、外部コマンド起動に到達できるため、信頼できない設定インポートは実行前確認が必要である。
 
 ### 13.2 Operations
@@ -718,7 +721,7 @@ sequenceDiagram
 
 ### 13.3 Release
 
-`scripts/Build-Release.ps1` は配布成果物を `dist/` へ出力し、`dist/latest/` へ最新コピーを展開する。Framework Dependent が既定で、`-SelfContained` と `-Portable` により追加 variant を作れる。`USER_GUIDE.md` は成果物へ同梱する。
+`scripts/Build-Release.ps1` は配布成果物を `dist/` へ出力し、`dist/latest/` へ最新コピーを展開する。Framework Dependent が既定で、`-SelfContained` と `-Portable` により追加 variant を作れる。`USER_GUIDE.md` は成果物へ同梱する。バージョン未指定時は `Release-Version.ps1` が Git 状態を解決し、clean な完全一致タグだけをそのまま使用する。post-tag、dirty、タグなしでは短縮 SHA と必要な dirty marker を含めるため成果物名が衝突しない。`-VersionOnly` は生成せず識別子だけを返し、`Test-Release-Version.ps1` が 9 ケースを検証する。CI はこの回帰テスト、format verify、test/build を必須とする。
 
 [[↑ Back to Top]](#top)
 
@@ -730,8 +733,10 @@ sequenceDiagram
 - UI レイアウトは XAML 定数とサービス境界をテストし、実フォーカスが必要なものは STA + Dispatcher を使う。
 
 主要テスト対応:
-- Config/転送: `ConfigServiceTests.cs`, `ConfigTransferServiceTests.cs`
+- Config/転送: `ConfigServiceTests.cs`（write/flush/replace 失敗、stale temp、backup 修復を含む）, `ConfigTransferServiceTests.cs`
 - 引数展開/起動: `ArgumentTemplateExpanderTests.cs`, `LauncherServiceTests.cs`
+- ログ privacy: `LoggingPrivacyTests.cs` で sentinel が通常ログへ出ないことを確認する。
+- リリース識別子: `scripts/Test-Release-Version.ps1` で Git 状態別の 9 ケースを確認する。
 - Macro Script: `KeyboardMacroService*Tests.cs`, `MacroConditionEvaluatorTests.cs`, `MacroQuotedTextReaderTests.cs`, `MacroRecordingOptimizerTests.cs`
 - Shortcut/Prefix: `KeyChordParserPrefixTests.cs`, `ShortcutServicePrefix*Tests.cs`, `ShortcutSequenceParserTests.cs`, `ShortcutSequenceMatcherTests.cs`, `ShortcutSpecialCommandResolverTests.cs`
 - 検索: `SlotSearchServiceTests.cs`
@@ -764,7 +769,7 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 - `MainWindow` の一部責務を ViewModel/Controller 的な単位へ分離し、検索、pending drop、slot execution state のテスト容易性を上げる。
 - Macro Script parser を token/AST 化し、検証モードと実行モードの差分をさらに小さくする。
 - Config schema の snapshot 欠落を検出する reflection-based test を追加する。
-- ログの redaction helper を追加し、コマンド引数に秘密情報が混ざるリスクを下げる。
+- OS/API 例外メッセージを分類し、診断性を保ったまま外部入力の残留範囲をさらに狭める。
 - GUI smoke test を追加し、検索レイヤー、DropCapture、モデルレスダイアログ、トレイ復帰を操作レベルで検証する。
 
 [[↑ Back to Top]](#top)
@@ -777,15 +782,16 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 | SP-002 Slot Registration | 7.2, 7.11, 10.1 | `RegisterDialog`, `SlotModel`, `KeyChordParser` | `SlotModelTests`, `KeyChordParserPrefixTests` |
 | SP-003 Layer Control | 7.2, 8 | `MainWindow`, `LayerManager` | `LayerManagerTests` |
 | SP-004 Launch and Macro | 7.6, 7.7, 11.2 | `LauncherService`, `ArgumentTemplateExpander`, `KeyboardMacroService` | `LauncherServiceTests`, `ArgumentTemplateExpanderTests`, `KeyboardMacroService*Tests` |
-| SP-005 Persistence | 7.4, 10.1 | `ConfigService`, `AppConfig` | `ConfigServiceTests` |
+| SP-005 Persistence | 7.4, 9.3, 10.1 | `ConfigService`, `ConfigFileSystem`, `AppConfig` | `ConfigServiceTests` |
 | SP-006 Menus | 7.2, 7.11 | `MainWindow`, dialogs | UI/manual plus targeted service tests |
 | SP-007 Error Handling | 12 | `LoggerService`, `App`, services | `ConfigServiceTests`, launcher/macro failure tests |
-| SP-008 Platform | 13.2 | `.csproj`, scripts | build/test scripts |
+| SP-008 Platform | 13.2, 13.3 | `.csproj`, release scripts, CI | `Test-Release-Version.ps1`, format/test/build |
 | SP-009 Macro Script Syntax | 9.2, 11.2 | `KeyboardMacroService`, macro helpers | `KeyboardMacroService*Tests`, `MacroConditionEvaluatorTests` |
 | SP-010 Shortcut Prefix | 9.4, 11.3 | `ShortcutService`, shortcut helpers | `ShortcutServicePrefix*Tests`, `ShortcutSequence*Tests` |
 | SP-011 Macro Concurrency | 9.2 | `KeyboardMacroService`, `MainWindow` macro state | macro concurrency related tests |
 | SP-012 Slot Setup Mode | 7.2, 9.1 | `MainWindow` slot layout drag/drop | `SlotDropRegistrationHelperTests`, UI/manual |
 | SP-013 Drag Drop Capture | 7.3, 9.5 | `DropCaptureWindow`, `MainWindow` pending drop | targeted tests/manual |
+| SP-015 Operational Privacy | 7.6, 7.7, 12, 13.1 | `IAppLogger`, `LauncherService`, `KeyboardMacroService`, `MainWindow` | `LoggingPrivacyTests`, static audit |
 
 [[↑ Back to Top]](#top)
 
@@ -796,6 +802,5 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 スコープ外として追跡する候補:
 - 実 GUI の自動 smoke test を Playwright 以外の Windows GUI 向け手段でどう整備するか。
 - Macro Script parser の AST 化をいつ行うか。
-- ログ redaction をどの粒度で導入するか。
 
 [[↑ Back to Top]](#top)

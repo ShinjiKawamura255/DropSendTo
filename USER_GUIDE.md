@@ -114,7 +114,7 @@
 | `RENAME <元パス> <新しいパス>` | ファイル/フォルダの名前を変更（変数展開・クォート可） | `RENAME "{{drop_path}}" "{{drop_path}}.bak"` |
 | `TESTPATH <変数> <パス>` | ファイル/フォルダの存在を `1` (存在) / `0` (未存在) として変数に格納 | `TESTPATH PathOk {{drop_path}}` |
 | `READFILE <変数> <パス> [MAX <バイト>]` | ファイル内容を変数へ読み込み（既定 4096 バイト。超える場合は MAX で明示） | `READFILE Prompt C:\notes\prompt.txt` |
-| `RETURN ["メッセージ"]` | マクロを即終了（メッセージは任意でログ/結果に残る） | `RETURN "条件を満たさないため中止"` |
+| `RETURN ["メッセージ"]` | マクロを即終了（メッセージは結果に残る。通常ログには長さのみ記録） | `RETURN "条件を満たさないため中止"` |
 | `POPUP "メッセージ"` | 任意のメッセージをポップアップ表示（閉じるまでマクロを一時停止） | `POPUP "{{drop_path}} が見つかりません"` |
 | `PROMPT <変数> "メッセージ" [DEFAULT "初期値"] [TIMEOUT <ms> "タイムアウト値"]` | 入力ダイアログを表示し OK で値を変数へ格納（TIMEOUT 指定時はタイムアウト値を使用、キャンセルで失敗） | `PROMPT Name "名前を入力" TIMEOUT 10000 "unknown"` |
 | `COMMAND_APP <パス>` | Macro Script 拡張専用。COMMAND が起動する実行ファイルを一時的に差し替え（RESET/CLEAR で元に戻す） | `COMMAND_APP "C:\tools\img.exe"` |
