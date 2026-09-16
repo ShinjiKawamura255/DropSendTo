@@ -1,3 +1,8 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using DropSendTo.Models;
 using DropSendTo.Services;
 using FluentAssertions;
@@ -38,7 +43,11 @@ public class ConfigTransferServiceTests
             MouseGestureMaxRadiusPixels = 180,
             SearchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter,
             SearchPlacementFollowsKeyboard = true,
+            WindowPlacementMode = WindowPlacementMode.MouseFollow,
             KeyboardPlacementMode = WindowPlacementMode.CursorScreenCenter,
+            MousePlacementMode = WindowPlacementMode.MouseFollow,
+            MousePlacementFollowsKeyboard = false,
+            MacroConcurrencyMode = MacroConcurrencyMode.SuspendAndResume,
             Language = AppLanguage.English,
             Theme = AppTheme.Light
         };
@@ -73,9 +82,15 @@ public class ConfigTransferServiceTests
         imported.MouseGestureRequireCtrl.Should().BeTrue();
         imported.MouseGestureSuppressDuringPresentation.Should().BeTrue();
         imported.MouseGestureEnforceRadiusLimit.Should().BeFalse();
+        imported.MouseGestureMinRadiusPixels.Should().Be(80);
         imported.MouseGestureMaxRadiusPixels.Should().Be(180);
         imported.SearchPlacementMode.Should().Be(SearchOverlayPlacementMode.CursorScreenCenter);
         imported.SearchPlacementFollowsKeyboard.Should().BeTrue();
+        imported.WindowPlacementMode.Should().Be(WindowPlacementMode.MouseFollow);
+        imported.KeyboardPlacementMode.Should().Be(WindowPlacementMode.CursorScreenCenter);
+        imported.MousePlacementMode.Should().Be(WindowPlacementMode.MouseFollow);
+        imported.MousePlacementFollowsKeyboard.Should().BeFalse();
+        imported.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.SuspendAndResume);
         imported.Language.Should().Be(AppLanguage.English);
         imported.Theme.Should().Be(AppTheme.Light);
         imported.Layers[0].Slots[0].Title.Should().Be("Test Slot");
@@ -96,4 +111,79 @@ public class ConfigTransferServiceTests
 
         action.Should().Throw<InvalidOperationException>().WithMessage("*パスワード*");
     }
+
+    [Theory]
+    [InlineData(typeof(AppConfig), "ExportConfigSnapshot")]
+    [InlineData(typeof(Layer), "ExportLayerSnapshot")]
+    [InlineData(typeof(SlotModel), "ExportSlotSnapshot")]
+    [InlineData(typeof(SlotMinimizeOptions), "ExportMinimizeOptions")]
+    public void ExportSnapshot_ShouldDeclareEveryPersistedProperty(Type modelType, string snapshotTypeName)
+    {
+        var snapshotType = GetSnapshotType(snapshotTypeName);
+        var modelProperties = modelType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(property => property.CanRead && property.CanWrite)
+            .Select(property => property.Name);
+        var snapshotProperties = snapshotType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+            .Where(property => property.CanRead && property.CanWrite)
+            .Select(property => property.Name);
+
+        snapshotProperties.Should().Contain(modelProperties);
+    }
+
+    [Fact]
+    public void LegacySnapshot_ShouldUseSafeDefaults_WhenNewPropertiesAreMissing()
+    {
+        var snapshotType = GetSnapshotType("ExportConfigSnapshot");
+        var snapshot = JsonSerializer.Deserialize("{\"Version\":37,\"Layers\":[]}", snapshotType);
+        snapshot.Should().NotBeNull();
+
+        var imported = snapshotType.GetMethod("ToAppConfig", BindingFlags.Instance | BindingFlags.Public)!
+            .Invoke(snapshot, null).Should().BeOfType<AppConfig>().Subject;
+
+        imported.WindowPlacementMode.Should().Be(WindowPlacementMode.Fixed);
+        imported.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
+        imported.MouseGestureMinRadiusPixels.Should().Be(0);
+    }
+
+    [Fact]
+    public void Import_ShouldRejectOversizedPackageBeforeParsing()
+    {
+        var service = new ConfigTransferService();
+        var payload = new string('x', ConfigTransferService.MaxPackageBytes + 1);
+
+        var action = () => service.ImportConfig(payload, "password");
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*サイズ*");
+    }
+
+    [Fact]
+    public void Import_ShouldRejectExcessiveKdfIterationsBeforeKeyDerivation()
+    {
+        var service = new ConfigTransferService();
+        var package = JsonNode.Parse(service.CreateExportPayload(new AppConfig(), "password"))!.AsObject();
+        package["KdfIterations"] = ConfigTransferService.MaxKdfIterations + 1;
+
+        var action = () => service.ImportConfig(package.ToJsonString(), "password");
+
+        action.Should().Throw<InvalidOperationException>().WithMessage("*KDF*");
+    }
+
+    [Theory]
+    [InlineData("Salt", 15)]
+    [InlineData("Nonce", 11)]
+    [InlineData("Tag", 15)]
+    public void Import_ShouldRejectInvalidCryptoElementLengthBeforeDecryption(string propertyName, int byteLength)
+    {
+        var service = new ConfigTransferService();
+        var package = JsonNode.Parse(service.CreateExportPayload(new AppConfig(), "password"))!.AsObject();
+        package[propertyName] = Convert.ToBase64String(new byte[byteLength]);
+
+        var action = () => service.ImportConfig(package.ToJsonString(), "password");
+
+        action.Should().Throw<InvalidOperationException>().WithMessage($"*{propertyName}*");
+    }
+
+    private static Type GetSnapshotType(string name) =>
+        typeof(ConfigTransferService).GetNestedType(name, BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Snapshot type not found: {name}");
 }

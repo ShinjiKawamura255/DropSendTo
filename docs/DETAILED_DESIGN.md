@@ -679,10 +679,21 @@ sequenceDiagram
     MW->>FS: write selected file
   else import
     MW->>FS: read selected file
-    MW->>CTS: ImportConfig(payload, password)
-    CTS-->>MW: AppConfig
-    MW->>CS: Save(imported config)
-    MW->>MW: refresh UI and services
+    MW->>CTS: validate bounds, decrypt payload
+    CTS-->>MW: AppConfig candidate
+    MW->>CS: NormalizeForUse(candidate)
+    MW->>MW: summarize command/macro/startup risks
+    MW->>PWD: modeless trust confirmation
+    alt rejected
+      PWD-->>MW: cancel without mutation
+    else approved
+      MW->>CS: atomically save candidate
+      MW->>MW: apply runtime stages
+      alt apply failure
+        MW->>CS: restore previous config
+        MW->>MW: restore previous runtime state
+      end
+    end
   end
 ```
 
@@ -718,10 +729,10 @@ sequenceDiagram
 
 ### 13.1 Security
 
-- 設定エクスポートは AES-GCM と PBKDF2-SHA256 200,000 iterations を使用する。Salt/Nonce/Tag/CipherText は Base64 で JSON 化される。
+- 設定エクスポートは AES-GCM と PBKDF2-SHA256 200,000 iterations を使用する。Salt/Nonce/Tag/CipherText は Base64 で JSON 化される。インポートは復号前に package UTF-8 16 MiB、KDF 1,000,000、Salt 16 bytes、Nonce 12 bytes、Tag 16 bytes、CipherText 8 MiB の上限・固定長を検証する。
 - payload にはスロット登録情報、コマンド、引数テンプレート、マクロが含まれる。共有時はパスワードを別チャネルで渡し、Git/Issue 等へ password と payload を同時保存しない。
 - 通常ログから展開済み引数、コマンドパス、スロットタイトル、クリップボード/ドロップ値、マクロ変数/`RETURN` 値を除外する。OS/API 例外メッセージは診断のため残り得るため、外部共有前に確認・マスクする。
-- Macro Script はファイル操作、入力送出、外部コマンド起動に到達できるため、信頼できない設定インポートは実行前確認が必要である。
+- Macro Script はファイル操作、入力送出、外部コマンド起動に到達できるため、設定インポートは入手元の信頼、コマンド/マクロ/起動時実行件数、次回起動時の自動実行可能性を確認画面で明示し、利用者のチェック操作なしに確定しない。
 
 ### 13.2 Operations
 

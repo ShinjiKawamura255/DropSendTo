@@ -13,7 +13,8 @@
 - DropCaptureWindow: ドラッグ中のホイールクリックで表示するドロップ専用ウィンドウ。ファイル/フォルダのドロップを受け取り、MainWindow にドロップパスを通知してインジケーター表示と `{args}` 展開のための状態を更新する。
 - Window position persistence: 固定位置モードかつユーザーによる移動時のみ座標を保存し、`_suppressFixedCapture`/`_suppressFixedCaptureDuringSearch`/`_suppressFixedCaptureFromTransientShow`/`_blockLocationSave` を使って一時配置（マウスフォロー、画面中央、検索レイヤー表示、ドラッグ中のホイールクリック表示など）では保存を抑止する。
 - AppConfig / SlotModel: 設定スキーマ。バージョン管理、マクロスクリプト、クリック有効フラグ、常時最前面、位置、SlotRows/SlotColumns、ShortcutPrefix、各スロットの ShortcutKey、Language（既定=Japanese）を保持する。
-- ConfigService: JSON 読み書き、バリデーション、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。保存は同一ディレクトリの一時ファイルへ書き込み・flush してから原子的に置換し、失敗時は既存 primary/backup を保持する。backup 昇格に失敗した場合は旧 primary をロールバックし、ロールバックにも失敗した場合は旧 primary の recovery artifact を保持して失敗を通知する。backup 復旧時は正常な backup を残したまま primary を修復する。
+- ConfigService: JSON 読み書き、共通 `NormalizeForUse`、`.bak` バックアップ更新、バージョン 18 以前からのマイグレーションを実装し（Language を日本語で初期化）、行列分のスロット容量を保証する。保存は同一ディレクトリの一時ファイルへ書き込み・flush してから原子的に置換し、失敗時は既存 primary/backup を保持する。backup 昇格に失敗した場合は旧 primary をロールバックし、ロールバックにも失敗した場合は旧 primary の recovery artifact を保持して失敗を通知する。backup 復旧時は正常な backup を残したまま primary を修復する。インポート候補も確認前に同じ正規化経路を通す。
+- ConfigTransferService / ConfigImportCoordinator: `AppConfig`、`Layer`、`SlotModel`、`SlotMinimizeOptions` の明示 snapshot を AES-GCM + PBKDF2 で転送し、復号前に package/KDF/暗号要素の上限を検証する。`ConfigImportRiskSummary` が実行可能設定を集計し、モデルレス確認後だけ coordinator が保存と `ConfigRuntimeApplier` の段階適用を行う。runtime 段階で例外が起きた場合は旧設定を disk/runtime へ再適用し、部分適用を残さない。
 - ClipboardHistoryService: `WM_CLIPBOARDUPDATE` を購読してテキスト履歴を最大 20 行まで保持し、`{clipboard_args}` 系プレースホルダのために直近コピー内容を分解・正規化する。
 - LauncherService: `ArgumentTemplateExpander` を通じて `{args}`・`{clipboard}`・`{clipboard_args}`・`{clipboard_args:n}` プレースホルダを展開し `ProcessStartInfo` を構築する。失敗時はメッセージ付きで返却。
 - ArgumentTemplateExpander: 引数テンプレートを解析し、ドロップパスと ClipboardHistoryService が提供する履歴を基に `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}`/`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を展開する純粋関数。
@@ -93,7 +94,7 @@
 
 ## Traceability (excerpt)
 - DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114/115/116/117
-- DES-002/004 ← SP-005 → TC-126
+- DES-002/004/005 ← SP-005 → TC-126/129/130
 - DES-002 ← SP-002/004 → TC-073
 - DES-003 ← SP-001/003/006/010/013 → TC-040/050/060/065/085/086/087/108/109/110
 - DES-005 ← SP-004/007/010/015 → TC-030/035/095/085/086/087/127

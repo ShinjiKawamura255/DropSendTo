@@ -16,6 +16,9 @@ internal sealed class ConfigTransferService
     private const int TagSize = 16;
     private const int KeySize = 32;
     private const int DefaultIterations = 200_000;
+    internal const int MaxPackageBytes = 16 * 1024 * 1024;
+    internal const int MaxKdfIterations = 1_000_000;
+    private const int MaxCipherBytes = 8 * 1024 * 1024;
 
     public string CreateExportPayload(AppConfig config, string password)
     {
@@ -32,6 +35,10 @@ internal sealed class ConfigTransferService
     {
         if (string.IsNullOrWhiteSpace(payload)) throw new ArgumentException("インポートデータが空です。", nameof(payload));
         if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("パスワードを指定してください。", nameof(password));
+        if (Encoding.UTF8.GetByteCount(payload) > MaxPackageBytes)
+        {
+            throw new InvalidOperationException($"エクスポートファイルのサイズが上限 ({MaxPackageBytes} bytes) を超えています。");
+        }
 
         ConfigExportPackage package;
         try
@@ -46,7 +53,11 @@ internal sealed class ConfigTransferService
         string plaintext;
         try
         {
-            plaintext = Decrypt(package, password);
+            plaintext = Decrypt(DecodeAndValidatePackage(package), password);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (CryptographicException ex)
         {
@@ -92,23 +103,63 @@ internal sealed class ConfigTransferService
         };
     }
 
-    private static string Decrypt(ConfigExportPackage package, string password)
+    private static DecodedConfigExportPackage DecodeAndValidatePackage(ConfigExportPackage package)
     {
         if (package.PackageVersion != PackageVersion)
         {
             throw new InvalidOperationException("サポートされていないエクスポートバージョンです。");
         }
 
-        var salt = Convert.FromBase64String(package.Salt ?? throw new InvalidOperationException("Salt が不足しています。"));
-        var nonce = Convert.FromBase64String(package.Nonce ?? throw new InvalidOperationException("Nonce が不足しています。"));
-        var tag = Convert.FromBase64String(package.Tag ?? throw new InvalidOperationException("Tag が不足しています。"));
-        var cipher = Convert.FromBase64String(package.CipherText ?? throw new InvalidOperationException("暗号データが不足しています。"));
         var iterations = package.KdfIterations > 0 ? package.KdfIterations : DefaultIterations;
-        var key = DeriveKey(password, salt, iterations);
+        if (iterations > MaxKdfIterations)
+        {
+            throw new InvalidOperationException($"KDF iterations が上限 ({MaxKdfIterations}) を超えています。");
+        }
 
-        var plaintext = new byte[cipher.Length];
+        var salt = DecodeRequiredBase64(package.Salt, "Salt", SaltSize);
+        var nonce = DecodeRequiredBase64(package.Nonce, "Nonce", NonceSize);
+        var tag = DecodeRequiredBase64(package.Tag, "Tag", TagSize);
+        var cipher = DecodeRequiredBase64(package.CipherText, "CipherText", expectedLength: null);
+        if (cipher.Length > MaxCipherBytes)
+        {
+            throw new InvalidOperationException($"CipherText のサイズが上限 ({MaxCipherBytes} bytes) を超えています。");
+        }
+
+        return new DecodedConfigExportPackage(iterations, salt, nonce, tag, cipher);
+    }
+
+    private static byte[] DecodeRequiredBase64(string? value, string name, int? expectedLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException($"{name} が不足しています。");
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(value);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidOperationException($"{name} の形式が不正です。", ex);
+        }
+
+        if (expectedLength.HasValue && bytes.Length != expectedLength.Value)
+        {
+            throw new InvalidOperationException($"{name} の長さが不正です。期待値: {expectedLength.Value} bytes。");
+        }
+
+        return bytes;
+    }
+
+    private static string Decrypt(DecodedConfigExportPackage package, string password)
+    {
+        var key = DeriveKey(password, package.Salt, package.KdfIterations);
+
+        var plaintext = new byte[package.CipherText.Length];
         using var aes = new AesGcm(key, TagSize);
-        aes.Decrypt(nonce, cipher, tag, plaintext);
+        aes.Decrypt(package.Nonce, package.CipherText, package.Tag, plaintext);
         return Encoding.UTF8.GetString(plaintext);
     }
 
@@ -127,6 +178,13 @@ internal sealed class ConfigTransferService
         public string? CipherText { get; set; }
     }
 
+    private sealed record DecodedConfigExportPackage(
+        int KdfIterations,
+        byte[] Salt,
+        byte[] Nonce,
+        byte[] Tag,
+        byte[] CipherText);
+
     private sealed class ExportConfigSnapshot
     {
         private const int MinLayers = 4;
@@ -138,12 +196,14 @@ internal sealed class ConfigTransferService
         public bool AlwaysOnTop { get; set; }
         public StartupWindowBehavior StartupBehavior { get; set; }
         public WindowVisibilityState LastWindowVisibility { get; set; }
+        public WindowPlacementMode WindowPlacementMode { get; set; }
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
         public bool EnablePrefixDropCapture { get; set; }
         public bool EnableEmacsNavigation { get; set; }
         public bool EnableViNavigation { get; set; }
         public bool HideEmptySlotNames { get; set; }
+        public MacroConcurrencyMode MacroConcurrencyMode { get; set; }
         public bool EnableMouseGestures { get; set; }
         public bool EnableDragMiddleClickShow { get; set; }
         public int MouseGestureClockwiseTurnsToShow { get; set; }
@@ -152,6 +212,7 @@ internal sealed class ConfigTransferService
         public bool MouseGestureRequireCtrl { get; set; }
         public bool MouseGestureSuppressDuringPresentation { get; set; }
         public bool MouseGestureEnforceRadiusLimit { get; set; }
+        public int MouseGestureMinRadiusPixels { get; set; }
         public int MouseGestureMaxRadiusPixels { get; set; }
         public int MouseGestureShowLayerWhenVisible { get; set; }
         public int MouseGestureShowLayerWhenHidden { get; set; }
@@ -185,12 +246,14 @@ internal sealed class ConfigTransferService
                 AlwaysOnTop = config.AlwaysOnTop,
                 StartupBehavior = config.StartupBehavior,
                 LastWindowVisibility = config.LastWindowVisibility,
+                WindowPlacementMode = config.WindowPlacementMode,
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
                 EnablePrefixDropCapture = config.EnablePrefixDropCapture,
                 EnableEmacsNavigation = config.EnableEmacsNavigation,
                 EnableViNavigation = config.EnableViNavigation,
                 HideEmptySlotNames = config.HideEmptySlotNames,
+                MacroConcurrencyMode = config.MacroConcurrencyMode,
                 EnableMouseGestures = config.EnableMouseGestures,
                 EnableDragMiddleClickShow = config.EnableDragMiddleClickShow,
                 MouseGestureClockwiseTurnsToShow = config.MouseGestureClockwiseTurnsToShow,
@@ -199,6 +262,7 @@ internal sealed class ConfigTransferService
                 MouseGestureRequireCtrl = config.MouseGestureRequireCtrl,
                 MouseGestureSuppressDuringPresentation = config.MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = config.MouseGestureEnforceRadiusLimit,
+                MouseGestureMinRadiusPixels = config.MouseGestureMinRadiusPixels,
                 MouseGestureMaxRadiusPixels = config.MouseGestureMaxRadiusPixels,
                 MouseGestureShowLayerWhenVisible = config.MouseGestureShowLayerWhenVisible,
                 MouseGestureShowLayerWhenHidden = config.MouseGestureShowLayerWhenHidden,
@@ -243,12 +307,14 @@ internal sealed class ConfigTransferService
                 AlwaysOnTop = AlwaysOnTop,
                 StartupBehavior = StartupBehavior,
                 LastWindowVisibility = LastWindowVisibility,
+                WindowPlacementMode = WindowPlacementMode,
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
                 EnablePrefixDropCapture = EnablePrefixDropCapture,
                 EnableEmacsNavigation = EnableEmacsNavigation,
                 EnableViNavigation = EnableViNavigation,
                 HideEmptySlotNames = HideEmptySlotNames,
+                MacroConcurrencyMode = MacroConcurrencyMode,
                 EnableMouseGestures = EnableMouseGestures,
                 EnableDragMiddleClickShow = EnableDragMiddleClickShow,
                 MouseGestureClockwiseTurnsToShow = MouseGestureClockwiseTurnsToShow,
@@ -257,6 +323,7 @@ internal sealed class ConfigTransferService
                 MouseGestureRequireCtrl = MouseGestureRequireCtrl,
                 MouseGestureSuppressDuringPresentation = MouseGestureSuppressDuringPresentation,
                 MouseGestureEnforceRadiusLimit = MouseGestureEnforceRadiusLimit,
+                MouseGestureMinRadiusPixels = MouseGestureMinRadiusPixels,
                 MouseGestureMaxRadiusPixels = MouseGestureMaxRadiusPixels,
                 MouseGestureShowLayerWhenVisible = MouseGestureShowLayerWhenVisible,
                 MouseGestureShowLayerWhenHidden = MouseGestureShowLayerWhenHidden,

@@ -84,7 +84,7 @@ public class ConfigService
 
     public void Save(AppConfig config)
     {
-        Validate(config);
+        NormalizeForUse(config);
         EnsureConfigDirectory();
         CleanupOwnedTempFiles();
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
@@ -96,7 +96,7 @@ public class ConfigService
     {
         var json = _fileSystem.ReadAllText(path);
         var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
-        Validate(cfg);
+        NormalizeForUse(cfg);
         migrated = Migrate(cfg);
         return cfg;
     }
@@ -250,7 +250,7 @@ public class ConfigService
         }
     }
 
-    private static void Validate(AppConfig cfg)
+    internal static void NormalizeForUse(AppConfig cfg)
     {
         EnsureLayerCount(cfg);
         cfg.ShortcutPrefix ??= string.Empty;

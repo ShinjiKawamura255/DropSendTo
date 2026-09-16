@@ -35,7 +35,7 @@ using DrawingPoint = System.Drawing.Point;
 
 namespace DropSendTo;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 {
     private readonly ConfigService _configService;
     private readonly LauncherService _launcher;
@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private readonly KeyboardMacroService _macroService = new();
     private readonly ShortcutService _shortcutService = new();
     private readonly ConfigTransferService _configTransferService = new();
+    private readonly ConfigImportCoordinator _configImportCoordinator = new();
     private readonly StartupRegistrationService _startupRegistrationService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
@@ -4371,25 +4372,32 @@ public partial class MainWindow : Window
             }
 
             var imported = _configTransferService.ImportConfig(payload, password);
-            _config = imported;
-            ThemeService.ApplyTheme(_config.Theme);
-            int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
-            _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
-            _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
-            ApplyTopmostState();
-            _currentLanguage = _config.Language;
-            _shortcutService.UpdatePrefix(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
-            _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
-            _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
-            ApplySlotLayout();
-            RestoreWindowPosition();
-            Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
-            RefreshUi();
-            UpdateTrayMenuState();
-            ApplyLanguageToUi();
-            UpdateThemeMenuState();
-            _configService.Save(_config);
+            ConfigService.NormalizeForUse(imported);
+            var risk = ConfigImportRiskSummary.FromConfig(imported);
+            var confirmationDialog = new ConfigImportConfirmationDialog(_currentLanguage, risk)
+            {
+                Owner = this
+            };
+            WindowCascadeService.Arrange(confirmationDialog, this);
+            bool approved = await confirmationDialog.ShowForResultAsync();
+
+            var result = _configImportCoordinator.Commit(
+                _config,
+                imported,
+                approved,
+                _configService.Save,
+                config => ConfigRuntimeApplier.Apply(config, this));
+            if (result == ConfigImportCommitResult.Rejected)
+            {
+                return;
+            }
+
             WpfMessageBox.Show("コンフィグのインポートが完了しました。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (ConfigImportCommitException ex)
+        {
+            _logger.Error($"Config import transaction failed: {ex}");
+            WpfMessageBox.Show("コンフィグの適用に失敗したため、以前の設定へ戻しました。ログをご確認ください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch (InvalidOperationException ex)
         {
@@ -4401,6 +4409,54 @@ public partial class MainWindow : Window
             _logger.Error($"Config import error: {ex}");
             WpfMessageBox.Show("コンフィグのインポートに失敗しました。ログをご確認ください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyCore(AppConfig config)
+    {
+        _config = config;
+        int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
+        _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
+        _keyboardPlacementMode = _config.KeyboardPlacementMode;
+        _mousePlacementMode = _config.MousePlacementMode;
+        _mousePlacementFollowsKeyboard = _config.MousePlacementFollowsKeyboard;
+        _searchPlacementFollowsKeyboard = _config.SearchPlacementFollowsKeyboard;
+        _searchPlacementMode = _config.SearchPlacementMode;
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyTheme(AppConfig config)
+    {
+        ThemeService.ApplyTheme(config.Theme);
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyShortcuts(AppConfig config)
+    {
+        _shortcutService.SetRemoteSessionPreference(config.PreferRemoteSessions);
+        _shortcutService.UpdatePrefix(config.ShortcutPrefix, config.ShortcutPrefixDisabled);
+        _shortcutService.UpdateSearchHotkey(config.SearchHotkey, config.SearchHotkeyEnabled);
+        _shortcutService.SetPrefixDropCaptureEnabled(config.EnablePrefixDropCapture);
+        UpdateShortcutRegistrations();
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyMouseGestures(AppConfig config)
+    {
+        ApplyMouseGestureOptions();
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyLayoutAndWindow(AppConfig config)
+    {
+        ApplyTopmostState();
+        ApplySlotLayout();
+        RestoreWindowPosition();
+    }
+
+    void IConfigRuntimeApplyTarget.ApplyLanguageAndMenus(AppConfig config)
+    {
+        _currentLanguage = config.Language;
+        Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+        RefreshUi();
+        UpdateTrayMenuState();
+        ApplyLanguageToUi();
+        UpdateThemeMenuState();
     }
 
     private void OnOpenLogs(object sender, RoutedEventArgs e)
