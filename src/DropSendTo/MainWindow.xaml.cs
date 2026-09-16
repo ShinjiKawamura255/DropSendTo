@@ -345,16 +345,6 @@ public partial class MainWindow : Window
 
     private int _hoverTargetLayer = -1;
     private int _hoverNavigationDirection;
-    private sealed record LayerButtonModel(string Content, object Tag, bool IsLayer, int LayerIndex, string? ToolTip, bool Visible)
-    {
-        public static LayerButtonModel Layer(int layerIndex) =>
-            new((layerIndex + 1).ToString(CultureInfo.InvariantCulture), layerIndex, true, layerIndex, $"Layer {layerIndex + 1}", true);
-
-        public static LayerButtonModel Arrow(string content, string tag, string toolTip) =>
-            new(content, tag, false, -1, toolTip, true);
-
-        public static LayerButtonModel Hidden { get; } = new(string.Empty, string.Empty, false, -1, null, false);
-    }
     private AppConfig _config;
     private int _currentLayer = 0; // 0-based
     private readonly Stack<SlotRunContext> _slotRunStack = new();
@@ -6524,7 +6514,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var models = BuildLayerButtonModels(_config.Layers.Count, Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1));
+        var models = LayerButtonModelFactory.Create(
+            _config.Layers.Count,
+            Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1),
+            _layerButtons.Count,
+            _lastLayerNavigationDirection);
         void SetState(WpfButton b, bool active)
         {
             if (active)
@@ -6559,76 +6553,6 @@ public partial class MainWindow : Window
             bool active = model.IsLayer && model.LayerIndex == _currentLayer;
             SetState(button, active);
         }
-    }
-
-    private IReadOnlyList<LayerButtonModel> BuildLayerButtonModels(int totalLayers, int currentLayer)
-    {
-        int buttonCount = _layerButtons?.Count ?? 4;
-        var models = new List<LayerButtonModel>(buttonCount);
-        if (totalLayers <= 0)
-        {
-            while (models.Count < buttonCount)
-            {
-                models.Add(LayerButtonModel.Hidden);
-            }
-            return models;
-        }
-
-        if (totalLayers <= buttonCount)
-        {
-            for (int i = 0; i < buttonCount; i++)
-            {
-                models.Add(i < totalLayers ? LayerButtonModel.Layer(i) : LayerButtonModel.Hidden);
-            }
-            return models;
-        }
-
-        int numericCount = Math.Min(3, buttonCount);
-        int start = Math.Clamp(currentLayer - 1, 0, Math.Max(0, totalLayers - numericCount));
-        int end = start + numericCount - 1;
-        bool leftHidden = start > 0;
-        bool rightHidden = end < totalLayers - 1;
-
-        if (leftHidden && rightHidden)
-        {
-            numericCount = 2;
-            start = _lastLayerNavigationDirection switch
-            {
-                > 0 => Math.Clamp(currentLayer - 1, 1, totalLayers - numericCount - 1),
-                < 0 => Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1),
-                _ => Math.Clamp(currentLayer, 1, totalLayers - numericCount - 1)
-            };
-            end = start + numericCount - 1;
-            leftHidden = start > 0;
-            rightHidden = end < totalLayers - 1;
-        }
-
-        if (leftHidden)
-        {
-            models.Add(LayerButtonModel.Arrow("◀", "prev", "前のレイヤーへ"));
-        }
-
-        for (int i = 0; i < numericCount && models.Count < buttonCount; i++)
-        {
-            int layerIndex = start + i;
-            if (layerIndex >= totalLayers)
-            {
-                break;
-            }
-            models.Add(LayerButtonModel.Layer(layerIndex));
-        }
-
-        if (rightHidden && models.Count < buttonCount)
-        {
-            models.Add(LayerButtonModel.Arrow("▶", "next", "次のレイヤーへ"));
-        }
-
-        while (models.Count < buttonCount)
-        {
-            models.Add(LayerButtonModel.Hidden);
-        }
-
-        return models;
     }
 
     protected override void OnClosed(EventArgs e)

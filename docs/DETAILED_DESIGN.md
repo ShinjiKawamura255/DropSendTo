@@ -168,7 +168,7 @@ stateDiagram-v2
 - Responsibility: スロットグリッド描画、レイヤー/検索/ドロップ/トレイ/メニュー/ダイアログの統合、ショートカットイベントのアプリ操作への変換、スロット実行フローの統括。
 - Public Interface: WPF ウィンドウイベント、`TriggerSlotAsync` 系の内部実行パイプライン、ショートカット/ドロップ/検索イベントハンドラ。
 - Inputs / Outputs: 入力は UI イベント、ドロップパス、ショートカットイベント、検索文字列、設定ダイアログ結果。出力は UI 再描画、設定保存、マクロ/コマンド実行、トレイ状態変更。
-- Internal Logic: 起動時に `ApplySlotLayout()` で行列分のスロット UI を生成し、`OnSourceInitialized` で Win32 ハンドル依存サービスを初期化する。スロット実行は `SlotTriggerKind` ごとに pending drop を消費し、実行モードに応じて `KeyboardMacroService` と `LauncherService` を呼び分ける。
+- Internal Logic: 起動時に `ApplySlotLayout()` で行列分のスロット UI を生成し、`OnSourceInitialized` で Win32 ハンドル依存サービスを初期化する。レイヤーボタンの表示モデルは `LayerButtonModelFactory` が明示入力から計算し、MainWindow は WPF 状態へ反映する。スロット実行は `SlotTriggerKind` ごとに pending drop を消費し、実行モードに応じて `KeyboardMacroService` と `LauncherService` を呼び分ける。
 - Dependencies: ほぼ全サービス。特に `ConfigService`, `KeyboardMacroService`, `ShortcutService`, `LauncherService`, `SlotSearchService`, `ConfigTransferService`, `WindowPlacementService`。
 - Failure Modes: 個別操作失敗は MessageBox とログに変換し、アプリ全体を落とさない。マクロ競合時は実行モードに応じて拒否、キャンセル、サスペンドを選択する。
 
@@ -213,8 +213,8 @@ stateDiagram-v2
 - Responsibility: Macro Script の構文検証、実行、Win32 入力送出、フォアグラウンドターゲット追跡、マクロ並行制御の基盤。
 - Public Interface: `Initialize(WindowInteropHelper)`, `TryValidateScript(...)`, `RunMacroAsync(...)`, `CancelAllRunningMacrosAsync(...)`, `SuspendCurrentMacroAsync(...)`, `Dispose()`。
 - Inputs / Outputs: 入力はスクリプト文字列、`MacroExecutionContext`、キャンセルトークン。出力は `MacroExecutionResult`、SendInput によるキーボード/マウス入力、必要時のダイアログ/ポップアップ。
-- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。検証モードではダイアログやファイル変更を抑止する。変数操作や `RETURN` の通常ログは値ではなく長さ・件数・状態を記録する。
-- Dependencies: Win32 SendInput/WinEventHook、WPF Clipboard、WLAN API、`IAppLogger`, `MacroConditionEvaluator`, `MacroQuotedTextReader`, `MacroExecutionContext`。
+- Internal Logic: `SetWinEventHook` で直前の外部ウィンドウを追跡し、`SemaphoreSlim` でマクロ実行を直列化する。`RunMacroInternal` は行単位パーサ、変数ディクショナリ、IF/REPEAT/FOREACH_DROP スタック、入力バッファ、押下中キー/マウス解放処理を一体で扱う。拡張コマンドの引数分割と Windows パス用クォート終端判定は `MacroArgumentTokenizer` へ委譲する。検証モードではダイアログやファイル変更を抑止する。変数操作や `RETURN` の通常ログは値ではなく長さ・件数・状態を記録する。
+- Dependencies: Win32 SendInput/WinEventHook、WPF Clipboard、WLAN API、`IAppLogger`, `MacroArgumentTokenizer`, `MacroConditionEvaluator`, `MacroQuotedTextReader`, `MacroExecutionContext`。
 - Failure Modes: 未知コマンド、範囲外値、未閉鎖ブロック、変数展開失敗、SendInput 失敗、キャンセル、サスペンド再開順序不一致。失敗時は押下中のキー/マウスを可能な限り解放してから結果を返す。
 
 ### 7.8 ShortcutService and Shortcut Helpers
@@ -270,6 +270,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `App.xaml.cs` | Entry/UI | 起動、CLI、単一インスタンス、例外 | 7.1, 11.1 | CLI 成功時は UI 非表示で終了 |
 | `MainWindow.xaml(.cs)` | UI Orchestrator | スロット/レイヤー/検索/トレイ/実行統合 | 7.2, 9.1, 11.2 | 最大の変更影響点 |
+| `LayerButtonModelFactory.cs` | Pure Core | レイヤーボタン表示モデル計算 | 7.2, 9.1 | 総数/現在値/ボタン数/方向を明示入力 |
 | `DropCaptureWindow.xaml(.cs)` | UI Boundary | ドラッグ中ドロップ受領 | 7.3, 9.5 | pending drop の入力元 |
 | `AppConfig.cs` | Data Model | 永続設定スキーマ | 10.1 | Version 37 |
 | `SlotModel.cs` | Data Model | スロット登録単位 | 10.1 | ExecutionMode とコマンド/マクロ整合が重要 |
@@ -279,6 +280,7 @@ stateDiagram-v2
 | `ArgumentTemplateExpander.cs` | Pure Core | `{args}` / `{clipboard_args}` 展開 | 7.6, 10.2 | テスト容易な純粋関数 |
 | `ClipboardHistoryService.cs` | OS Boundary | クリップボード履歴 | 7.6, 10.2 | 最大 20 entries |
 | `KeyboardMacroService.cs` | Macro Engine | Macro Script 実行と Win32 入力 | 7.7, 9.2, 11.3 | Deep Dive 必須 |
+| `MacroArgumentTokenizer.cs` | Pure Core | 拡張コマンド引数と Windows パス quote の解析 | 7.7, 9.2 | 副作用なしで直接テスト可能 |
 | `MacroConditionEvaluator.cs` | Pure Core | IF 条件評価 | 9.2 | Macro Script と同じ quote 解釈 |
 | `MacroQuotedTextReader.cs` | Pure Core | quoted string 共通読取 | 9.2 | 条件/マクロの解釈差を防ぐ |
 | `MacroRecordingService.cs` | OS Boundary | 操作録画 | 9.2 | 登録ダイアログ外の前景操作を対象 |
@@ -313,6 +315,7 @@ stateDiagram-v2
 - pending drop はクリック/キーボード/検索のどれで消費されても `{args}` として同じ意味を持つ。
 - Slot Setup Mode 中はクリック/ドロップ起動を抑止し、スロット swap だけを許可する。
 - マクロ実行状態の表示は `_slotRunStack` と現在スロットの同期が必要。
+- レイヤーボタン表示は `LayerButtonModelFactory` の結果だけを反映し、MainWindow の隠れた状態を計算へ持ち込まない。
 
 変更時の注意点: UI 起点の新機能でも、純粋判定はサービス化してテストへ落とす。Config 項目を増やす場合は ConfigService、ConfigTransferService、テスト、必要に応じ docs/SPEC.md を同時に更新する。
 
@@ -341,6 +344,7 @@ stateDiagram-v2
 - 検証モードで UI ダイアログ、ファイル変更、外部コマンド実行が走ると安全性が崩れる。
 - IF/ELSEIF/ELSE/ENDIF、REPEAT/ENDREPEAT、FOREACH_DROP/ENDFOREACH の入れ子は、スキップ中でも構文整合を維持する必要がある。
 - `PREFIX PASSTHROUGH` はマクロ送出入力と ShortcutService の再検出を両立するため、InputExtraInfo タグの扱いが重要。
+- 拡張コマンドの quoted path は通常文字列と異なり、末尾 `\` を維持するため `MacroArgumentTokenizer` の終端規則を経由する。
 
 変更時の注意点: 新規 Macro Script コマンドを追加する場合は、実行モードだけでなく `TryValidateScript`、Macro Tips、スニペット挿入、SPEC、テストを更新する。ファイル I/O や OS API を触るコマンドは validateOnly の no-op 化を必ず設計する。
 
@@ -738,6 +742,7 @@ sequenceDiagram
 - ログ privacy: `LoggingPrivacyTests.cs` で sentinel が通常ログへ出ないことを確認する。
 - リリース識別子: `scripts/Test-Release-Version.ps1` で Git 状態別の 9 ケースを確認する。
 - Macro Script: `KeyboardMacroService*Tests.cs`, `MacroConditionEvaluatorTests.cs`, `MacroQuotedTextReaderTests.cs`, `MacroRecordingOptimizerTests.cs`
+- 抽出済み純粋計算: `LayerButtonModelFactoryTests.cs`, `MacroArgumentTokenizerTests.cs`
 - Shortcut/Prefix: `KeyChordParserPrefixTests.cs`, `ShortcutServicePrefix*Tests.cs`, `ShortcutSequenceParserTests.cs`, `ShortcutSequenceMatcherTests.cs`, `ShortcutSpecialCommandResolverTests.cs`
 - 検索: `SlotSearchServiceTests.cs`
 - 配置/スクリーン: `ScreenBoundsResolverTests.cs`, `PlacementServiceTests.cs`
@@ -780,13 +785,13 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 |---|---|---|---|
 | SP-001 UI/Window | 6, 7.2, 9.7 | `MainWindow`, `WindowPlacementService`, `ScreenBoundsResolver` | `UiLayoutBudgetTests`, `PlacementServiceTests`, `ScreenBoundsResolverTests` |
 | SP-002 Slot Registration | 7.2, 7.11, 10.1 | `RegisterDialog`, `SlotModel`, `KeyChordParser` | `SlotModelTests`, `KeyChordParserPrefixTests` |
-| SP-003 Layer Control | 7.2, 8 | `MainWindow`, `LayerManager` | `LayerManagerTests` |
-| SP-004 Launch and Macro | 7.6, 7.7, 11.2 | `LauncherService`, `ArgumentTemplateExpander`, `KeyboardMacroService` | `LauncherServiceTests`, `ArgumentTemplateExpanderTests`, `KeyboardMacroService*Tests` |
+| SP-003 Layer Control | 7.2, 8 | `MainWindow`, `LayerManager`, `LayerButtonModelFactory` | `LayerManagerTests`, `LayerButtonModelFactoryTests` |
+| SP-004 Launch and Macro | 7.6, 7.7, 11.2 | `LauncherService`, `ArgumentTemplateExpander`, `KeyboardMacroService`, `MacroArgumentTokenizer` | `LauncherServiceTests`, `ArgumentTemplateExpanderTests`, `KeyboardMacroService*Tests`, `MacroArgumentTokenizerTests` |
 | SP-005 Persistence | 7.4, 9.3, 10.1 | `ConfigService`, `ConfigFileSystem`, `AppConfig` | `ConfigServiceTests` |
 | SP-006 Menus | 7.2, 7.11 | `MainWindow`, dialogs | UI/manual plus targeted service tests |
 | SP-007 Error Handling | 12 | `LoggerService`, `App`, services | `ConfigServiceTests`, launcher/macro failure tests |
 | SP-008 Platform | 13.2, 13.3 | `.csproj`, release scripts, CI | `Test-Release-Version.ps1`, format/test/build |
-| SP-009 Macro Script Syntax | 9.2, 11.2 | `KeyboardMacroService`, macro helpers | `KeyboardMacroService*Tests`, `MacroConditionEvaluatorTests` |
+| SP-009 Macro Script Syntax | 9.2, 11.2 | `KeyboardMacroService`, `MacroArgumentTokenizer`, macro helpers | `KeyboardMacroService*Tests`, `MacroArgumentTokenizerTests`, `MacroConditionEvaluatorTests` |
 | SP-010 Shortcut Prefix | 9.4, 11.3 | `ShortcutService`, shortcut helpers | `ShortcutServicePrefix*Tests`, `ShortcutSequence*Tests` |
 | SP-011 Macro Concurrency | 9.2 | `KeyboardMacroService`, `MainWindow` macro state | macro concurrency related tests |
 | SP-012 Slot Setup Mode | 7.2, 9.1 | `MainWindow` slot layout drag/drop | `SlotDropRegistrationHelperTests`, UI/manual |

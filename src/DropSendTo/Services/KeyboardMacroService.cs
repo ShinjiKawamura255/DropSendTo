@@ -2340,7 +2340,7 @@ public sealed class KeyboardMacroService : IDisposable
     {
         frame = new TextLoopFrame(string.Empty, null, splitMode, Array.Empty<string>());
         error = null;
-        var tokens = TokenizeMacroArguments(args, out error);
+        var tokens = MacroArgumentTokenizer.Tokenize(args, out error);
         if (tokens == null)
         {
             return false;
@@ -2446,7 +2446,7 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
         var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
-        var tokens = TokenizeMacroArguments(payload, out error);
+        var tokens = MacroArgumentTokenizer.Tokenize(payload, out error);
         if (tokens == null || tokens.Count == 0)
         {
             error = $"{command} には変数名を指定してください。";
@@ -2546,7 +2546,7 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
         var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
-        var tokens = TokenizeMacroArguments(payload, out error);
+        var tokens = MacroArgumentTokenizer.Tokenize(payload, out error);
         if (tokens == null)
         {
             return false;
@@ -2656,7 +2656,7 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
         var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
-        var tokens = TokenizeMacroArguments(payload, out error);
+        var tokens = MacroArgumentTokenizer.Tokenize(payload, out error);
         if (tokens == null)
         {
             return false;
@@ -2825,7 +2825,7 @@ public sealed class KeyboardMacroService : IDisposable
         error = null;
         var command = ExtractCommandName(line).ToUpperInvariant();
         var payload = TrimInlineComment(line.Length > command.Length ? line[command.Length..].Trim() : string.Empty);
-        var tokens = TokenizeMacroArguments(payload, out error);
+        var tokens = MacroArgumentTokenizer.Tokenize(payload, out error);
         if (tokens == null)
         {
             return false;
@@ -2951,40 +2951,6 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
         return true;
-    }
-
-    private static List<string>? TokenizeMacroArguments(string input, out string? error)
-    {
-        error = null;
-        var tokens = new List<string>();
-        int index = 0;
-        while (index < input.Length)
-        {
-            while (index < input.Length && char.IsWhiteSpace(input[index]))
-            {
-                index++;
-            }
-            if (index >= input.Length)
-            {
-                break;
-            }
-            if (input[index] == '"')
-            {
-                if (!TryReadQuotedPathContent(input, ref index, "Macro", "引数", out var quoted, out error))
-                {
-                    return null;
-                }
-                tokens.Add(quoted);
-                continue;
-            }
-            int start = index;
-            while (index < input.Length && !char.IsWhiteSpace(input[index]))
-            {
-                index++;
-            }
-            tokens.Add(input[start..index]);
-        }
-        return tokens;
     }
 
     private static bool HasWildcard(string path) =>
@@ -5113,7 +5079,13 @@ public sealed class KeyboardMacroService : IDisposable
             return false;
         }
 
-        if (!TryReadQuotedPathContent(input, ref index, commandName, argumentName, out var literal, out error))
+        if (!MacroArgumentTokenizer.TryReadQuotedPathContent(
+                input,
+                ref index,
+                commandName,
+                argumentName,
+                out var literal,
+                out error))
         {
             value = string.Empty;
             return false;
@@ -5127,67 +5099,6 @@ public sealed class KeyboardMacroService : IDisposable
     {
         int idx = FindFirstWhitespace(line);
         return (idx < 0 ? line : line[..idx]).Trim().ToUpperInvariant();
-    }
-
-    private static bool TryReadQuotedPathContent(string input, ref int index, string commandName, string argumentName, out string value, out string? error)
-    {
-        index++; // skip opening quote
-        var sb = new StringBuilder();
-        error = null;
-        bool closed = false;
-
-        while (index < input.Length)
-        {
-            char ch = input[index++];
-            if (ch == '"')
-            {
-                closed = true;
-                break;
-            }
-
-            if (ch == '\\' && index < input.Length && input[index] == '"')
-            {
-                if (IsPathQuoteTerminator(input, index + 1))
-                {
-                    sb.Append('\\');
-                    index++;
-                    closed = true;
-                    break;
-                }
-
-                sb.Append('"');
-                index++;
-                continue;
-            }
-
-            sb.Append(ch);
-        }
-
-        if (!closed)
-        {
-            error = $"{commandName} の {argumentName} が閉じられていません。";
-            value = string.Empty;
-            return false;
-        }
-
-        value = sb.ToString();
-        return true;
-    }
-
-    private static bool IsPathQuoteTerminator(string input, int startIndex)
-    {
-        for (int i = startIndex; i < input.Length; i++)
-        {
-            char c = input[i];
-            if (char.IsWhiteSpace(c))
-            {
-                continue;
-            }
-
-            return c == '#';
-        }
-
-        return true;
     }
 
     private bool TrySetClipboardText(string text, out string? error)
