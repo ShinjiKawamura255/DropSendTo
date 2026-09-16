@@ -9,11 +9,21 @@ namespace DropSendTo.Services;
 public class ConfigService
 {
     private readonly string _baseDir;
-    private readonly LoggerService _logger = LoggerService.Instance;
-    public ConfigService(string? baseDir = null)
+    private readonly IConfigFileSystem _fileSystem;
+    private readonly IAppLogger _logger;
+
+    public ConfigService(string? baseDir = null) :
+        this(baseDir, new PhysicalConfigFileSystem(), LoggerService.Instance)
+    {
+    }
+
+    internal ConfigService(string? baseDir, IConfigFileSystem fileSystem, IAppLogger logger)
     {
         _baseDir = baseDir ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        _fileSystem = fileSystem;
+        _logger = logger;
     }
+
     private string ConfigDir => Path.Combine(_baseDir, "DropSendTo");
     private string ConfigPath => Path.Combine(ConfigDir, "config.json");
     public string GetConfigPath() => ConfigPath;
@@ -21,19 +31,14 @@ public class ConfigService
 
     public AppConfig LoadOrCreate()
     {
-        try
+        EnsureConfigDirectory();
+        Exception? primaryError = null;
+        if (_fileSystem.FileExists(ConfigPath))
         {
-            if (!Directory.Exists(ConfigDir))
+            try
             {
-                Directory.CreateDirectory(ConfigDir);
-                _logger.Info($"Config directory created: {ConfigDir}");
-            }
-            if (File.Exists(ConfigPath))
-            {
-                var json = File.ReadAllText(ConfigPath);
-                var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
-                Validate(cfg);
-                if (Migrate(cfg))
+                var cfg = LoadAndValidate(ConfigPath, out var migrated);
+                if (migrated)
                 {
                     _logger.Info($"Config migrated to version {cfg.Version}.");
                     Save(cfg);
@@ -41,31 +46,36 @@ public class ConfigService
                 _logger.Info($"Config loaded from {ConfigPath} (version={cfg.Version}).");
                 return cfg;
             }
-        }
-        catch (Exception ex)
-        {
-            if (File.Exists(BackupPath))
+            catch (Exception ex)
             {
+                primaryError = ex;
+            }
+        }
+
+        if (_fileSystem.FileExists(BackupPath))
+        {
+            try
+            {
+                var cfg = LoadAndValidate(BackupPath, out var migrated);
                 try
                 {
-                    var json = File.ReadAllText(BackupPath);
-                    var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
-                    Validate(cfg);
-                    if (Migrate(cfg))
-                    {
-                        _logger.Info($"Config migrated from backup to version {cfg.Version}.");
-                        Save(cfg);
-                    }
-                    _logger.Warn($"Config restored from backup {BackupPath}.");
-                    return cfg;
+                    RepairPrimaryFromBackup(cfg);
                 }
-                catch (Exception backupEx)
+                catch (Exception repairEx)
                 {
-                    _logger.Error($"Failed to load backup config from {BackupPath}: {backupEx}");
+                    _logger.Error($"Loaded backup but failed to repair primary config: {repairEx}");
                 }
+                if (migrated) _logger.Info($"Config migrated from backup to version {cfg.Version}.");
+                _logger.Warn($"Config restored from backup {BackupPath}.");
+                return cfg;
             }
-            _logger.Warn($"Failed to load config from {ConfigPath}: {ex}");
+            catch (Exception backupEx)
+            {
+                _logger.Error($"Failed to load backup config from {BackupPath}: {backupEx}");
+            }
         }
+
+        if (primaryError != null) _logger.Warn($"Failed to load config from {ConfigPath}: {primaryError}");
         var fresh = new AppConfig();
         Save(fresh);
         _logger.Info($"Created new default config at {ConfigPath}.");
@@ -75,19 +85,103 @@ public class ConfigService
     public void Save(AppConfig config)
     {
         Validate(config);
-        if (!Directory.Exists(ConfigDir))
-        {
-            Directory.CreateDirectory(ConfigDir);
-            _logger.Info($"Config directory created: {ConfigDir}");
-        }
-        if (File.Exists(ConfigPath))
-        {
-            File.Copy(ConfigPath, BackupPath, overwrite: true);
-            _logger.Info($"Config backup updated at {BackupPath}.");
-        }
+        EnsureConfigDirectory();
+        CleanupOwnedTempFiles();
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(ConfigPath, json);
+        CommitJson(json, preserveExistingBackup: false);
         _logger.Info($"Config saved to {ConfigPath}.");
+    }
+
+    private AppConfig LoadAndValidate(string path, out bool migrated)
+    {
+        var json = _fileSystem.ReadAllText(path);
+        var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+        Validate(cfg);
+        migrated = Migrate(cfg);
+        return cfg;
+    }
+
+    private void RepairPrimaryFromBackup(AppConfig config)
+    {
+        EnsureConfigDirectory();
+        CleanupOwnedTempFiles();
+        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        CommitJson(json, preserveExistingBackup: true);
+    }
+
+    private void EnsureConfigDirectory()
+    {
+        if (_fileSystem.DirectoryExists(ConfigDir)) return;
+        _fileSystem.CreateDirectory(ConfigDir);
+        _logger.Info($"Config directory created: {ConfigDir}");
+    }
+
+    private void CleanupOwnedTempFiles()
+    {
+        foreach (var tempPath in _fileSystem.EnumerateFiles(ConfigDir, "config.json.*.tmp"))
+        {
+            try
+            {
+                _fileSystem.DeleteFile(tempPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Failed to remove stale config temp file: {ex.Message}");
+            }
+        }
+    }
+
+    private void CommitJson(string json, bool preserveExistingBackup)
+    {
+        var operationId = Guid.NewGuid().ToString("N");
+        var tempPath = Path.Combine(ConfigDir, $"config.json.{operationId}.tmp");
+        string? backupCandidatePath = null;
+        try
+        {
+            _fileSystem.WriteAllText(tempPath, json);
+            _fileSystem.FlushFile(tempPath);
+            if (!_fileSystem.FileExists(ConfigPath))
+            {
+                _fileSystem.MoveFile(tempPath, ConfigPath);
+                return;
+            }
+
+            if (preserveExistingBackup)
+            {
+                _fileSystem.ReplaceFile(tempPath, ConfigPath, backupPath: null);
+                return;
+            }
+
+            backupCandidatePath = Path.Combine(ConfigDir, $"config.json.bak.{operationId}.tmp");
+            _fileSystem.ReplaceFile(tempPath, ConfigPath, backupCandidatePath);
+            try
+            {
+                _fileSystem.MoveFile(backupCandidatePath, BackupPath, overwrite: true);
+                _logger.Info($"Config backup updated at {BackupPath}.");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn($"Config was saved, but its backup could not be refreshed: {ex.Message}");
+            }
+        }
+        finally
+        {
+            DeleteOwnedTempIfPresent(tempPath);
+            if (backupCandidatePath != null) DeleteOwnedTempIfPresent(backupCandidatePath);
+        }
+    }
+
+    private void DeleteOwnedTempIfPresent(string path)
+    {
+        if (!_fileSystem.FileExists(path)) return;
+        try
+        {
+            _fileSystem.DeleteFile(path);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Failed to remove config temp file: {ex.Message}");
+        }
     }
 
     private const int MinSlotRows = 2;

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace DropSendTo.Services;
 
-public class LoggerService
+public class LoggerService : IAppLogger
 {
     private static readonly Lazy<LoggerService> _lazy = new(() => new LoggerService());
     public static LoggerService Instance => _lazy.Value;
