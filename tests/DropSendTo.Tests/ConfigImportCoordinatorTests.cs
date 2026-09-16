@@ -45,22 +45,37 @@ public class ConfigImportCoordinatorTests
     }
 
     [Fact]
-    public void Commit_ShouldNotApplyRuntime_WhenCandidateSaveFails()
+    public void Commit_ShouldRestoreDiskAndRuntime_WhenCandidateSaveFails()
     {
         var current = new AppConfig { Version = 36 };
         var candidate = new AppConfig { Version = 37 };
-        var runtimeApplied = false;
+        var events = new List<string>();
         var coordinator = new ConfigImportCoordinator();
 
         var action = () => coordinator.Commit(
             current,
             candidate,
             approved: true,
-            _ => throw new InvalidOperationException("save failed"),
-            _ => runtimeApplied = true);
+            config =>
+            {
+                events.Add($"save:{config.Version}");
+                if (ReferenceEquals(config, candidate))
+                {
+                    throw new InvalidOperationException("save failed");
+                }
+            },
+            config => events.Add($"apply:{config.Version}"));
 
-        action.Should().Throw<ConfigImportCommitException>().WithMessage("*save failed*");
-        runtimeApplied.Should().BeFalse();
+        var exception = action.Should().Throw<ConfigImportCommitException>().Which;
+        exception.Failure.Kind.Should().Be(ConfigImportFailureKind.CandidateSave);
+        exception.Failure.DiskRestoreStatus.Should().Be(ConfigImportRestoreStatus.Succeeded);
+        exception.Failure.RuntimeRestoreStatus.Should().Be(ConfigImportRestoreStatus.Succeeded);
+        exception.Failure.PrimaryFailureDetail.Should().Contain("save failed");
+        events.Should().Equal(
+            $"apply:{candidate.Version}",
+            $"save:{candidate.Version}",
+            $"save:{current.Version}",
+            $"apply:{current.Version}");
     }
 
     [Theory]
@@ -70,7 +85,7 @@ public class ConfigImportCoordinatorTests
     [InlineData((int)ConfigRuntimeApplyStage.MouseGestures)]
     [InlineData((int)ConfigRuntimeApplyStage.LayoutAndWindow)]
     [InlineData((int)ConfigRuntimeApplyStage.LanguageAndMenus)]
-    public void Commit_ShouldRestoreOldDiskAndRuntime_WhenCandidateApplyStageFails(int failStageValue)
+    public void Commit_ShouldLeaveDiskUntouchedAndRestoreRuntime_WhenCandidateApplyStageFails(int failStageValue)
     {
         var failStage = (ConfigRuntimeApplyStage)failStageValue;
         var current = new AppConfig { Version = 36 };
@@ -86,10 +101,89 @@ public class ConfigImportCoordinatorTests
             config => events.Add($"save:{config.Version}"),
             config => ConfigRuntimeApplier.Apply(config, target));
 
-        action.Should().Throw<ConfigImportCommitException>().WithMessage("*runtime apply failed*");
-        events.Should().ContainInOrder($"save:{candidate.Version}", $"apply:{candidate.Version}:{failStage}", $"save:{current.Version}");
+        var exception = action.Should().Throw<ConfigImportCommitException>().Which;
+        exception.Failure.Kind.Should().Be(ConfigImportFailureKind.CandidateRuntimeApply);
+        exception.Failure.DiskRestoreStatus.Should().Be(ConfigImportRestoreStatus.NotRequired);
+        exception.Failure.RuntimeRestoreStatus.Should().Be(ConfigImportRestoreStatus.Succeeded);
+        events.Should().NotContain(value => value.StartsWith("save:", StringComparison.Ordinal));
+        events.Should().ContainInOrder($"apply:{candidate.Version}:{failStage}", $"apply:{current.Version}:{ConfigRuntimeApplyStage.Core}");
         target.AppliedStagesFor(current).Should().Equal(Enum.GetValues<ConfigRuntimeApplyStage>());
         events.Last().Should().Be($"apply:{current.Version}:{ConfigRuntimeApplyStage.LanguageAndMenus}");
+    }
+
+    [Fact]
+    public void Commit_ShouldReportBothRestoreFailures_WhenCandidateSaveAndRollbacksFail()
+    {
+        var current = new AppConfig { Version = 36 };
+        var candidate = new AppConfig { Version = 37 };
+        var coordinator = new ConfigImportCoordinator();
+
+        var action = () => coordinator.Commit(
+            current,
+            candidate,
+            approved: true,
+            config => throw new InvalidOperationException(
+                ReferenceEquals(config, candidate) ? "candidate save failed" : "disk restore failed"),
+            config =>
+            {
+                if (ReferenceEquals(config, current))
+                {
+                    throw new InvalidOperationException("runtime restore failed");
+                }
+            });
+
+        var exception = action.Should().Throw<ConfigImportCommitException>().Which;
+        exception.Failure.Kind.Should().Be(ConfigImportFailureKind.CandidateSave);
+        exception.Failure.DiskRestoreStatus.Should().Be(ConfigImportRestoreStatus.Failed);
+        exception.Failure.RuntimeRestoreStatus.Should().Be(ConfigImportRestoreStatus.Failed);
+        exception.Failure.DiskRestoreFailureDetail.Should().Contain("disk restore failed");
+        exception.Failure.RuntimeRestoreFailureDetail.Should().Contain("runtime restore failed");
+    }
+
+    [Fact]
+    public void Commit_ShouldReportRuntimeRestoreFailureWithoutSaving_WhenCandidateRuntimeFails()
+    {
+        var current = new AppConfig { Version = 36 };
+        var candidate = new AppConfig { Version = 37 };
+        var saveCalls = 0;
+        var coordinator = new ConfigImportCoordinator();
+
+        var action = () => coordinator.Commit(
+            current,
+            candidate,
+            approved: true,
+            _ => saveCalls++,
+            config => throw new InvalidOperationException(
+                ReferenceEquals(config, candidate) ? "candidate runtime failed" : "runtime restore failed"));
+
+        var exception = action.Should().Throw<ConfigImportCommitException>().Which;
+        exception.Failure.Kind.Should().Be(ConfigImportFailureKind.CandidateRuntimeApply);
+        exception.Failure.DiskRestoreStatus.Should().Be(ConfigImportRestoreStatus.NotRequired);
+        exception.Failure.RuntimeRestoreStatus.Should().Be(ConfigImportRestoreStatus.Failed);
+        exception.Failure.RuntimeRestoreFailureDetail.Should().Contain("runtime restore failed");
+        saveCalls.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData((int)AppLanguage.Japanese, "ディスク設定を以前の設定へ復元できませんでした", "実行中の設定を以前の設定へ復元できませんでした")]
+    [InlineData((int)AppLanguage.English, "The saved configuration could not be restored", "The running configuration could not be restored")]
+    public void FailureMessage_ShouldIdentifyEachIncompleteRestore(
+        int languageValue,
+        string expectedDiskText,
+        string expectedRuntimeText)
+    {
+        var failure = new ConfigImportFailureResult(
+            ConfigImportFailureKind.CandidateSave,
+            ConfigImportRestoreStatus.Failed,
+            ConfigImportRestoreStatus.Failed,
+            "candidate save failed",
+            "disk restore failed",
+            "runtime restore failed");
+
+        var message = ConfigImportFailureMessageFormatter.Format(failure, (AppLanguage)languageValue);
+
+        message.Should().Contain(expectedDiskText);
+        message.Should().Contain(expectedRuntimeText);
     }
 
     [Fact]
@@ -109,7 +203,10 @@ public class ConfigImportCoordinatorTests
             config => ConfigRuntimeApplier.Apply(config, target));
 
         result.Should().Be(ConfigImportCommitResult.Applied);
-        events.First().Should().Be($"save:{candidate.Version}");
+        events.Should().ContainInOrder(
+            $"apply:{candidate.Version}:{ConfigRuntimeApplyStage.Core}",
+            $"apply:{candidate.Version}:{ConfigRuntimeApplyStage.LanguageAndMenus}",
+            $"save:{candidate.Version}");
         target.AppliedStagesFor(candidate).Should().Equal(Enum.GetValues<ConfigRuntimeApplyStage>());
     }
 

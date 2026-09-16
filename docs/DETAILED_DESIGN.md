@@ -186,18 +186,18 @@ stateDiagram-v2
 - Responsibility: 設定 JSON の読み書き、`.bak` バックアップ、バリデーション、バージョンマイグレーション、レイヤー/スロット容量保証。
 - Public Interface: `LoadOrCreate()`, `Save(AppConfig)`, `GetConfigPath()`。
 - Inputs / Outputs: 入力は `%AppData%/DropSendTo/config.json` と `AppConfig`。出力は正規化済み `AppConfig`、保存済み JSON、`.bak`。
-- Internal Logic: 読み込み成功後に `Validate` と `Migrate` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。保存は primary と同じディレクトリの一時ファイルへ書き込み、flush 後に replace/move で原子的に確定する。backup 昇格失敗時は replace が生成した旧 primary 候補を primary へ戻し、ロールバックにも失敗した場合は `config.json.previous.*.recovery` として保持する。backup 復旧時は正常な backup を上書きせず、同じ原子的経路で primary だけを修復する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
+- Internal Logic: 読み込み成功後とインポート確認前の候補は共通の `NormalizeForUse` を通す。破損時は `.bak` を試し、失敗すれば既定設定を保存する。保存は primary と同じディレクトリの一時ファイルへ書き込み、flush 後に replace/move で原子的に確定する。backup 昇格失敗時は replace が生成した旧 primary 候補を primary へ戻し、ロールバックにも失敗した場合は `config.json.previous.*.recovery` として保持する。backup 復旧時は正常な backup を上書きせず、同じ原子的経路で primary だけを修復する。行列は 2..8、レイヤーは 4..8、ショートカット/テーマ/言語/マクロモードなどの enum を既定値へ補正する。
 - Dependencies: `System.Text.Json`, `IAppLogger`, `ConfigFileSystem`, `AppConfig`。
 - Failure Modes: JSON 破損、バックアップ破損、write/flush/replace/backup promotion の I/O 失敗。backup promotion 失敗は旧 primary を復元して例外化し、復元失敗時は recovery artifact を保持する。通常の保存失敗では既存 primary/backup を保持し、残留一時ファイルは次回保存前に除去する。
 
-### 7.5 ConfigTransferService
+### 7.5 ConfigTransferService and ConfigImportCoordinator
 
-- Responsibility: 設定エクスポート/インポート用 payload の暗号化・復号・スナップショット変換。
-- Public Interface: `CreateExportPayload(AppConfig, string password)`, `ImportConfig(string payload, string password)`。
+- Responsibility: 設定エクスポート/インポート用 payload の暗号化・復号・スナップショット変換と、確認済み候補の runtime/disk 反映・補償復元。
+- Public Interface: `CreateExportPayload(AppConfig, string password)`, `ImportConfig(string payload, string password)`, `ConfigImportCoordinator.Commit(...)`。
 - Inputs / Outputs: 入力は `AppConfig` とパスワード、または payload とパスワード。出力は暗号化 JSON payload または復元 `AppConfig`。
-- Internal Logic: `ExportConfigSnapshot` へ写像し、PBKDF2-SHA256 200,000 iterations と AES-GCM で暗号化する。インポート時は `PackageVersion`、Salt/Nonce/Tag/CipherText を検証し、復号後に `AppConfig` へ戻す。
+- Internal Logic: `ExportConfigSnapshot` へ写像し、PBKDF2-SHA256 200,000 iterations と AES-GCM で暗号化する。インポートは package UTF-8 16 MiB、KDF 1,000,000、Salt/Nonce/Tag 固定長、CipherText 8 MiB を復号前に検証し、復号後に `AppConfig` へ戻して共通正規化と信頼確認を行う。承認後は候補を runtime へ段階適用してから原子的に保存する。runtime 適用失敗時は disk を変更せず旧 runtime を復元し、保存失敗時は旧 disk/runtime の復元を個別試行する。失敗結果は未復元箇所を構造化して UI に渡す。
 - Dependencies: `System.Security.Cryptography`, `System.Text.Json`, `AppConfig`。
-- Failure Modes: 空パスワード、payload 形式不正、バージョン非対応、復号失敗。ユーザー向け日本語メッセージを伴う例外へ変換する。
+- Failure Modes: 空パスワード、payload 形式不正、上限超過、バージョン非対応、復号失敗、候補 runtime 適用失敗、候補保存失敗、旧 disk/runtime 復元失敗。完全復元できない場合は復元済みと断定せず、未復元対象を日英で明示する。
 
 ### 7.6 LauncherService and ArgumentTemplateExpander
 
@@ -284,6 +284,7 @@ stateDiagram-v2
 | `SlotModel.cs` | Data Model | スロット登録単位 | 10.1 | ExecutionMode とコマンド/マクロ整合が重要 |
 | `ConfigService.cs` | Persistence | load/save/backup/migration/normalize | 7.4, 9.3 | Config 項目変更時の必須更新点 |
 | `ConfigTransferService.cs` | Security Boundary | AES-GCM export/import | 7.5, 13.1 | snapshot 欠落に注意 |
+| `ConfigImportCoordinator.cs` | Transaction Boundary | trust確認後のruntime/disk反映と補償復元 | 7.5, 11.4, 12 | 未復元箇所を構造化して通知 |
 | `StartupRegistrationService.cs` | OS Boundary | Windows サインイン時起動の登録/解除 | 7.13 | HKCU Run のみ。設定 JSON には含めない |
 | `LauncherService.cs` | OS Boundary | ProcessStartInfo 構築と起動 | 7.6, 11.2 | foreground promotion は best effort |
 | `ArgumentTemplateExpander.cs` | Pure Core | `{args}` / `{clipboard_args}` 展開 | 7.6, 10.2 | テスト容易な純粋関数 |
@@ -687,11 +688,17 @@ sequenceDiagram
     alt rejected
       PWD-->>MW: cancel without mutation
     else approved
-      MW->>CS: atomically save candidate
       MW->>MW: apply runtime stages
-      alt apply failure
-        MW->>CS: restore previous config
+      alt runtime apply failure
         MW->>MW: restore previous runtime state
+        Note over MW,CS: disk remains unchanged
+      else runtime apply succeeded
+        MW->>CS: atomically save candidate
+        alt save failure
+          MW->>CS: restore previous config
+          MW->>MW: restore previous runtime state
+          MW->>MW: report any incomplete restore
+        end
       end
     end
   end
@@ -757,7 +764,7 @@ sequenceDiagram
 - UI レイアウトは XAML 定数とサービス境界をテストし、実フォーカスが必要なものは STA + Dispatcher を使う。
 
 主要テスト対応:
-- Config/転送: `ConfigServiceTests.cs`（write/flush/replace/backup promotion/rollback 失敗、stale temp、backup 修復を含む）, `ConfigTransferServiceTests.cs`
+- Config/転送: `ConfigServiceTests.cs`（write/flush/replace/backup promotion/rollback 失敗、stale temp、backup 修復を含む）, `ConfigTransferServiceTests.cs`（全 writable property の非既定値 round-trip guard）, `ConfigImportCoordinatorTests.cs`（候補適用/保存失敗と disk/runtime 復元失敗注入）
 - 引数展開/起動: `ArgumentTemplateExpanderTests.cs`, `LauncherServiceTests.cs`
 - ログ privacy: `LoggingPrivacyTests.cs` で sentinel が通常ログへ出ないことを確認する。
 - リリース識別子: `scripts/Test-Release-Version.ps1` で Git 状態別の 9 ケースを確認する。
@@ -807,7 +814,7 @@ Docs-only 変更である本設計書作成では、コードテスト実行は�
 | SP-002 Slot Registration | 7.2, 7.11, 10.1 | `RegisterDialog`, `SlotModel`, `KeyChordParser` | `SlotModelTests`, `KeyChordParserPrefixTests` |
 | SP-003 Layer Control | 7.2, 8 | `MainWindow`, `LayerManager`, `LayerButtonModelFactory` | `LayerManagerTests`, `LayerButtonModelFactoryTests` |
 | SP-004 Launch and Macro | 7.6, 7.7, 11.2 | `LauncherService`, `ArgumentTemplateExpander`, `KeyboardMacroService`, `MacroArgumentTokenizer` | `LauncherServiceTests`, `ArgumentTemplateExpanderTests`, `KeyboardMacroService*Tests`, `MacroArgumentTokenizerTests` |
-| SP-005 Persistence | 7.4, 9.3, 10.1 | `ConfigService`, `ConfigFileSystem`, `AppConfig` | `ConfigServiceTests` |
+| SP-005 Persistence | 7.4, 7.5, 9.3, 10.1, 11.4 | `ConfigService`, `ConfigFileSystem`, `ConfigTransferService`, `ConfigImportCoordinator`, `AppConfig` | `ConfigServiceTests`, `ConfigTransferServiceTests`, `ConfigImportCoordinatorTests` |
 | SP-006 Menus | 7.2, 7.11 | `MainWindow`, dialogs | UI/manual plus targeted service tests |
 | SP-007 Error Handling | 12 | `LoggerService`, `App`, services | `ConfigServiceTests`, launcher/macro failure tests |
 | SP-008 Platform | 13.2, 13.3 | `.csproj`, release scripts, CI, `AppDataPathResolver` | `Test-Release-Version.ps1`, `Measure-WarmStartup.ps1`, format/test/build |

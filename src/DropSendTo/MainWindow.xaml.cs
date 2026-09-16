@@ -4375,7 +4375,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         catch (ConfigImportCommitException ex)
         {
             _logger.Error($"Config import transaction failed: {ex}");
-            WpfMessageBox.Show("コンフィグの適用に失敗したため、以前の設定へ戻しました。ログをご確認ください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Error);
+            WpfMessageBox.Show(
+                ConfigImportFailureMessageFormatter.Format(ex.Failure, _currentLanguage),
+                "Import Config",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
         catch (InvalidOperationException ex)
         {

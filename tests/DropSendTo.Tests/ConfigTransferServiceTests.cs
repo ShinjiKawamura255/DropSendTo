@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
@@ -131,6 +133,18 @@ public class ConfigTransferServiceTests
     }
 
     [Fact]
+    public void ExportImport_ShouldRoundTripEveryWritablePersistedPropertyWithNonDefaultValues()
+    {
+        var service = new ConfigTransferService();
+        var config = (AppConfig)CreateSentinelValue(typeof(AppConfig), "AppConfig", currentValue: null);
+
+        var payload = service.CreateExportPayload(config, "inventory-guard-password");
+        var imported = service.ImportConfig(payload, "inventory-guard-password");
+
+        imported.Should().BeEquivalentTo(config, options => options.RespectingRuntimeTypes());
+    }
+
+    [Fact]
     public void LegacySnapshot_ShouldUseSafeDefaults_WhenNewPropertiesAreMissing()
     {
         var snapshotType = GetSnapshotType("ExportConfigSnapshot");
@@ -186,4 +200,79 @@ public class ConfigTransferServiceTests
     private static Type GetSnapshotType(string name) =>
         typeof(ConfigTransferService).GetNestedType(name, BindingFlags.NonPublic)
         ?? throw new InvalidOperationException($"Snapshot type not found: {name}");
+
+    private static object CreateSentinelValue(Type type, string path, object? currentValue)
+    {
+        var nullableType = Nullable.GetUnderlyingType(type);
+        if (nullableType != null)
+        {
+            return CreateSentinelValue(nullableType, path, currentValue);
+        }
+        if (type == typeof(string))
+        {
+            return $"sentinel-{path}";
+        }
+        if (type == typeof(bool))
+        {
+            return !(currentValue as bool? ?? false);
+        }
+        if (type == typeof(int))
+        {
+            return path switch
+            {
+                "AppConfig.CurrentLayer" => 2,
+                "AppConfig.SlotRows" or "AppConfig.SlotColumns" => 7,
+                _ => (currentValue as int? ?? 0) + 11
+            };
+        }
+        if (type == typeof(double))
+        {
+            return (currentValue as double? ?? 0) + 321.25;
+        }
+        if (type.IsEnum)
+        {
+            return Enum.GetValues(type).Cast<object>()
+                .FirstOrDefault(value => !Equals(value, currentValue))
+                ?? throw new InvalidOperationException($"Cannot create a non-default enum sentinel for {path} ({type.Name}).");
+        }
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+        {
+            var elementType = type.GetGenericArguments()[0];
+            var list = (IList)(Activator.CreateInstance(type)
+                ?? throw new InvalidOperationException($"Cannot create list sentinel for {path}."));
+            var count = path.EndsWith(".Layers", StringComparison.Ordinal) ? 4 : 2;
+            for (int index = 0; index < count; index++)
+            {
+                list.Add(CreateSentinelValue(elementType, $"{path}[{index}]", currentValue: null));
+            }
+            return list;
+        }
+
+        var supportedModels = new[]
+        {
+            typeof(AppConfig),
+            typeof(Layer),
+            typeof(SlotModel),
+            typeof(SlotMinimizeOptions),
+            typeof(CustomSlotSizeOptions)
+        };
+        if (!supportedModels.Contains(type))
+        {
+            throw new InvalidOperationException(
+                $"No non-default transfer sentinel is defined for {path} ({type.FullName}). " +
+                "Update this guard when adding a persisted property type.");
+        }
+
+        var instance = Activator.CreateInstance(type)
+            ?? throw new InvalidOperationException($"Cannot create persisted model sentinel for {path} ({type.FullName}).");
+        foreach (var property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                     .Where(property => property.CanRead && property.CanWrite))
+        {
+            var propertyPath = $"{path}.{property.Name}";
+            var propertyCurrentValue = property.GetValue(instance);
+            var sentinel = CreateSentinelValue(property.PropertyType, propertyPath, propertyCurrentValue);
+            property.SetValue(instance, sentinel);
+        }
+        return instance;
+    }
 }
