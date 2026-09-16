@@ -6,6 +6,7 @@ param(
     [switch]$NoZip,
     [switch]$Portable,
     [switch]$PortableTrim,
+    [switch]$VersionOnly,
     [switch]$InvariantGlobalization,
     [string]$CertificatePath,
     [string]$CertificatePassword,
@@ -16,6 +17,8 @@ param(
 $ErrorActionPreference = 'Stop'
 # Progress bar output (e.g., Compress-Archive) can overwrite warnings in the console; suppress it to keep logs readable.
 $ProgressPreference = 'SilentlyContinue'
+
+. (Join-Path $PSScriptRoot 'Release-Version.ps1')
 
 function Invoke-Step($name, $script) {
     Write-Host "== $name =="
@@ -66,19 +69,16 @@ $dotnetExe = Resolve-DotnetExe
 Push-Location $repoRoot
 
 try {
+    $Version = Resolve-ReleaseVersionFromRepository -ExplicitVersion $Version -RepoRoot $repoRoot
+    if ($VersionOnly) {
+        Write-Output $Version
+        return
+    }
+
     if ($KillRunning) {
         Write-Host "== Kill running DropSendTo.exe if any =="
         Get-Process DropSendTo -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep -Milliseconds 300
-    }
-
-    if (-not $Version -or $Version -eq "") {
-        try {
-            $Version = (git describe --tags --abbrev=0) 2>$null
-        } catch {}
-        if (-not $Version) {
-            $Version = (Get-Date -Format 'yyyyMMddHHmmss')
-        }
     }
 
     $proj = Join-Path $repoRoot 'src/DropSendTo/DropSendTo.csproj'

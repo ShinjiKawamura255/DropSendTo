@@ -18,7 +18,12 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Restore
         run: dotnet restore
+      - name: Release version tests
+        shell: pwsh
+        run: ./scripts/Test-Release-Version.ps1
+      - name: Format
+        run: dotnet format --verify-no-changes --no-restore
       - name: Test
-        run: dotnet test
+        run: dotnet test --no-restore
       - name: Build
-        run: dotnet build
+        run: dotnet build --no-restore

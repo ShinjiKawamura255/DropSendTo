@@ -20,3 +20,5 @@ logs/
 # Others
 Generated/
 dist/
+TestResults/
+*.trx
