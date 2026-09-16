@@ -262,6 +262,14 @@ stateDiagram-v2
 - Dependencies: Windows PowerShell, .NET 10 SDK, optional signing certificate。
 - Failure Modes: SDK 不一致、実行中プロセスロック、署名失敗、ZIP 作成失敗。
 
+### 7.13 Startup Registration
+
+- Responsibility: 現在ユーザーの Windows サインイン時に DropSendTo を起動する Run キーの登録状態を管理する。
+- Public Interface: `StartupRegistrationService.IsRegistered()`, `Register()`, `Unregister()`。
+- Inputs / Outputs: 入力はメニュー操作。出力は `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` の `DropSendTo` 文字列値。配布 exe は引用符付きで保存し、開発時の `dotnet` ホストではエントリ DLL を引数に含める。
+- Internal Logic: `CurrentUserStartupRegistrationStore` が `Registry.CurrentUser` のみを操作する。UI のチェック状態はメニューを開くたびにレジストリから再読込し、`AppConfig` や暗号化エクスポートには含めない。
+- Failure Modes: Run キーの読み書き失敗や起動パス取得失敗は MainWindow がログへ記録し、ユーザー向けエラーダイアログを表示する。既存の登録値を削除する解除操作は値が存在しなくても成功扱いとする。
+
 [[↑ Back to Top]](#top)
 
 ## 8. Module Coverage Matrix
@@ -276,6 +284,7 @@ stateDiagram-v2
 | `SlotModel.cs` | Data Model | スロット登録単位 | 10.1 | ExecutionMode とコマンド/マクロ整合が重要 |
 | `ConfigService.cs` | Persistence | load/save/backup/migration/normalize | 7.4, 9.3 | Config 項目変更時の必須更新点 |
 | `ConfigTransferService.cs` | Security Boundary | AES-GCM export/import | 7.5, 13.1 | snapshot 欠落に注意 |
+| `StartupRegistrationService.cs` | OS Boundary | Windows サインイン時起動の登録/解除 | 7.13 | HKCU Run のみ。設定 JSON には含めない |
 | `LauncherService.cs` | OS Boundary | ProcessStartInfo 構築と起動 | 7.6, 11.2 | foreground promotion は best effort |
 | `ArgumentTemplateExpander.cs` | Pure Core | `{args}` / `{clipboard_args}` 展開 | 7.6, 10.2 | テスト容易な純粋関数 |
 | `ClipboardHistoryService.cs` | OS Boundary | クリップボード履歴 | 7.6, 10.2 | 最大 20 entries |

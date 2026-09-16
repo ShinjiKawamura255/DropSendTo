@@ -45,6 +45,7 @@ public partial class MainWindow : Window
     private readonly KeyboardMacroService _macroService = new();
     private readonly ShortcutService _shortcutService = new();
     private readonly ConfigTransferService _configTransferService = new();
+    private readonly StartupRegistrationService _startupRegistrationService = new();
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private SlotShortcutListWindow? _shortcutListWindow;
@@ -130,6 +131,10 @@ public partial class MainWindow : Window
         string StartupAlwaysMinimize,
         string StartupRestore,
         string StartupSlots,
+        string StartupRegistration,
+        string StartupRegistered,
+        string StartupUnregistered,
+        string StartupRegistrationFailed,
         string MacroMode,
         string MacroExclusive,
         string MacroInterrupt,
@@ -180,6 +185,10 @@ public partial class MainWindow : Window
         StartupAlwaysMinimize: "常にタスクトレイで起動",
         StartupRestore: "前回の状態を復元",
         StartupSlots: "起動時実行スロット...",
+        StartupRegistration: "スタートアップに登録",
+        StartupRegistered: "スタートアップに登録しました。",
+        StartupUnregistered: "スタートアップ登録を解除しました。",
+        StartupRegistrationFailed: "スタートアップ登録の変更に失敗しました。",
         MacroMode: "Macro 実行モード",
         MacroExclusive: "排他（単一実行のみ）",
         MacroInterrupt: "割り込み実行（実行中マクロを停止）",
@@ -230,6 +239,10 @@ public partial class MainWindow : Window
         StartupAlwaysMinimize: "Always start in tray",
         StartupRestore: "Restore last state",
         StartupSlots: "Startup slots...",
+        StartupRegistration: "Run at Windows sign-in",
+        StartupRegistered: "Registered to run at Windows sign-in.",
+        StartupUnregistered: "Removed from Windows sign-in startup.",
+        StartupRegistrationFailed: "Failed to change Windows sign-in startup.",
         MacroMode: "Macro Mode",
         MacroExclusive: "Exclusive (single run only)",
         MacroInterrupt: "Interrupt running macro",
@@ -917,6 +930,7 @@ public partial class MainWindow : Window
         if (StartupAlwaysMinimizeMenuItem != null) StartupAlwaysMinimizeMenuItem.Header = text.StartupAlwaysMinimize;
         if (StartupRestoreMenuItem != null) StartupRestoreMenuItem.Header = text.StartupRestore;
         if (StartupSlotsMenuItem != null) StartupSlotsMenuItem.Header = text.StartupSlots;
+        if (StartupRegistrationMenuItem != null) StartupRegistrationMenuItem.Header = text.StartupRegistration;
         if (MacroModeMenuItem != null) MacroModeMenuItem.Header = text.MacroMode;
         if (MacroModeExclusiveMenuItem != null) MacroModeExclusiveMenuItem.Header = text.MacroExclusive;
         if (MacroModeInterruptMenuItem != null) MacroModeInterruptMenuItem.Header = text.MacroInterrupt;
@@ -4805,6 +4819,57 @@ public partial class MainWindow : Window
         SetStartupBehavior(StartupWindowBehavior.StartInTray);
     }
 
+    private void OnToggleStartupRegistration(object sender, RoutedEventArgs e)
+    {
+        var text = GetUiText(_currentLanguage);
+        try
+        {
+            if (StartupRegistrationMenuItem?.IsChecked == true)
+            {
+                _startupRegistrationService.Register();
+                _logger.Info("Registered DropSendTo for Windows sign-in startup.");
+                WpfMessageBox.Show(text.StartupRegistered, text.StartupRegistration, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                _startupRegistrationService.Unregister();
+                _logger.Info("Unregistered DropSendTo from Windows sign-in startup.");
+                WpfMessageBox.Show(text.StartupUnregistered, text.StartupRegistration, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Failed to change Windows sign-in startup registration: {ex}");
+            WpfMessageBox.Show(
+                $"{text.StartupRegistrationFailed}\n{ex.Message}",
+                text.StartupRegistration,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            UpdateStartupRegistrationMenu();
+        }
+    }
+
+    private void UpdateStartupRegistrationMenu()
+    {
+        if (StartupRegistrationMenuItem == null)
+        {
+            return;
+        }
+
+        try
+        {
+            StartupRegistrationMenuItem.IsChecked = _startupRegistrationService.IsRegistered();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warn($"Could not read Windows sign-in startup registration: {ex.Message}");
+            StartupRegistrationMenuItem.IsChecked = false;
+        }
+    }
+
     private MouseGestureOptions BuildMouseGestureOptions() =>
         new(
             _config?.EnableMouseGestures ?? MouseGestureOptions.Default.Enabled,
@@ -4888,6 +4953,7 @@ public partial class MainWindow : Window
             ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
         }
         UpdateStartupBehaviorMenu(_config.StartupBehavior);
+        UpdateStartupRegistrationMenu();
         if (HideEmptySlotNamesMenuItem != null)
         {
             HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;

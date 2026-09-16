@@ -68,6 +68,7 @@
 - TC-108 LanguageMenu: Language メニューで Japanese/English を切り替えるとメニューと検索ラベルの文言が即時更新され、config に保存されることを確認する。既定は日本語で、再起動後も選択した言語が復元される。
 - TC-109 DragDropCapture: ドラッグ中にホイールクリックでドロップ専用ウィンドウが表示され、ドロップ後に左上の Dropped インジケーターが表示されること、スロットのクリック/キーボード選択/検索起動で `{args}` に展開されることを確認する。
 - TC-110 StartupWindowBehavior: 起動時のウィンドウメニューで「常に表示」「前回の状態を復元」「常にタスクトレイで起動」を切り替えられ、選択が保存・復元されることを確認する。`常にタスクトレイで起動` 選択時は再起動後にウィンドウがタスクトレイへ格納された状態で開始し、`前回の状態を復元` は最後に Tray だった場合のみ最小化で開始することを確認する。
+- TC-125 StartupRegistration: メニューの「スタートアップに登録」を ON/OFF して HKCU の Run 値が作成/削除され、メニュー再表示時に実状態がチェックへ反映されることを確認する。標準ユーザー権限で登録でき、登録値が引用符付きの現在の起動コマンドになることを確認する。サービスの登録/解除/Windows パス引用は `StartupRegistrationServiceTests` で検証する。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: Open Config/Open Logs/Change Prefix/Slot Layout/常に最前面/Exit が機能し、Open Logs がディレクトリを開く。
 - TC-095 LoggingRetention: ログが 1MB 超でローテーションし、7 日以上前の `app*.log` が削除される。
@@ -92,7 +93,7 @@
   9) Slot Layout メニューで別の行列（例: 3x3）を選択し、即時に UI が再構成され再起動後も構成が保持されることを確認。元のレイアウトへ戻す。
  10) ウィンドウ位置を移動→再起動後に復元。画面外に移動しても補正されることを確認。
  11) スロット hover/drag/クリックの視覚変化を確認し、クリック有効/無効トグルが尊重されることを確認。
- 12) メニューボタンから Open Config/Open Logs/Change Prefix/Slot Layout/Exit が動作することを確認（Open Logs はフォルダを開く）。
+ 12) メニューボタンから Open Config/Open Logs/Change Prefix/Slot Layout/スタートアップ登録/Exit が動作することを確認（Open Logs はフォルダを開く）。「スタートアップに登録」を ON にして Windows サインイン後に自動起動し、OFF にして登録が解除されることを確認する。
  13) Prefix（例: Ctrl+Q）を押下して左上インジケーター点灯→修飾キーを押し直さずに `X` を押し `Ctrl+X` ショートカットが起動すること、必要に応じ修飾キーを離して押し直しても動作すること、Prefix 再入力で前面ウィンドウへ送出されること、Prefix 変更ダイアログで不正入力時にエラー表示・既定値フォールバックが行われることを確認。さらにマクロスクリプトに `PREFIX ARM` → `KEY X` → `PREFIX PASSTHROUGH` を記述し、Prefix 待機の擬似入力からショートカット発動→前面アプリ送出まで自動化できること、ログにマクロ PREFIX 操作が記録されることを確認。Prefix 待機中に `Enter` を入力すると DropSendTo ウィンドウが前面に復帰し（タスクトレイ格納時も復帰）、常時最前面設定が変化しないことも確認する。
  14) Prefix 待機中に `Shift+Enter` を押してウィンドウがタスクトレイへ最小化されること、タスクトレイアイコンの左クリックでウィンドウが復帰すること、`Minimize to Tray` メニューからも同じ結果になることを確認する。
  15) エクスプローラーでファイル/フォルダを複数コピーし、`ArgumentsTemplate` に `{clipboard_args}` を指定したスロットをショートカット起動して全行が引用付きで渡されること、`{clipboard_args:2}` 指定で直近 2 行のみが古い順に渡されること、および `{clipboard}` 指定で生文字列が渡されることを確認。

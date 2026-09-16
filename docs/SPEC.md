@@ -58,6 +58,7 @@
 - MUST: Slot Layout は行/列（2〜8）を直接入力するダイアログで変更でき、確定と同時に UI を更新して設定へ保存する。
 - MUST: Change Prefix を選択すると Prefix ダイアログが表示され、正規化した Prefix を保存する。不正な入力はエラーメッセージで拒否する。
 - MUST: Language メニューで日本語/English を切り替えた場合、メニューと検索ラベルの文言を即時更新し、選択を設定に保存・復元する（既定は日本語）。
+- MUST: コンテキストメニューに「スタートアップに登録」を提供し、チェック ON で現在の起動コマンドを `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` の `DropSendTo` 値へ登録し、OFF で削除する。状態はメニューを開くたびにレジストリから同期し、管理者権限を要求しない。
 
 ## SP-007 Error Handling
 - MUST: 例外や起動失敗時はユーザーに分かる文面でダイアログ表示し、ログへ `ERROR` レベルで書き込む。
