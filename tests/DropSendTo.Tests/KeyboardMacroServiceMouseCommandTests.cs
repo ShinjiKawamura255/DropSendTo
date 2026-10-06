@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Reflection;
 using DropSendTo.Services;
+using DropSendTo.Models;
 using FluentAssertions;
 using Xunit;
 
@@ -10,6 +11,18 @@ namespace DropSendTo.Tests;
 [Collection("KeyboardMacroServiceTests")]
 public class KeyboardMacroServiceMouseCommandTests
 {
+    [Fact]
+    public void TryValidateScript_ShouldAcceptDisplayMoveWithVariables_WithoutRequiringConnectedDisplay()
+    {
+        var script = "SET DisplayNo 999\nSET Position CENTER\nSET X -20\n" +
+            "MOUSEMOVEDISPLAY {{DisplayNo}} {{Position}} OFFSET {{X}} 20";
+
+        var ok = KeyboardMacroService.TryValidateScript(script, SlotExecutionMode.MacroScript, out var error);
+
+        ok.Should().BeTrue("validation must check syntax without querying connected displays: {0}", error);
+        error.Should().BeNull();
+    }
+
     private static MethodInfo GetMouseCommandMethod()
     {
         var method = typeof(KeyboardMacroService).GetMethod("TryHandleMouseCommand", BindingFlags.NonPublic | BindingFlags.Static);

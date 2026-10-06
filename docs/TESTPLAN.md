@@ -38,6 +38,7 @@
 - TC-121 MacroProcessCapture: `COMMAND_WAIT` と `RUN_CAPTURE` が shell 無効で起動し、作業ディレクトリ、timeout、終了コード、stdout/stderr、出力上限、検証モード副作用なし、stdout/stderr 非ログを確認する。
 - TC-122 MacroTryCatch: `TRY`/`CATCH`/`ENDTRY` が実行時エラーを捕捉し、エラー変数を格納すること、構文エラーとキャンセルは捕捉しないこと、ネストと未閉鎖検証を確認する。
 - TC-123 MacroWindow: `WINDOW_FIND` が title/class/process/pid で検索でき、複数一致は既定失敗、`INDEX` 指定で選択、`WINDOW_ACTIVATE` は成功確認できない場合に失敗し、検証モードで副作用がないことを確認する。
+- TC-135 MacroDisplayMove: `MacroDisplayMoveTests` / `NativeMacroDisplayAdapterTests` / `KeyboardMacroServiceMouseCommandTests` で9点・オフセット・負座標・解像度・境界、番号選択、複製表示、未接続・不正領域・不正構文での停止、変数展開、命令ごとの領域取得、既存絶対移動経路との一致、検証モードで列挙/入力送信しないことを確認する。Windows 実機では「識別」の番号と対象ディスプレイを照合し、拡張表示・複製表示・異なる DPI・接続変更後にクリックを伴わない移動で確認する。Tips の説明・使用例と挿入メニューの2項目が表示され、スクロールして参照/挿入できることも確認する。
 - TC-124 MacroLineSplit: `FOREACH_LINE` と `SPLIT` が CRLF/LF/CR、空要素の保持/除外、INDEX、上限超過、未閉鎖ブロック、ネストを期待通り扱うことを確認する。
 - TC-036 MacroCommandApp: Macro Script 拡張モードで `COMMAND_APP <パス>` を指定すると以降の `COMMAND` の実行ファイルが差し替わり、`RESET` または `CLEAR` で元に戻ることを確認する。変数展開後のパスが空の場合は失敗することを併せて確認。
 - TC-037 MacroWifiSsid: `WIFI_SSID <変数>` で接続中 SSID が変数へ格納され、未接続時は空文字が入ることを確認する。SSID バイト列の UTF-8 デコードと 32 バイト上限を単体テストし、OS 表示言語や `netsh` 出力形式へ依存しないことを確認する。
@@ -132,6 +133,7 @@
 - FR-004 → SP-005 → DES-002/004/005 → TC-126/129/130
 - FR-006 → SP-007/015 → DES-005 → TC-030/127
 - FR-019 → SP-004/009 → DES-002/004 → TC-025/027/080/112/114
+- FR-019 → SP-009 → DES-004 → TC-135
 - FR-021 → SP-006/007 → DES-002/005 → TC-090/095
 - FR-022 → SP-001/006 → DES-002/003 → TC-065
 - FR-023 → SP-010 → DES-002/003 → TC-085/086/088/089/099/100/101/111/113/115/116/117

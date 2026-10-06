@@ -54,6 +54,9 @@
 13) キーボード操作トグル: コンテキストメニュー「キーボード操作」で `_config.EnableEmacsNavigation` / `_config.EnableViNavigation` を切り替え、ウィンドウアクティブ時のみ Emacs/vi ライクの移動キーを受け付ける。トグルは Enter/Ctrl+J/Ctrl+M でも確定し設定へ保存され、無効化時は矢印キーと Enter/Esc の基本操作のみ有効。
 
 ## DES-004 API Contracts (examples)
+
+- Display mouse move: `MacroDisplayMove` は `MOUSEMOVEDISPLAY` の構文と9点・オフセットの計算を担当し、OS 非依存で検証する。`KeyboardMacroService` は変数展開後に解析し、実行時のみ注入可能な `IMacroDisplayAdapter` へ番号を渡す。既存の入力を送信してから現在の領域を解決し、既存の仮想スクリーン絶対移動経路へ渡す。CCD の物理座標と `GetSystemMetrics` / `SendInput` の座標系を一致させるため、新コマンドの正規化から即時入力送信まで worker thread を `PER_MONITOR_AWARE_V2` にし、finally で元の DPI context を復元する。
+- Display topology: `NativeMacroDisplayAdapter` は `QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS)` の active path index + 1 を番号とし、対応する source mode の物理ピクセル座標を使用する。`Screen.AllScreens` の順序や `DISPLAYn` の末尾番号とは区別する。番号の算出は [Microsoft PowerToys PowerDisplay](https://github.com/microsoft/PowerToys/blob/main/src/modules/powerdisplay/PowerDisplay.Lib/Drivers/DisplayConfigInventory.cs) の方式に合わせる。バッファサイズ取得中の構成変更は最大3回再取得し、それでも解決できなければ失敗する。未知の番号や不正な mode は別ディスプレイへ代替しない。構文チェックには OS adapter を呼び出さない。
 - LauncherService
   - Input: `SlotModel slot`, `string[] paths`（0..n）。`ArgumentTemplateExpander` が `{args}`/`{drop_args}`/`{drop_count}`/`{drop_path}`/`{drop_path:n}` をクォート済みで展開し、`{clipboard}`/`{clipboard_args}`/`{clipboard_args:n}` を ClipboardHistoryService が返す履歴から解決する（`{clipboard_args:n}` は直近 n 行を古い順で展開）。
   - Output: `LaunchResult`（Success/Message）。例外は捕捉してメッセージ化。

@@ -155,6 +155,8 @@ public partial class RegisterDialog : Window
             new MacroSnippet("MOUSEMOVEABS <X> <Y>", "MOUSEMOVEABS 640 360"),
             new MacroSnippet("MOUSEMOVEABS WIN_* 予約語", "MOUSEMOVEABS WIN_CENTER"),
             new MacroSnippet("MOUSEMOVEWIN <dX> <dY>", "MOUSEMOVEWIN 100 60"),
+            new MacroSnippet("MOUSEMOVEDISPLAY <number> <position>", "MOUSEMOVEDISPLAY 2 CENTER"),
+            new MacroSnippet("MOUSEMOVEDISPLAY OFFSET", "MOUSEMOVEDISPLAY 2 TOPRIGHT OFFSET -20 20"),
             new MacroSnippet("MOUSEMOVEREL <dX> <dY>", "MOUSEMOVEREL 30 -20"),
             new MacroSnippet("MOUSELEFTCLICK", "MOUSELEFTCLICK"),
             new MacroSnippet("MOUSELEFTDOUBLECLICK", "MOUSELEFTDOUBLECLICK"),

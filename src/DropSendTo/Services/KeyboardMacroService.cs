@@ -47,6 +47,7 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
     private readonly Func<DateTimeOffset> _utcNowProvider;
     private readonly Func<DateTimeOffset> _localNowProvider;
     private readonly IMacroWindowAdapter _windowAdapter;
+    private readonly IMacroDisplayAdapter _displayAdapter;
     private readonly Stack<MacroExecutionEntry> _macroStack = new();
     private readonly Stack<(MacroSuspensionHandle Handle, MacroExecutionSession Session)> _suspensionStack = new();
     private TaskCompletionSource<object?> _macroIdleTcs = CreateIdleTask(completed: true);
@@ -90,12 +91,14 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
         IAppLogger logger,
         Func<DateTimeOffset>? utcNowProvider = null,
         Func<DateTimeOffset>? localNowProvider = null,
-        IMacroWindowAdapter? windowAdapter = null)
+        IMacroWindowAdapter? windowAdapter = null,
+        IMacroDisplayAdapter? displayAdapter = null)
     {
         _logger = logger;
         _utcNowProvider = utcNowProvider ?? (() => DateTimeOffset.UtcNow);
         _localNowProvider = localNowProvider ?? (() => DateTimeOffset.Now);
         _windowAdapter = windowAdapter ?? NativeMacroWindowAdapter.Instance;
+        _displayAdapter = displayAdapter ?? NativeMacroDisplayAdapter.Instance;
     }
 
     public void Initialize(WindowInteropHelper helper)
@@ -1762,7 +1765,10 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
                         var message = mouseExpandError ?? $"変数の解決に失敗しました: \"{line}\"";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
                     }
-                    if (!TryHandleMouseCommand(expandedMouse, buffer, out var mouseError))
+                    bool mouseOk = ExtractCommandName(expandedMouse) == "MOUSEMOVEDISPLAY"
+                        ? TryHandleDisplayMove(expandedMouse, buffer, validateOnly, out var mouseError)
+                        : TryHandleMouseCommand(expandedMouse, buffer, out mouseError);
+                    if (!mouseOk)
                     {
                         var message = mouseError ?? $"MOUSE コマンドの書式が不正です: \"{expandedMouse}\"";
                         return CompleteResult(MacroExecutionResult.Fail(FormatLineError(lineNumber, message)));
@@ -6310,6 +6316,46 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
         string.IsNullOrWhiteSpace(args)
             ? Array.Empty<string>()
             : args.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+    private bool TryHandleDisplayMove(string line, List<INPUT> buffer, bool validateOnly, out string? error)
+    {
+        var args = TrimInlineComment(line["MOUSEMOVEDISPLAY".Length..].Trim());
+        if (!MacroDisplayMove.TryParse(args, out var move, out error))
+        {
+            return false;
+        }
+        if (validateOnly)
+        {
+            return true;
+        }
+        // Flush previous input before resolving live display coordinates.
+        if (!TryFlushInputsSafe(buffer, false, out error) ||
+            !_displayAdapter.TryGetBounds(move.DisplayNumber, out var bounds, out error) ||
+            !move.TryResolve(bounds, out var x, out var y, out error))
+        {
+            return false;
+        }
+        // CCD returns physical pixels even if the macro worker inherited a virtualized DPI context.
+        // GetSystemMetrics must use that same coordinate space while normalizing SendInput coordinates.
+        var previousDpiContext = SetThreadDpiAwarenessContext(new IntPtr(-4)); // PER_MONITOR_AWARE_V2
+        if (previousDpiContext == IntPtr.Zero)
+        {
+            error = "マウス移動の物理ピクセル座標系を取得できませんでした。";
+            return false;
+        }
+        try
+        {
+            return TryAppendMouseMoveAbsolute(x, y, buffer, out error) &&
+                TryFlushInputsSafe(buffer, false, out error);
+        }
+        finally
+        {
+            SetThreadDpiAwarenessContext(previousDpiContext);
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
 
     private static bool TryParseAbsoluteMouseArguments(string args, out int x, out int y, out string? error)
     {

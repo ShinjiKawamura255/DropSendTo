@@ -110,6 +110,7 @@
 | `TEXT <文字列>` | 文字列をそのまま入力 | `TEXT processed.` |
 | `WAIT <ms>` | 指定ミリ秒待機 | `WAIT 300` |
 | `MOUSELEFTCLICK` など | マウスクリック/ホイール/移動一式 | `MOUSEMOVEABS WIN_CENTER` |
+| `MOUSEMOVEDISPLAY <番号> <位置> [OFFSET <X> <Y>]` | 指定ディスプレイの9点へ移動 | `MOUSEMOVEDISPLAY 2 TOPRIGHT OFFSET -20 20` |
 | `SET/ADD/SUB/MUL/DIV <変数> <値>` | 64bit 整数の計算 | `SET Count 0` |
 | `APPEND/PREPEND` | 文字列を結合 | `APPEND Cmd " --flag"` |
 | `REPLACE <変数> "検索" "置換"` | 変数内文字列を空白含め置換（`""` で削除） | `REPLACE Body " " "_"` |
@@ -128,6 +129,35 @@
 | `ELSEIF <条件>` / `ELSE IF <条件>` | 追加条件ブロック（前段不成立時のみ評価） | `ELSEIF {{Mode}} == 2` |
 | `ELSE` / `ENDIF` | `IF` ブロックの分岐・終了 | `ELSE` → `COMMAND "fallback"` |
 | `PREFIX ARM/SEND/PASSTHROUGH` | Prefix 状態の制御と送出 | `PREFIX ARM` |
+
+#### ディスプレイ番号を指定してマウスを移動する
+
+`MOUSEMOVEDISPLAY` は指定ディスプレイ全体（タスクバーを含む）の9点へ移動します。
+番号は Windows の「設定 → システム → ディスプレイ → 識別」で確認してください。
+配置・解像度は命令実行時に取得するため、左側や上側に配置したディスプレイにも対応します。
+
+| 左 | 中央 | 右 |
+| --- | --- | --- |
+| `TOPLEFT` | `TOPCENTER` | `TOPRIGHT` |
+| `LEFTCENTER` | `CENTER` | `RIGHTCENTER` |
+| `BOTTOMLEFT` | `BOTTOMCENTER` | `BOTTOMRIGHT` |
+
+```text
+# ディスプレイ2の中央
+MOUSEMOVEDISPLAY 2 CENTER
+# ディスプレイ2の右上から左へ20px、下へ20px
+MOUSEMOVEDISPLAY 2 TOPRIGHT OFFSET -20 20
+# 番号・位置・オフセットには変数も指定できます
+SET DisplayNo 2
+SET Position CENTER
+SET OffsetX 20
+MOUSEMOVEDISPLAY {{DisplayNo}} {{Position}} OFFSET {{OffsetX}} 0
+```
+
+`OFFSET` は物理ピクセル単位で、右・下が正、左・上が負です。右端・下端はディスプレイ内の最後のピクセルです。
+未接続の番号、領域取得失敗、オフセット適用後の範囲外座標はエラーとなり、別ディスプレイへの移動や後続のクリックは行いません。
+複製表示では同じデスクトップ座標を共有します。接続構成を変更したときは識別番号を確認し直してください。
+構文チェック時にはディスプレイの接続状態を確認せず、マウスも移動しません。
 
 ### 2.5 Macro Script サンプル集
 以下はそのまま貼り付けて使える小さなレシピです（必要に応じてショートカットやドロップと組み合わせてください）。

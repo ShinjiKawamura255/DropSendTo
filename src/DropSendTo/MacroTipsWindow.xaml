@@ -169,6 +169,15 @@
                     <StackPanel>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEABS &lt;X&gt; &lt;Y&gt; : 仮想スクリーン座標へ絶対移動 (ピクセル)" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEWIN &lt;dX&gt; &lt;dY&gt; : アクティブウィンドウ左上からの相対座標へ移動" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEDISPLAY &lt;number&gt; &lt;position&gt; [OFFSET &lt;X&gt; &lt;Y&gt;]" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  指定ディスプレイの9点へ移動。OFFSET は物理px (右・下が正)。タスクバーを含む。" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  Move to one of nine display points. OFFSET: physical px (+right/+down)." TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  TOPLEFT / TOPCENTER / TOPRIGHT" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  LEFTCENTER / CENTER / RIGHTCENTER" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  BOTTOMLEFT / BOTTOMCENTER / BOTTOMRIGHT" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  番号: Windows の識別番号。未接続・範囲外はエラー。変数指定可。" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  Number: Windows Identify. Missing display / out-of-bounds: error." TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="  Includes taskbar. Variables supported." TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEREL &lt;dX&gt; &lt;dY&gt; : 現在位置から相対移動" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSELEFTDOWN / MOUSELEFTUP    : 左ボタン押下 / 解放" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSERIGHTDOWN / MOUSERIGHTUP  : 右ボタン押下 / 解放" TextWrapping="NoWrap"/>
@@ -197,6 +206,10 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSELEFTDOUBLECLICK" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSESCROLLDOWN 3" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="" Margin="0,0,0,8"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# ディスプレイ2の中央 / Center of display 2" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEDISPLAY 2 CENTER" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# 右上から内側へ20px / 20px inward from top-right" TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEDISPLAY 2 TOPRIGHT OFFSET -20 20" TextWrapping="NoWrap" Margin="0,0,0,8"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="# マクロ開始位置へ戻してクリックする例" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSEMOVEABS CURSOR_START" TextWrapping="NoWrap"/>
                         <TextBox Style="{StaticResource TipsMonoTextStyle}" Text="MOUSELEFTCLICK" TextWrapping="NoWrap"/>
