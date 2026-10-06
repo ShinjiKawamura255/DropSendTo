@@ -20,4 +20,5 @@
 ## Focused references
 
 - [RELEASE.md](RELEASE.md): バージョン形式、正式版の検証・配布・GitHub Releases 公開手順。
+- [RELEASE_NOTES_v1.4.0.md](RELEASE_NOTES_v1.4.0.md): v1.4.0 の変更点、配布形式、更新・互換性情報。
 - `MACRO_SAMPLES.md`: 現行 Macro Script だけで動くコピー＆ペースト用サンプル。
