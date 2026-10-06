@@ -1,0 +1,2 @@
+# Match .editorconfig on fresh Windows checkouts; binary files remain binary.
+* text=auto eol=lf

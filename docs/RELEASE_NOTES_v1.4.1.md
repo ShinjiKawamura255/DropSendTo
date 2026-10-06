@@ -1,4 +1,4 @@
-# DropSendTo v1.4.0
+# DropSendTo v1.4.1
 
 公開対象: v1.3.0 以降の変更。Windows 10 22H2 以降 / Windows 11、x64。
 
@@ -22,11 +22,11 @@
 
 ## 更新・互換性
 
-- `DropSendTo_win-x64_v1.4.0.zip` は .NET 10 Desktop Runtime が必要。`DropSendTo_Portable_win-x64_v1.4.0.zip` はランタイム同梱で、.NET の別途インストールは不要。
+- `DropSendTo_win-x64_v1.4.1.zip` は .NET 10 Desktop Runtime が必要。`DropSendTo_Portable_win-x64_v1.4.1.zip` はランタイム同梱で、.NET の別途インストールは不要。
 - ランタイム同梱版も設定を `%AppData%\DropSendTo` に保存する。更新前に設定を退避し、DropSendTo を終了して利用中と同じ配布形式のファイルへ置き換え、再起動する。サインイン起動登録を利用中なら実行ファイルを同じ場所に置く。
 - 設定の暗号化形式は AES-GCM + PBKDF2-SHA256 200,000 iterations を維持。エクスポート対象の設定データは 8 MiB 以下、出力・入力ファイルは 16 MiB 以下。インポートは KDF 1,000,000 iterations 超を拒否する。以前作成したファイルも上限を超える場合はインポートできない。
 - 大きい設定を退避するときは、アプリを終了して `config.json` と `config.json.bak` を別フォルダーへコピーする。旧版へ戻す場合も更新前の退避データを使用する。
 - 更新確認ボタンはブラウザで公開ページを開く。自動ダウンロード・ファイル置換・再起動は行わない。v1.3.0 以前には更新確認画面がないため、この版への更新は GitHub Releases から行う。
 - 検索語の `'`、`!`、`^`、`$`、`|` は検索演算子として使われる。記法と操作の詳細は同梱の `USER_GUIDE.md` を参照。
 
-[変更一覧](https://github.com/ShinjiKawamura255/DropSendTo/compare/v1.3.0...v1.4.0)
+[変更一覧](https://github.com/ShinjiKawamura255/DropSendTo/compare/v1.3.0...v1.4.1)
