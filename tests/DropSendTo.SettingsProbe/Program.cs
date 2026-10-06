@@ -66,8 +66,43 @@ internal static class Program
             {
                 window.Show();
                 Pump();
-                Assert(main.ContextMenu.Items.OfType<MenuItem>().Count() == 5, "Quick menu contains five actions");
+                Assert(main.ContextMenu.Items.OfType<MenuItem>().Count() == 6, "Quick menu contains six actions including About");
                 Assert(main.IsEnabled, "Settings do not disable MainWindow");
+
+                // Exercise the actual tray mouse-event handler with isolated settings, without a physical shell click.
+                typeof(MainWindow).GetMethod("MinimizeWindowToTray", PrivateInstance)!.Invoke(main, null);
+                Pump();
+                Assert(!main.IsVisible, "MainWindow is hidden in the tray");
+                NotifyTrayClick("Right");
+                Pump();
+                Assert(main.ContextMenu.IsOpen, "Tray right-click opens the shared menu");
+                var aboutMenu = (MenuItem)main.FindName("AboutMenuItem");
+                aboutMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                main.ContextMenu.IsOpen = false;
+                Pump();
+                var aboutField = typeof(MainWindow).GetField("_aboutWindow", PrivateInstance)!;
+                var about = (Window)aboutField.GetValue(main)!;
+                Assert(about.IsVisible && ReferenceEquals(about.Owner, main) && main.IsEnabled,
+                    "Tray About is visible, owned and modeless");
+                aboutMenu.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Assert(ReferenceEquals(about, aboutField.GetValue(main)), "About menu re-entry reuses the window");
+                Capture(about, Path.Combine(output, "about-tray.png"));
+                about.Close();
+                Pump();
+                Assert(aboutField.GetValue(main) == null, "Closing About releases the window");
+                NotifyTrayClick("Left");
+                Pump();
+                Assert(main.IsVisible, "Tray left-click restores MainWindow");
+                report.Add("PASS: simulated tray mouse events open a modeless About, reuse it, close it and restore MainWindow");
+
+                void NotifyTrayClick(string button)
+                {
+                    var handler = typeof(MainWindow).GetMethod("OnNotifyIconMouseClick", PrivateInstance)!;
+                    var eventType = handler.GetParameters()[1].ParameterType;
+                    var buttonType = eventType.GetConstructors().Single().GetParameters()[0].ParameterType;
+                    var args = Activator.CreateInstance(eventType, Enum.Parse(buttonType, button), 1, 0, 0, 0);
+                    handler.Invoke(main, new object?[] { null, args });
+                }
 
                 // Check persistence through the real MainWindow and ConfigService paths.
                 Apply(SettingsOption.KeyboardPlacement, 0);
