@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/DropSendTo/DropSendTo.csproj"/>
+    <None Include="../../src/DropSendTo/App.xaml" Link="AppResources.xaml" CopyToOutputDirectory="PreserveNewest"/>
+    <Page Include="../../src/DropSendTo/Themes/*.xaml" Link="Themes/%(Filename)%(Extension)"/>
+  </ItemGroup>
+</Project>

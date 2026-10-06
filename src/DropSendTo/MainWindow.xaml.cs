@@ -103,177 +103,12 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         MouseGesture,
         Prefix
     }
-    private static readonly (SlotSize size, string header)[] SlotSizeOptions =
-    {
-        (SlotSize.Large, "Large"),
-        (SlotSize.Medium, "Medium"),
-        (SlotSize.Small, "Small"),
-        (SlotSize.Custom, "Custom...")
-    };
     private const double LayoutEditIndicatorTopSpacing = 4;
     private const double LayoutEditIndicatorBottomSpacing = 6;
     private const double LayoutEditIndicatorFallbackHeight = 22;
-    private readonly record struct UiText(
-        string ConfigMenu,
-        string OpenConfig,
-        string OpenLogs,
-        string ExportConfig,
-        string ImportConfig,
-        string ChangePrefix,
-        string SearchHotkey,
-        string LayerSettings,
-        string LayerCount,
-        string EditLayerNames,
-        string LayoutDisplay,
-        string SlotLayout,
-        string SlotSize,
-        string HideEmptySlotNames,
-        string StartupWindow,
-        string StartupAlwaysShow,
-        string StartupAlwaysMinimize,
-        string StartupRestore,
-        string StartupSlots,
-        string StartupRegistration,
-        string StartupRegistered,
-        string StartupUnregistered,
-        string StartupRegistrationFailed,
-        string MacroMode,
-        string MacroExclusive,
-        string MacroInterrupt,
-        string MacroSuspend,
-        string KeyboardNavigation,
-        string EmacsNavigation,
-        string ViNavigation,
-        string MouseGestures,
-        string DisplayBehavior,
-        string ShowLayerPreference,
-        string KeyboardPlacement,
-        string MousePlacement,
-        string SearchPlacement,
-        string FollowKeyboardPlacement,
-        string PlacementFixed,
-        string PlacementMouseFollow,
-        string PlacementScreenCenter,
-        string MinimizeTriggers,
-        string ShortcutList,
-        string ThemeMenu,
-        string ThemeDark,
-        string ThemeLight,
-        string LanguageMenu,
-        string LanguageJapanese,
-        string LanguageEnglish,
-        string AlwaysOnTop,
-        string MinimizeToTray,
-        string Exit,
-        string SearchLabel);
-
-    private static readonly UiText JapaneseText = new(
-        ConfigMenu: "設定ファイル / ログ",
-        OpenConfig: "設定ファイルを開く",
-        OpenLogs: "ログを開く",
-        ExportConfig: "設定をエクスポート...",
-        ImportConfig: "設定をインポート...",
-        ChangePrefix: "Prefix を変更...",
-        SearchHotkey: "検索ホットキー...",
-        LayerSettings: "レイヤー設定",
-        LayerCount: "レイヤー数...",
-        EditLayerNames: "レイヤー名を編集...",
-        LayoutDisplay: "レイアウト / 表示",
-        SlotLayout: "Slot Layout...",
-        SlotSize: "Slot Size",
-        HideEmptySlotNames: "未登録スロット名を非表示",
-        StartupWindow: "起動時のウィンドウ",
-        StartupAlwaysShow: "常にウィンドウを表示",
-        StartupAlwaysMinimize: "常にタスクトレイで起動",
-        StartupRestore: "前回の状態を復元",
-        StartupSlots: "起動時実行スロット...",
-        StartupRegistration: "スタートアップに登録",
-        StartupRegistered: "スタートアップに登録しました。",
-        StartupUnregistered: "スタートアップ登録を解除しました。",
-        StartupRegistrationFailed: "スタートアップ登録の変更に失敗しました。",
-        MacroMode: "Macro 実行モード",
-        MacroExclusive: "排他（単一実行のみ）",
-        MacroInterrupt: "割り込み実行（実行中マクロを停止）",
-        MacroSuspend: "一時停止して割り込み（完了後に元マクロ再開）",
-        KeyboardNavigation: "キーボード操作",
-        EmacsNavigation: "Emacs ライク操作",
-        ViNavigation: "vi ライク操作",
-        MouseGestures: "マウスジェスチャ (表示/最小化)...",
-        DisplayBehavior: "表示挙動",
-        ShowLayerPreference: "表示時のレイヤー切替...",
-        KeyboardPlacement: "表示位置 (キーボード)",
-        MousePlacement: "表示位置 (マウスジェスチャ)",
-        SearchPlacement: "表示位置 (検索)",
-        FollowKeyboardPlacement: "キーボード設定に追従",
-        PlacementFixed: "固定位置",
-        PlacementMouseFollow: "マウスフォロー",
-        PlacementScreenCenter: "画面中央 (マウスがある画面)",
-        MinimizeTriggers: "最小化トリガー...",
-        ShortcutList: "ショートカット一覧...",
-        ThemeMenu: "テーマ",
-        ThemeDark: "ダーク",
-        ThemeLight: "ライト",
-        LanguageMenu: "Language",
-        LanguageJapanese: "日本語",
-        LanguageEnglish: "English",
-        AlwaysOnTop: "常に最前面に表示",
-        MinimizeToTray: "Minimize to Tray",
-        Exit: "Exit",
-        SearchLabel: "検索");
-
-    private static readonly UiText EnglishText = new(
-        ConfigMenu: "Config / Logs",
-        OpenConfig: "Open Config",
-        OpenLogs: "Open Logs",
-        ExportConfig: "Export Config...",
-        ImportConfig: "Import Config...",
-        ChangePrefix: "Change Prefix...",
-        SearchHotkey: "Search Hotkey...",
-        LayerSettings: "Layer Settings",
-        LayerCount: "Layer Count...",
-        EditLayerNames: "Edit Layer Names...",
-        LayoutDisplay: "Layout / Display",
-        SlotLayout: "Slot Layout...",
-        SlotSize: "Slot Size",
-        HideEmptySlotNames: "Hide empty slot names",
-        StartupWindow: "Startup Window",
-        StartupAlwaysShow: "Always show window",
-        StartupAlwaysMinimize: "Always start in tray",
-        StartupRestore: "Restore last state",
-        StartupSlots: "Startup slots...",
-        StartupRegistration: "Run at Windows sign-in",
-        StartupRegistered: "Registered to run at Windows sign-in.",
-        StartupUnregistered: "Removed from Windows sign-in startup.",
-        StartupRegistrationFailed: "Failed to change Windows sign-in startup.",
-        MacroMode: "Macro Mode",
-        MacroExclusive: "Exclusive (single run only)",
-        MacroInterrupt: "Interrupt running macro",
-        MacroSuspend: "Pause and resume",
-        KeyboardNavigation: "Keyboard Navigation",
-        EmacsNavigation: "Emacs-like navigation",
-        ViNavigation: "vi-like navigation",
-        MouseGestures: "Mouse gestures (show/minimize)...",
-        DisplayBehavior: "Display Behavior",
-        ShowLayerPreference: "Show-layer preference...",
-        KeyboardPlacement: "Placement (keyboard)",
-        MousePlacement: "Placement (mouse gesture)",
-        SearchPlacement: "Placement (search)",
-        FollowKeyboardPlacement: "Follow keyboard setting",
-        PlacementFixed: "Fixed position",
-        PlacementMouseFollow: "Follow mouse",
-        PlacementScreenCenter: "Screen center (cursor screen)",
-        MinimizeTriggers: "Minimize triggers...",
-        ShortcutList: "Shortcut list...",
-        ThemeMenu: "Theme",
-        ThemeDark: "Dark",
-        ThemeLight: "Light",
-        LanguageMenu: "Language",
-        LanguageJapanese: "Japanese",
-        LanguageEnglish: "English",
-        AlwaysOnTop: "Always on top",
-        MinimizeToTray: "Minimize to Tray",
-        Exit: "Exit",
-        SearchLabel: "Search");
+    private readonly record struct UiText(string ShortcutList, string MinimizeToTray, string Exit, string SearchLabel);
+    private static readonly UiText JapaneseText = new("ショートカット一覧…", "トレイへ最小化", "終了", "検索");
+    private static readonly UiText EnglishText = new("Shortcut list…", "Minimize to Tray", "Exit", "Search");
 
     private readonly record struct SlotSizeMetrics(
         double BaseWidth,
@@ -915,60 +750,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _currentLanguage = _config?.Language ?? AppLanguage.Japanese;
         UpdateAppLayerUi();
         var text = GetUiText(_currentLanguage);
+        SettingsMenuItem.Header = _currentLanguage == AppLanguage.English ? "Settings…" : "設定…";
 
-        if (ConfigMenuItem != null) ConfigMenuItem.Header = text.ConfigMenu;
-        if (OpenConfigMenuItem != null) OpenConfigMenuItem.Header = text.OpenConfig;
-        if (OpenLogsMenuItem != null) OpenLogsMenuItem.Header = text.OpenLogs;
-        if (ExportConfigMenuItem != null) ExportConfigMenuItem.Header = text.ExportConfig;
-        if (ImportConfigMenuItem != null) ImportConfigMenuItem.Header = text.ImportConfig;
-        if (ChangePrefixMenuItem != null) ChangePrefixMenuItem.Header = text.ChangePrefix;
-        if (SearchHotkeyMenuItem != null) SearchHotkeyMenuItem.Header = text.SearchHotkey;
-        if (LayerSettingsMenuItem != null) LayerSettingsMenuItem.Header = text.LayerSettings;
-        if (LayerCountMenuItem != null) LayerCountMenuItem.Header = text.LayerCount;
-        if (EditLayerNamesMenuItem != null) EditLayerNamesMenuItem.Header = text.EditLayerNames;
-        if (LayoutDisplayMenuItem != null) LayoutDisplayMenuItem.Header = text.LayoutDisplay;
-        if (LayoutMenuItem != null) LayoutMenuItem.Header = text.SlotLayout;
-        if (SlotSizeMenuItem != null) SlotSizeMenuItem.Header = text.SlotSize;
-        if (HideEmptySlotNamesMenuItem != null) HideEmptySlotNamesMenuItem.Header = text.HideEmptySlotNames;
-        if (StartupWindowMenuItem != null) StartupWindowMenuItem.Header = text.StartupWindow;
-        if (StartupAlwaysShowMenuItem != null) StartupAlwaysShowMenuItem.Header = text.StartupAlwaysShow;
-        if (StartupAlwaysMinimizeMenuItem != null) StartupAlwaysMinimizeMenuItem.Header = text.StartupAlwaysMinimize;
-        if (StartupRestoreMenuItem != null) StartupRestoreMenuItem.Header = text.StartupRestore;
-        if (StartupSlotsMenuItem != null) StartupSlotsMenuItem.Header = text.StartupSlots;
-        if (StartupRegistrationMenuItem != null) StartupRegistrationMenuItem.Header = text.StartupRegistration;
-        if (MacroModeMenuItem != null) MacroModeMenuItem.Header = text.MacroMode;
-        if (MacroModeExclusiveMenuItem != null) MacroModeExclusiveMenuItem.Header = text.MacroExclusive;
-        if (MacroModeInterruptMenuItem != null) MacroModeInterruptMenuItem.Header = text.MacroInterrupt;
-        if (MacroModeSuspendMenuItem != null) MacroModeSuspendMenuItem.Header = text.MacroSuspend;
-        if (KeyboardNavigationMenuItem != null) KeyboardNavigationMenuItem.Header = text.KeyboardNavigation;
-        if (EmacsNavigationMenuItem != null) EmacsNavigationMenuItem.Header = text.EmacsNavigation;
-        if (ViNavigationMenuItem != null) ViNavigationMenuItem.Header = text.ViNavigation;
-        if (MouseGesturesMenuItem != null) MouseGesturesMenuItem.Header = text.MouseGestures;
-        if (DisplayBehaviorMenuItem != null) DisplayBehaviorMenuItem.Header = text.DisplayBehavior;
-        if (ShowLayerPreferenceMenuItem != null) ShowLayerPreferenceMenuItem.Header = text.ShowLayerPreference;
-        if (KeyboardPlacementMenuItem != null) KeyboardPlacementMenuItem.Header = text.KeyboardPlacement;
-        if (MousePlacementMenuItem != null) MousePlacementMenuItem.Header = text.MousePlacement;
-        if (SearchPlacementMenuItem != null) SearchPlacementMenuItem.Header = text.SearchPlacement;
-        if (MousePlacementFollowKeyboardMenuItem != null) MousePlacementFollowKeyboardMenuItem.Header = text.FollowKeyboardPlacement;
-        if (SearchPlacementFollowKeyboardMenuItem != null) SearchPlacementFollowKeyboardMenuItem.Header = text.FollowKeyboardPlacement;
-        if (MousePlacementFixedMenuItem != null) MousePlacementFixedMenuItem.Header = text.PlacementFixed;
-        if (MousePlacementFollowMouseMenuItem != null) MousePlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
-        if (MousePlacementScreenCenterMenuItem != null) MousePlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
-        if (KeyboardPlacementFixedMenuItem != null) KeyboardPlacementFixedMenuItem.Header = text.PlacementFixed;
-        if (KeyboardPlacementFollowMouseMenuItem != null) KeyboardPlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
-        if (KeyboardPlacementScreenCenterMenuItem != null) KeyboardPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
-        if (SearchPlacementFixedMenuItem != null) SearchPlacementFixedMenuItem.Header = text.PlacementFixed;
-        if (SearchPlacementFollowMouseMenuItem != null) SearchPlacementFollowMouseMenuItem.Header = text.PlacementMouseFollow;
-        if (SearchPlacementScreenCenterMenuItem != null) SearchPlacementScreenCenterMenuItem.Header = text.PlacementScreenCenter;
-        if (MinimizeTriggersMenuItem != null) MinimizeTriggersMenuItem.Header = text.MinimizeTriggers;
         if (ShortcutListMenuItem != null) ShortcutListMenuItem.Header = text.ShortcutList;
-        if (ThemeMenuItem != null) ThemeMenuItem.Header = text.ThemeMenu;
-        if (ThemeDarkMenuItem != null) ThemeDarkMenuItem.Header = text.ThemeDark;
-        if (ThemeLightMenuItem != null) ThemeLightMenuItem.Header = text.ThemeLight;
-        if (LanguageMenuItem != null) LanguageMenuItem.Header = text.LanguageMenu;
-        if (LanguageJapaneseMenuItem != null) LanguageJapaneseMenuItem.Header = text.LanguageJapanese;
-        if (LanguageEnglishMenuItem != null) LanguageEnglishMenuItem.Header = text.LanguageEnglish;
-        if (AlwaysOnTopMenuItem != null) AlwaysOnTopMenuItem.Header = text.AlwaysOnTop;
         if (MinimizeToTrayMenuItem != null) MinimizeToTrayMenuItem.Header = text.MinimizeToTray;
         if (ExitMenuItem != null) ExitMenuItem.Header = text.Exit;
 
@@ -984,32 +768,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
         UpdateDropIndicator();
 
-        UpdateLanguageMenuState();
-    }
-
-    private void UpdateLanguageMenuState()
-    {
-        if (LanguageJapaneseMenuItem != null)
-        {
-            LanguageJapaneseMenuItem.IsChecked = _currentLanguage == AppLanguage.Japanese;
-        }
-        if (LanguageEnglishMenuItem != null)
-        {
-            LanguageEnglishMenuItem.IsChecked = _currentLanguage == AppLanguage.English;
-        }
-    }
-
-    private void UpdateThemeMenuState()
-    {
-        var theme = _config?.Theme ?? AppTheme.Dark;
-        if (ThemeDarkMenuItem != null)
-        {
-            ThemeDarkMenuItem.IsChecked = theme == AppTheme.Dark;
-        }
-        if (ThemeLightMenuItem != null)
-        {
-            ThemeLightMenuItem.IsChecked = theme == AppTheme.Light;
-        }
+        _settingsWindow?.RefreshSettings();
     }
 
     private void UpdateDropIndicator()
@@ -3980,60 +3739,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         };
     }
 
-    private void OnConfigureSlotLayout(object sender, RoutedEventArgs e)
-    {
-        var dialog = new SlotLayoutDialog(_config.SlotRows, _config.SlotColumns)
-        {
-            Owner = this
-        };
-        WindowCascadeService.Arrange(dialog, this);
-        var result = dialog.ShowDialog();
-        if (result != true)
-        {
-            return;
-        }
-
-        int rows = Math.Clamp(dialog.Rows, MinSlotRows, MaxSlotRows);
-        int columns = Math.Clamp(dialog.Columns, MinSlotColumns, MaxSlotColumns);
-        if (rows == _config.SlotRows && columns == _config.SlotColumns)
-        {
-            return;
-        }
-
-        _config.SlotRows = rows;
-        _config.SlotColumns = columns;
-        ApplySlotLayout();
-        RefreshUi();
-        ClampWindowWithinBounds();
-        _configService.Save(_config);
-    }
-
-    private void OnConfigureLayerCount(object sender, RoutedEventArgs e)
-    {
-        if (_config?.Layers == null)
-        {
-            return;
-        }
-
-        var dialog = new LayerCountDialog(_config.Layers.Count, MinLayers, MaxLayers)
-        { Owner = this };
-        WindowCascadeService.Arrange(dialog, this);
-        var result = dialog.ShowDialog();
-        if (result != true || !dialog.IsConfirmed)
-        {
-            return;
-        }
-
-        int desired = dialog.SelectedCount;
-
-        if (desired == _config.Layers.Count)
-        {
-            return;
-        }
-
-        ApplyLayerCount(desired);
-    }
-
     private void ApplyLayerCount(int newCount)
     {
         if (_config?.Layers == null)
@@ -4086,50 +3791,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _config.PrefixShowLayerWhenHidden = Normalize(_config.PrefixShowLayerWhenHidden);
     }
 
-    private void OnSlotSizeMenuOpened(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem menuItem) return;
-        PopulateSlotSizeMenu(menuItem);
-    }
-
-    private void OnSlotSizeOptionSelected(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item || item.Tag is not SlotSize size) return;
-        if (_config.SlotSize == size && size != SlotSize.Custom) return;
-
-        if (size == SlotSize.Custom)
-        {
-            var dialog = new CustomSlotSizeDialog(_config.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault())
-            {
-                Owner = this
-            };
-            bool appliedDuringDialog = false;
-            dialog.SlotSizeApplied += (_, options) =>
-            {
-                appliedDuringDialog = true;
-                ApplyCustomSlotSize(options);
-            };
-            WindowCascadeService.Arrange(dialog, this);
-            var result = dialog.ShowDialog();
-            if (result == true && !appliedDuringDialog)
-            {
-                ApplyCustomSlotSize(dialog.ResultOptions?.Clone() ?? CustomSlotSizeOptions.CreateDefault());
-            }
-            else if (result != true && !appliedDuringDialog)
-            {
-                return;
-            }
-
-            return;
-        }
-
-        _config.SlotSize = size;
-        ApplySlotLayout();
-        RefreshUi();
-        ClampWindowWithinBounds();
-        _configService.Save(_config);
-    }
-
     private void ApplyCustomSlotSize(CustomSlotSizeOptions options)
     {
         if (_config == null)
@@ -4143,24 +3804,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         RefreshUi();
         ClampWindowWithinBounds();
         _configService.Save(_config);
-    }
-
-    private void PopulateSlotSizeMenu(MenuItem menuItem)
-    {
-        if (menuItem == null) return;
-        menuItem.Items.Clear();
-        foreach (var (size, header) in SlotSizeOptions)
-        {
-            var item = new MenuItem
-            {
-                Header = header,
-                IsCheckable = true,
-                IsChecked = _config.SlotSize == size,
-                Tag = size
-            };
-            item.Click += OnSlotSizeOptionSelected;
-            menuItem.Items.Add(item);
-        }
     }
 
     private void OnEditModeToggleButtonClick(object sender, RoutedEventArgs e)
@@ -4278,7 +3921,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private async void OnExportConfig(object sender, RoutedEventArgs e)
+    private async Task ExportConfigAsync()
     {
         try
         {
@@ -4287,9 +3930,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 "エクスポートファイルを保護するパスワードを入力してください。",
                 requireConfirmation: true)
             {
-                Owner = this
+                Owner = _settingsWindow ?? (Window)this
             };
-            WindowCascadeService.Arrange(passwordDialog, this);
+            WindowCascadeService.Arrange(passwordDialog, passwordDialog.Owner);
             if (!await passwordDialog.ShowForResultAsync())
             {
                 return;
@@ -4310,7 +3953,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 FileName = $"DropSendTo_{DateTime.Now:yyyyMMdd_HHmmss}.dstcfg"
             };
 
-            if (saveDialog.ShowDialog(this) != true)
+            if (saveDialog.ShowDialog(_settingsWindow ?? (Window)this) != true)
             {
                 return;
             }
@@ -4326,7 +3969,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private async void OnImportConfig(object sender, RoutedEventArgs e)
+    private async Task ImportConfigAsync()
     {
         try
         {
@@ -4336,7 +3979,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 Filter = "DropSendTo Export (*.dstcfg)|*.dstcfg|All files (*.*)|*.*",
                 DefaultExt = ".dstcfg"
             };
-            if (openDialog.ShowDialog(this) != true)
+            if (openDialog.ShowDialog(_settingsWindow ?? (Window)this) != true)
             {
                 return;
             }
@@ -4347,9 +3990,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 "エクスポート時に設定したパスワードを入力してください。",
                 requireConfirmation: false)
             {
-                Owner = this
+                Owner = _settingsWindow ?? (Window)this
             };
-            WindowCascadeService.Arrange(passwordDialog, this);
+            WindowCascadeService.Arrange(passwordDialog, passwordDialog.Owner);
             if (!await passwordDialog.ShowForResultAsync())
             {
                 return;
@@ -4367,9 +4010,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             var risk = ConfigImportRiskSummary.FromConfig(imported);
             var confirmationDialog = new ConfigImportConfirmationDialog(_currentLanguage, risk)
             {
-                Owner = this
+                Owner = _settingsWindow ?? (Window)this
             };
-            WindowCascadeService.Arrange(confirmationDialog, this);
+            WindowCascadeService.Arrange(confirmationDialog, confirmationDialog.Owner);
             bool approved = await confirmationDialog.ShowForResultAsync();
 
             var result = _configImportCoordinator.Commit(
@@ -4452,7 +4095,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         RefreshUi();
         UpdateTrayMenuState();
         ApplyLanguageToUi();
-        UpdateThemeMenuState();
+        _settingsWindow?.RefreshSettings();
     }
 
     private void OnOpenLogs(object sender, RoutedEventArgs e)
@@ -4478,10 +4121,10 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private async void OnChangePrefix(object sender, RoutedEventArgs e)
+    private async Task ChangePrefixAsync()
     {
-        var dlg = new PrefixDialog(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled) { Owner = this };
-        WindowCascadeService.Arrange(dlg, this);
+        var dlg = new PrefixDialog(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled) { Owner = _settingsWindow ?? (Window)this };
+        WindowCascadeService.Arrange(dlg, dlg.Owner);
         if (await dlg.ShowForResultAsync())
         {
             var newPrefix = dlg.NormalizedPrefix;
@@ -4500,12 +4143,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private void OnConfigureSearchHotkey(object sender, RoutedEventArgs e)
+    private async Task ConfigureSearchHotkeyAsync()
     {
-        var dlg = new SearchHotkeyDialog(_config.SearchHotkey, _config.SearchHotkeyEnabled) { Owner = this };
-        WindowCascadeService.Arrange(dlg, this);
-        dlg.ShowDialog();
-        if (!dlg.IsConfirmed)
+        var dlg = new SearchHotkeyDialog(_config.SearchHotkey, _config.SearchHotkeyEnabled) { Owner = _settingsWindow ?? (Window)this };
+        WindowCascadeService.Arrange(dlg, dlg.Owner);
+        if (!await dlg.ShowForResultAsync())
         {
             return;
         }
@@ -4523,7 +4165,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _configService.Save(_config);
     }
 
-    private async void OnConfigureMouseGestures(object sender, RoutedEventArgs e)
+    private async Task ConfigureMouseGesturesAsync()
     {
         if (_config == null)
         {
@@ -4534,8 +4176,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         try
         {
             var options = BuildMouseGestureOptions();
-            var dlg = new MouseGestureDialog(options, _config.EnablePrefixDropCapture) { Owner = this };
-            WindowCascadeService.Arrange(dlg, this);
+            var dlg = new MouseGestureDialog(options, _config.EnablePrefixDropCapture) { Owner = _settingsWindow ?? (Window)this };
+            WindowCascadeService.Arrange(dlg, dlg.Owner);
             if (!await dlg.ShowForResultAsync())
             {
                 return;
@@ -4581,7 +4223,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private async void OnConfigureShowLayerPreferences(object sender, RoutedEventArgs e)
+    private async Task ConfigureShowLayerPreferencesAsync()
     {
         if (_config == null)
         {
@@ -4595,8 +4237,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             _config.PrefixShowLayerWhenVisible,
             _config.PrefixShowLayerWhenHidden),
             _config.Layers.Count)
-        { Owner = this };
-        WindowCascadeService.Arrange(dialog, this);
+        { Owner = _settingsWindow ?? (Window)this };
+        WindowCascadeService.Arrange(dialog, dialog.Owner);
         if (!await dialog.ShowForResultAsync())
         {
             return;
@@ -4632,7 +4274,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private async void OnEditLayerNames(object sender, RoutedEventArgs e)
+    private async Task EditLayerNamesAsync()
     {
         if (_config?.Layers == null || _config.Layers.Count == 0)
         {
@@ -4640,8 +4282,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         var names = _config.Layers.Select(l => l.Name ?? string.Empty).ToList();
-        var dialog = new LayerNamesDialog(names) { Owner = this };
-        WindowCascadeService.Arrange(dialog, this);
+        var dialog = new LayerNamesDialog(names) { Owner = _settingsWindow ?? (Window)this };
+        WindowCascadeService.Arrange(dialog, dialog.Owner);
         if (!await dialog.ShowForResultAsync())
         {
             return;
@@ -4670,148 +4312,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         MinimizeWindowToTray();
     }
 
-    private void OnKeyboardPlacementFixed(object sender, RoutedEventArgs e)
-    {
-        SetPlacementMode(WindowPlacementMode.Fixed, ShowLayerTrigger.Prefix, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnKeyboardPlacementMouseFollow(object sender, RoutedEventArgs e)
-    {
-        SetPlacementMode(WindowPlacementMode.MouseFollow, ShowLayerTrigger.Prefix, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnKeyboardPlacementScreenCenter(object sender, RoutedEventArgs e)
-    {
-        SetPlacementMode(WindowPlacementMode.CursorScreenCenter, ShowLayerTrigger.Prefix, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnMousePlacementFollowKeyboard(object sender, RoutedEventArgs e)
-    {
-        _mousePlacementFollowsKeyboard = true;
-        _config.MousePlacementFollowsKeyboard = true;
-        _mousePlacementMode = _keyboardPlacementMode;
-        _config.MousePlacementMode = _mousePlacementMode;
-        _configService.Save(_config);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnMousePlacementFixed(object sender, RoutedEventArgs e)
-    {
-        _mousePlacementFollowsKeyboard = false;
-        _config.MousePlacementFollowsKeyboard = false;
-        SetPlacementMode(WindowPlacementMode.Fixed, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnMousePlacementMouseFollow(object sender, RoutedEventArgs e)
-    {
-        _mousePlacementFollowsKeyboard = false;
-        _config.MousePlacementFollowsKeyboard = false;
-        SetPlacementMode(WindowPlacementMode.MouseFollow, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnMousePlacementScreenCenter(object sender, RoutedEventArgs e)
-    {
-        _mousePlacementFollowsKeyboard = false;
-        _config.MousePlacementFollowsKeyboard = false;
-        SetPlacementMode(WindowPlacementMode.CursorScreenCenter, ShowLayerTrigger.MouseGesture, initiatedByToggle: false);
-        UpdatePlacementMenuState();
-    }
-
-    private void OnSearchPlacementFixed(object sender, RoutedEventArgs e)
-    {
-        _searchPlacementFollowsKeyboard = false;
-        _config.SearchPlacementFollowsKeyboard = false;
-        _searchPlacementMode = SearchOverlayPlacementMode.Fixed;
-        _config.SearchPlacementMode = _searchPlacementMode;
-        _configService.Save(_config);
-        UpdatePlacementMenuState();
-        if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
-    }
-
-    private void OnSearchPlacementFollowMouse(object sender, RoutedEventArgs e)
-    {
-        _searchPlacementFollowsKeyboard = false;
-        _config.SearchPlacementFollowsKeyboard = false;
-        _searchPlacementMode = SearchOverlayPlacementMode.MouseFollow;
-        _config.SearchPlacementMode = _searchPlacementMode;
-        _configService.Save(_config);
-        UpdatePlacementMenuState();
-        if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
-    }
-
-    private void OnSearchPlacementScreenCenter(object sender, RoutedEventArgs e)
-    {
-        _searchPlacementFollowsKeyboard = false;
-        _config.SearchPlacementFollowsKeyboard = false;
-        _searchPlacementMode = SearchOverlayPlacementMode.CursorScreenCenter;
-        _config.SearchPlacementMode = _searchPlacementMode;
-        _configService.Save(_config);
-        UpdatePlacementMenuState();
-        if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
-    }
-
-    private void OnSearchPlacementFollowKeyboard(object sender, RoutedEventArgs e)
-    {
-        _searchPlacementFollowsKeyboard = true;
-        _config.SearchPlacementFollowsKeyboard = true;
-        _configService.Save(_config);
-        UpdatePlacementMenuState();
-        if (_searchLayerActive && _searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
-    }
-
-    private void OnToggleEmacsNavigation(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item) return;
-        bool enabled = item.IsChecked;
-        if (_config.EnableEmacsNavigation == enabled) return;
-        _config.EnableEmacsNavigation = enabled;
-        UpdateSearchOverlayNavigationModes();
-        _configService.Save(_config);
-    }
-
-    private void OnToggleViNavigation(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item) return;
-        bool enabled = item.IsChecked;
-        if (_config.EnableViNavigation == enabled) return;
-        _config.EnableViNavigation = enabled;
-        UpdateSearchOverlayNavigationModes();
-        _configService.Save(_config);
-    }
-
-    private void OnToggleAlwaysOnTop(object sender, RoutedEventArgs e)
-    {
-        if (sender is not MenuItem item) return;
-        _config.AlwaysOnTop = item.IsChecked;
-        ApplyTopmostState();
-        _configService.Save(_config);
-    }
-
-    private void OnLanguageJapanese(object sender, RoutedEventArgs e) => SetLanguage(AppLanguage.Japanese);
-
-    private void OnLanguageEnglish(object sender, RoutedEventArgs e) => SetLanguage(AppLanguage.English);
-
-    private void OnThemeDark(object sender, RoutedEventArgs e) => SetTheme(AppTheme.Dark);
-
-    private void OnThemeLight(object sender, RoutedEventArgs e) => SetTheme(AppTheme.Light);
-
     private void SetLanguage(AppLanguage language)
     {
         if (_config == null)
@@ -4821,7 +4321,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
         if (_config.Language == language)
         {
-            UpdateLanguageMenuState();
+            _settingsWindow?.RefreshSettings();
             return;
         }
 
@@ -4840,86 +4340,15 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
         if (_config.Theme == theme)
         {
-            UpdateThemeMenuState();
+            _settingsWindow?.RefreshSettings();
             return;
         }
 
         _config.Theme = theme;
         ThemeService.ApplyTheme(theme);
-        UpdateThemeMenuState();
+        _settingsWindow?.RefreshSettings();
         RefreshUi();
         _configService.Save(_config);
-    }
-
-    private void OnToggleHideEmptySlotNames(object sender, RoutedEventArgs e)
-    {
-        if (_config == null || HideEmptySlotNamesMenuItem == null) return;
-        bool hide = HideEmptySlotNamesMenuItem.IsChecked;
-        if (_config.HideEmptySlotNames == hide) return;
-        _config.HideEmptySlotNames = hide;
-        _configService.Save(_config);
-        RefreshUi();
-    }
-
-    private void OnStartupAlwaysShow(object sender, RoutedEventArgs e)
-    {
-        SetStartupBehavior(StartupWindowBehavior.AlwaysShow);
-    }
-
-    private void OnStartupAlwaysMinimizeToTray(object sender, RoutedEventArgs e)
-    {
-        SetStartupBehavior(StartupWindowBehavior.StartInTray);
-    }
-
-    private void OnToggleStartupRegistration(object sender, RoutedEventArgs e)
-    {
-        var text = GetUiText(_currentLanguage);
-        try
-        {
-            if (StartupRegistrationMenuItem?.IsChecked == true)
-            {
-                _startupRegistrationService.Register();
-                _logger.Info("Registered DropSendTo for Windows sign-in startup.");
-                WpfMessageBox.Show(text.StartupRegistered, text.StartupRegistration, MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            else
-            {
-                _startupRegistrationService.Unregister();
-                _logger.Info("Unregistered DropSendTo from Windows sign-in startup.");
-                WpfMessageBox.Show(text.StartupUnregistered, text.StartupRegistration, MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Failed to change Windows sign-in startup registration: {ex}");
-            WpfMessageBox.Show(
-                $"{text.StartupRegistrationFailed}\n{ex.Message}",
-                text.StartupRegistration,
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-        finally
-        {
-            UpdateStartupRegistrationMenu();
-        }
-    }
-
-    private void UpdateStartupRegistrationMenu()
-    {
-        if (StartupRegistrationMenuItem == null)
-        {
-            return;
-        }
-
-        try
-        {
-            StartupRegistrationMenuItem.IsChecked = _startupRegistrationService.IsRegistered();
-        }
-        catch (Exception ex)
-        {
-            _logger.Warn($"Could not read Windows sign-in startup registration: {ex.Message}");
-            StartupRegistrationMenuItem.IsChecked = false;
-        }
     }
 
     private MouseGestureOptions BuildMouseGestureOptions() =>
@@ -4940,54 +4369,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _shortcutService?.UpdateMouseGestureOptions(BuildMouseGestureOptions());
     }
 
-    private void OnStartupRestoreState(object sender, RoutedEventArgs e)
-    {
-        SetStartupBehavior(StartupWindowBehavior.RestoreLastState);
-    }
-
-    private void SetStartupBehavior(StartupWindowBehavior behavior)
-    {
-        UpdateStartupBehaviorMenu(behavior);
-        if (_config.StartupBehavior != behavior)
-        {
-            _config.StartupBehavior = behavior;
-            _configService.Save(_config);
-        }
-    }
-
-    private void UpdateStartupBehaviorMenu(StartupWindowBehavior behavior)
-    {
-        if (StartupAlwaysShowMenuItem != null)
-        {
-            StartupAlwaysShowMenuItem.IsChecked = behavior == StartupWindowBehavior.AlwaysShow;
-        }
-        if (StartupAlwaysMinimizeMenuItem != null)
-        {
-            StartupAlwaysMinimizeMenuItem.IsChecked = behavior == StartupWindowBehavior.StartInTray;
-        }
-        if (StartupRestoreMenuItem != null)
-        {
-            StartupRestoreMenuItem.IsChecked = behavior == StartupWindowBehavior.RestoreLastState;
-        }
-    }
-
-    private void OnMacroModeExclusive(object sender, RoutedEventArgs e) =>
-        SetMacroConcurrencyMode(MacroConcurrencyMode.Exclusive);
-
-    private void OnMacroModeInterrupt(object sender, RoutedEventArgs e) =>
-        SetMacroConcurrencyMode(MacroConcurrencyMode.Interrupt);
-
-    private void OnMacroModeSuspend(object sender, RoutedEventArgs e) =>
-        SetMacroConcurrencyMode(MacroConcurrencyMode.SuspendAndResume);
-
-    private void SetMacroConcurrencyMode(MacroConcurrencyMode mode)
-    {
-        if (_config.MacroConcurrencyMode == mode) return;
-        _config.MacroConcurrencyMode = mode;
-        _configService.Save(_config);
-        UpdateMacroModeMenu(mode);
-    }
-
     private void OnContextMenuOpened(object sender, RoutedEventArgs e)
     {
         UpdateContextMenuState();
@@ -4995,80 +4376,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     private void UpdateContextMenuState()
     {
-        AlwaysOnTopMenuItem.IsChecked = this.Topmost;
-        if (EmacsNavigationMenuItem != null)
-        {
-            EmacsNavigationMenuItem.IsChecked = _config.EnableEmacsNavigation;
-        }
-        if (ViNavigationMenuItem != null)
-        {
-            ViNavigationMenuItem.IsChecked = _config.EnableViNavigation;
-        }
-        UpdateStartupBehaviorMenu(_config.StartupBehavior);
-        UpdateStartupRegistrationMenu();
-        if (HideEmptySlotNamesMenuItem != null)
-        {
-            HideEmptySlotNamesMenuItem.IsChecked = _config.HideEmptySlotNames;
-        }
-        UpdateMacroModeMenu(null);
-        UpdatePlacementMenuState();
-        PopulateSlotSizeMenu(SlotSizeMenuItem);
-        UpdateThemeMenuState();
+        UpdateAppLayerUi();
         UpdateTrayMenuState();
     }
 
-    private void UpdatePlacementMenuState()
-    {
-        if (KeyboardPlacementFixedMenuItem != null)
-        {
-            KeyboardPlacementFixedMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.Fixed;
-        }
-        if (KeyboardPlacementFollowMouseMenuItem != null)
-        {
-            KeyboardPlacementFollowMouseMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.MouseFollow;
-        }
-        if (KeyboardPlacementScreenCenterMenuItem != null)
-        {
-            KeyboardPlacementScreenCenterMenuItem.IsChecked = _keyboardPlacementMode == WindowPlacementMode.CursorScreenCenter;
-        }
-
-        bool followKeyboard = _mousePlacementFollowsKeyboard;
-        if (MousePlacementFollowKeyboardMenuItem != null)
-        {
-            MousePlacementFollowKeyboardMenuItem.IsChecked = followKeyboard;
-        }
-        if (MousePlacementFixedMenuItem != null)
-        {
-            MousePlacementFixedMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.Fixed;
-        }
-        if (MousePlacementFollowMouseMenuItem != null)
-        {
-            MousePlacementFollowMouseMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.MouseFollow;
-        }
-        if (MousePlacementScreenCenterMenuItem != null)
-        {
-            MousePlacementScreenCenterMenuItem.IsChecked = !followKeyboard && _mousePlacementMode == WindowPlacementMode.CursorScreenCenter;
-        }
-
-        if (SearchPlacementFixedMenuItem != null)
-        {
-            SearchPlacementFixedMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.Fixed;
-        }
-        if (SearchPlacementFollowMouseMenuItem != null)
-        {
-            SearchPlacementFollowMouseMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.MouseFollow && !_searchPlacementFollowsKeyboard;
-        }
-        if (SearchPlacementScreenCenterMenuItem != null)
-        {
-            SearchPlacementScreenCenterMenuItem.IsChecked = _searchPlacementMode == SearchOverlayPlacementMode.CursorScreenCenter && !_searchPlacementFollowsKeyboard;
-        }
-        if (SearchPlacementFollowKeyboardMenuItem != null)
-        {
-            SearchPlacementFollowKeyboardMenuItem.IsChecked = _searchPlacementFollowsKeyboard;
-        }
-    }
-
-    private void OnConfigureMinimizeTriggers(object sender, RoutedEventArgs e)
+    private async Task ConfigureMinimizeTriggersAsync()
     {
         if (_config?.Layers == null)
         {
@@ -5076,9 +4388,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         var defaultOptions = _config.DefaultMinimizeOptions ?? SlotMinimizeOptions.CreateDefault();
-        var dlg = new SlotMinimizeSettingsWindow(_config.Layers, defaultOptions) { Owner = this };
+        var dlg = new SlotMinimizeSettingsWindow(_config.Layers, defaultOptions) { Owner = _settingsWindow ?? (Window)this };
         WindowCascadeService.Arrange(dlg, this);
-        if (dlg.ShowDialog() != true)
+        if (!await dlg.ShowForResultAsync())
         {
             return;
         }
@@ -5099,37 +4411,17 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         RefreshUi();
     }
 
-    private void OnConfigureStartupSlots(object sender, RoutedEventArgs e)
+    private async Task ConfigureStartupSlotsAsync()
     {
-        if (_config?.Layers == null)
+        var window = new SlotStartupSettingsWindow(_config.Layers)
         {
-            return;
-        }
-
-        if (_startupSettingsWindow == null)
-        {
-            var window = new SlotStartupSettingsWindow(_config.Layers)
-            {
-                Owner = this
-            };
-            window.SaveRequested += (_, args) =>
-            {
-                ApplyStartupSlotUpdates(args.Updates);
-            };
-            window.Closed += (_, _) => _startupSettingsWindow = null;
-            WindowCascadeService.Arrange(window, this);
-            _startupSettingsWindow = window;
-            window.Show();
-        }
-        else
-        {
-            _startupSettingsWindow.SetEntries(_config.Layers);
-            if (_startupSettingsWindow.WindowState == WindowState.Minimized)
-            {
-                _startupSettingsWindow.WindowState = WindowState.Normal;
-            }
-            _startupSettingsWindow.Activate();
-        }
+            Owner = _settingsWindow ?? (Window)this
+        };
+        window.SaveRequested += (_, args) => ApplyStartupSlotUpdates(args.Updates);
+        _startupSettingsWindow = window;
+        WindowCascadeService.Arrange(window, window.Owner);
+        try { await window.ShowForResultAsync(); }
+        finally { _startupSettingsWindow = null; }
     }
 
     private void ApplyStartupSlotUpdates(IReadOnlyList<SlotStartupUpdate> updates)
@@ -5399,23 +4691,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         return reserved;
-    }
-
-    private void UpdateMacroModeMenu(MacroConcurrencyMode? overrideMode)
-    {
-        var current = overrideMode ?? _config.MacroConcurrencyMode;
-        if (MacroModeExclusiveMenuItem != null)
-        {
-            MacroModeExclusiveMenuItem.IsChecked = current == MacroConcurrencyMode.Exclusive;
-        }
-        if (MacroModeInterruptMenuItem != null)
-        {
-            MacroModeInterruptMenuItem.IsChecked = current == MacroConcurrencyMode.Interrupt;
-        }
-        if (MacroModeSuspendMenuItem != null)
-        {
-            MacroModeSuspendMenuItem.IsChecked = current == MacroConcurrencyMode.SuspendAndResume;
-        }
     }
 
     private void OnMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)

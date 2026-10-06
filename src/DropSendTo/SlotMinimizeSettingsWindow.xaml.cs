@@ -9,8 +9,10 @@ using DropSendTo.Models;
 
 namespace DropSendTo;
 
-public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
+public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged, IConfirmableDialog
 {
+    public bool IsConfirmed { get; private set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public List<SlotMinimizeRow> Rows { get; }
@@ -141,13 +143,13 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 
     private void OnCancel(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        IsConfirmed = false;
         Close();
     }
 
@@ -160,7 +162,7 @@ public partial class SlotMinimizeSettingsWindow : Window, INotifyPropertyChanged
 
     private void OnCloseClicked(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        IsConfirmed = false;
         Close();
     }
 

@@ -5,7 +5,7 @@ using DropSendTo.Services;
 
 namespace DropSendTo;
 
-public partial class SearchHotkeyDialog : Window
+public partial class SearchHotkeyDialog : Window, IConfirmableDialog
 {
     public string NormalizedHotkey { get; private set; } = string.Empty;
     public bool IsHotkeyEnabled { get; private set; }

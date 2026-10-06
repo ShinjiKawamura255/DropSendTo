@@ -6,8 +6,10 @@ using DropSendTo.Services;
 
 namespace DropSendTo;
 
-internal partial class CustomSlotSizeDialog : Window
+internal partial class CustomSlotSizeDialog : Window, IConfirmableDialog
 {
+    public bool IsConfirmed { get; private set; }
+
     public CustomSlotSizeOptions ResultOptions { get; private set; } = CustomSlotSizeOptions.CreateDefault();
     public event EventHandler<CustomSlotSizeOptions>? SlotSizeApplied;
 
@@ -57,13 +59,13 @@ internal partial class CustomSlotSizeDialog : Window
 
         ErrorBlock.Visibility = Visibility.Collapsed;
         ResultOptions = normalized;
-        DialogResult = true;
+        IsConfirmed = true;
         Close();
     }
 
     private void OnClose(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        IsConfirmed = false;
         Close();
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -105,9 +106,8 @@ public partial class MainWindow
 
     private void UpdateAppLayerUi()
     {
-        if (AppLayerSettingsMenuItem == null) return;
+        if (PinAppLayerMenuItem == null) return;
         bool english = _currentLanguage == AppLanguage.English;
-        AppLayerSettingsMenuItem.Header = english ? "App-based tab switching..." : "アプリ別タブ切替...";
         PinAppLayerMenuItem.Header = english ? "Temporarily pin this tab" : "このタブを一時固定";
         PinAppLayerMenuItem.IsChecked = _appLayerSelection.IsPinned;
         PinAppLayerMenuItem.IsEnabled = _config.AppLayerSwitchingEnabled;
@@ -126,7 +126,7 @@ public partial class MainWindow
         TryApplyAppLayer();
     }
 
-    private async void OnAppLayerSettings(object sender, RoutedEventArgs e)
+    private async Task ConfigureAppLayersAsync()
     {
         if (_appLayerSettingsWindow != null)
         {
@@ -134,7 +134,7 @@ public partial class MainWindow
             return;
         }
         var config = _config;
-        var dialog = new AppLayerSettingsWindow(config, _appLayerSelection.LastExternalWindow) { Owner = this };
+        var dialog = new AppLayerSettingsWindow(config, _appLayerSelection.LastExternalWindow) { Owner = _settingsWindow ?? (Window)this };
         _appLayerSettingsWindow = dialog;
         bool confirmed;
         try { confirmed = await dialog.ShowForResultAsync(); }
