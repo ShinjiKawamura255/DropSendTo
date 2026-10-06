@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
 using Forms = System.Windows.Forms;
@@ -10,18 +9,12 @@ namespace DropSendTo.Services;
 
 internal static class ScreenBoundsResolver
 {
-    private const uint MonitorDefaultToNearest = 0x00000002;
-
+    // Cursor coordinates and the returned working area are in device pixels.
     public static ScreenBounds ForPoint(double x, double y)
     {
-        var rect = new Rect(x, y, 1, 1);
-        var screens = EnumerateScreens();
-        if (screens.Count == 0)
-        {
-            return new ScreenBounds(rect.Left, rect.Top, rect.Width, rect.Height);
-        }
-
-        return SelectBounds(rect, screens);
+        var screen = Forms.Screen.FromPoint(new System.Drawing.Point(
+            (int)NormalizeCoordinate(x), (int)NormalizeCoordinate(y)));
+        return ToBounds(screen);
     }
 
     public static ScreenBounds ForWindow(Window window)
@@ -41,7 +34,7 @@ internal static class ScreenBoundsResolver
             return new ScreenBounds(normalized.Left, normalized.Top, normalized.Width, normalized.Height);
         }
 
-        return SelectBounds(normalized, screens);
+        return SelectBounds(normalized, screens, VisualTreeHelper.GetDpi(reference));
     }
 
     public static ScreenBounds SelectBounds(Rect rect, IReadOnlyList<ScreenBounds> screens)
@@ -93,6 +86,18 @@ internal static class ScreenBoundsResolver
         }
 
         return bestBounds;
+    }
+
+    internal static ScreenBounds SelectBounds(Rect rect, IReadOnlyList<ScreenBounds> screens, DpiScale dpi)
+    {
+        var normalized = NormalizeRect(rect);
+        var physicalRect = new Rect(normalized.Left * dpi.DpiScaleX, normalized.Top * dpi.DpiScaleY,
+            normalized.Width * dpi.DpiScaleX, normalized.Height * dpi.DpiScaleY);
+        var bounds = SelectBounds(physicalRect, screens);
+        // A desktop has no global DIP coordinate space at mixed DPI. Convert every selected
+        // screen using the reference window's scale, never the individual monitor's scale.
+        return new ScreenBounds(bounds.Left / dpi.DpiScaleX, bounds.Top / dpi.DpiScaleY,
+            bounds.Width / dpi.DpiScaleX, bounds.Height / dpi.DpiScaleY);
     }
 
     private static Rect CreateWindowRect(Window window, double left, double top)
@@ -154,92 +159,12 @@ internal static class ScreenBoundsResolver
 
     private static ScreenBounds ToBounds(Forms.Screen screen)
     {
-        var (scaleX, scaleY) = GetScaleForScreen(screen);
-        if (scaleX <= 0) scaleX = 1;
-        if (scaleY <= 0) scaleY = 1;
-
         var working = screen.WorkingArea;
         if (working.Width <= 0 || working.Height <= 0)
         {
             working = screen.Bounds;
         }
 
-        double left = working.Left / scaleX;
-        double top = working.Top / scaleY;
-        double width = working.Width / scaleX;
-        double height = working.Height / scaleY;
-
-        return new ScreenBounds(left, top, width, height);
-    }
-
-    private static (double scaleX, double scaleY) GetScaleForScreen(Forms.Screen screen)
-    {
-        var center = new NativeMethods.NativePoint
-        {
-            X = screen.Bounds.Left + screen.Bounds.Width / 2,
-            Y = screen.Bounds.Top + screen.Bounds.Height / 2
-        };
-
-        IntPtr monitor = NativeMethods.MonitorFromPoint(center, MonitorDefaultToNearest);
-        if (monitor != IntPtr.Zero && NativeMethods.TryGetMonitorScale(monitor, out double scaleX, out double scaleY))
-        {
-            return (scaleX, scaleY);
-        }
-
-        return (1d, 1d);
-    }
-
-    private static class NativeMethods
-    {
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct NativePoint
-        {
-            public int X;
-            public int Y;
-        }
-
-        private enum MonitorDpiType
-        {
-            EffectiveDpi = 0,
-            AngularDpi = 1,
-            RawDpi = 2
-        }
-
-        [DllImport("user32.dll")]
-        internal static extern IntPtr MonitorFromPoint(NativePoint pt, uint dwFlags);
-
-        [DllImport("shcore.dll")]
-        private static extern int GetDpiForMonitor(IntPtr hmonitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
-
-        internal static bool TryGetMonitorScale(IntPtr monitor, out double scaleX, out double scaleY)
-        {
-            scaleX = 1d;
-            scaleY = 1d;
-            if (monitor == IntPtr.Zero)
-            {
-                return false;
-            }
-
-            try
-            {
-                int result = GetDpiForMonitor(monitor, MonitorDpiType.EffectiveDpi, out uint dpiX, out uint dpiY);
-                if (result == 0)
-                {
-                    scaleX = dpiX / 96.0;
-                    scaleY = dpiY / 96.0;
-                    return true;
-                }
-            }
-            catch (DllNotFoundException)
-            {
-                // Windows 7 など shcore.dll が存在しない環境では既定 DPI (96) とみなす。
-            }
-            catch (EntryPointNotFoundException)
-            {
-                // shcore.dll が古い場合のフォールバック。
-            }
-
-            return false;
-        }
+        return new ScreenBounds(working.Left, working.Top, working.Width, working.Height);
     }
 }

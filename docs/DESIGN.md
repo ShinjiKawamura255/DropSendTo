@@ -31,6 +31,7 @@
 - ShortcutPresentationModeDetector: Shell 通知状態と前景ウィンドウ heuristic からプレゼン/フルスクリーン状態を推定するサービス。PowerPoint slideshow 判定は process/class/title の純粋分類としてテスト可能にし、検出失敗時は通常操作を妨げないよう false を返す。`ShortcutService` は mouse gesture の show/hide policy を保持し、プレゼン中は show だけを抑止して hide は許可する。
 - ShortcutService: 低レベルキーボード/マウスフックで Prefix とスロットショートカットを検出し、Prefix インジケーター更新・Prefix パススルー・スロット起動をディスパッチする。Prefix+Enter でウィンドウ復帰、Prefix+Alt+Space で検索レイヤーを開きつつ復帰、設定で有効化されている場合は Alt+Space など任意の検索ホットキーでも検索レイヤーを開く。Prefix+Shift+Enter でタスクトレイ最小化イベントを発火し、Prefix+Enter 後は MainWindow に矢印キー入力を通知してドロップシャドウによる選択状態を更新する。ショートカットの文字列は空白/カンマ/`>` 区切りで複数 KeyChord を表現でき、Prefix 後は 1 キーずつシーケンス状態を進める。部分一致中は入力を抑止し、候補がなくなるか特殊操作が押されると待機を解除する。
 - WindowPlacementService: ScreenBoundsResolver が取得したモニターの作業領域を使い、保存済みのウィンドウ位置をタスクバー等の予約領域に重ならないよう Clamp する。NaN/Infinity が渡された場合は作業領域の左上へ戻す。
+- ScreenBoundsResolver / CursorWindowPlacementService: 画面の作業領域は物理ピクセルで扱う。WPF の矩形を照合する場合は参照ウィンドウの DPI で物理座標へ変換し、選択後に同じ DPI で論理座標へ戻す。モニターごとの DPI で仮想デスクトップ全体の原点を割らない。カーソル起点の配置は物理座標で対象画面を選び、配置対象ウィンドウの DPI でサイズとドラッグ時の余白を変換する。`SetWindowPos` で X/Y を同時更新し、画面移動で DPI が変わった場合は更新後のサイズで再配置する。
 - KeyChordParser: `Ctrl+Shift+1` などのキー文字列を解析・正規化し、Prefix/ショートカット設定で利用する。
 - RegisterDialog / PrefixDialog: スロット情報および Prefix の編集 UI。KeyChordParser で入力を検証し、正規化された結果を反映する。
 - LoggerService / IAppLogger: UTF-8 でログを追記し、1MB 超でタイムスタンプ付きへローテーション。7日より古いファイルを起動時に削除する。起動・マクロ経路は注入可能な `IAppLogger` を共有し、通常ログにはユーザー制御値そのものではなく件数・長さ・状態を記録する。

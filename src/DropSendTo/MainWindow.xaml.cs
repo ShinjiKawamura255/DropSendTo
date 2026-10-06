@@ -6230,40 +6230,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        var logicalCursor = ConvertScreenToDeviceIndependent(new System.Windows.Point(cursor.X, cursor.Y));
-        double width = window.ActualWidth;
-        if (double.IsNaN(width) || width <= 0)
-        {
-            width = window.Width;
-        }
-        if (double.IsNaN(width) || width <= 0)
-        {
-            width = Math.Max(window.MinWidth, 1);
-        }
-
-        double height = window.ActualHeight;
-        if (double.IsNaN(height) || height <= 0)
-        {
-            height = window.Height;
-        }
-        if (double.IsNaN(height) || height <= 0)
-        {
-            height = Math.Max(window.MinHeight, 1);
-        }
-
-        double desiredLeft = logicalCursor.X - width / 2.0;
-        const double offset = 16;
-        var bounds = ScreenBoundsResolver.ForRect(this, new Rect(desiredLeft, logicalCursor.Y, width, height));
-        double spaceBelow = bounds.Bottom - (logicalCursor.Y + offset);
-        double spaceAbove = (logicalCursor.Y - offset) - bounds.Top;
-        bool preferBelow = spaceBelow >= height || spaceBelow >= spaceAbove;
-        double desiredTop = preferBelow
-            ? logicalCursor.Y + offset
-            : logicalCursor.Y - offset - height;
-
-        var (left, top) = _placement.Clamp(desiredLeft, desiredTop, bounds, width, height);
-        window.Left = left;
-        window.Top = top;
+        CursorWindowPlacementService.Place(window, new System.Windows.Point(cursor.X, cursor.Y),
+            CursorWindowPlacement.NearMouse);
     }
 
     private void ShowWindowFromDropCapture()
@@ -6394,29 +6362,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        var logicalCursor = ConvertScreenToDeviceIndependent(new System.Windows.Point(cursor.X, cursor.Y));
-        var rect = GetWindowRect();
-        double desiredLeft = logicalCursor.X - rect.Width / 2.0;
-        const double offset = 16;
-
-        var bounds = ScreenBoundsResolver.ForRect(this, new Rect(desiredLeft, logicalCursor.Y, rect.Width, rect.Height));
-        double spaceBelow = bounds.Bottom - (logicalCursor.Y + offset);
-        double spaceAbove = (logicalCursor.Y - offset) - bounds.Top;
-        bool preferBelow = spaceBelow >= rect.Height || spaceBelow >= spaceAbove;
-        double desiredTop = preferBelow
-            ? logicalCursor.Y + offset
-            : logicalCursor.Y - offset - rect.Height;
-
-        var (left, top) = _placement.Clamp(desiredLeft, desiredTop, bounds, rect.Width, rect.Height);
-        Left = left;
-        Top = top;
-    }
-
-    private System.Windows.Point ConvertScreenToDeviceIndependent(System.Windows.Point screenPoint)
-    {
-        var source = PresentationSource.FromVisual(this);
-        var matrix = source?.CompositionTarget?.TransformFromDevice ?? System.Windows.Media.Matrix.Identity;
-        return matrix.Transform(screenPoint);
+        CursorWindowPlacementService.Place(this, new System.Windows.Point(cursor.X, cursor.Y),
+            CursorWindowPlacement.NearMouse);
     }
 
     private static bool TryGetCursorPosition(out DrawingPoint point)
@@ -6873,13 +6820,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         try
         {
             var cursorPosition = Forms.Control.MousePosition;
-            var rect = GetWindowRect(this.Left, this.Top);
-            double newLeft = cursorPosition.X - (rect.Width / 2.0);
-            double newTop = cursorPosition.Y - (rect.Height / 2.0);
-            var bounds = ScreenBoundsResolver.ForRect(this, new Rect(newLeft, newTop, rect.Width, rect.Height));
-            var (left, top) = _placement.Clamp(newLeft, newTop, bounds, rect.Width, rect.Height);
-            Left = left;
-            Top = top;
+            CursorWindowPlacementService.Place(this, new System.Windows.Point(cursorPosition.X, cursorPosition.Y),
+                CursorWindowPlacement.MouseFollow);
         }
         catch (Exception ex)
         {
@@ -6892,13 +6834,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         try
         {
             var cursor = Forms.Control.MousePosition;
-            var bounds = ScreenBoundsResolver.ForPoint(cursor.X, cursor.Y);
-            var rect = GetWindowRect(this.Left, this.Top);
-            double newLeft = bounds.Left + (bounds.Width - rect.Width) / 2.0;
-            double newTop = bounds.Top + (bounds.Height - rect.Height) / 2.0;
-            var (left, top) = _placement.Clamp(newLeft, newTop, bounds, rect.Width, rect.Height);
-            Left = left;
-            Top = top;
+            CursorWindowPlacementService.Place(this, new System.Windows.Point(cursor.X, cursor.Y),
+                CursorWindowPlacement.ScreenCenter);
         }
         catch (Exception ex)
         {
