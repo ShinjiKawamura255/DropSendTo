@@ -48,7 +48,7 @@
 7) レイアウト変更: Slot Layout サブメニューで行列を選択すると `_config.SlotRows/_config.SlotColumns` を更新し `ApplySlotLayout()` で UniformGrid を再生成、Window サイズとスロット数を再計算。設定保存後、全レイヤーのスロット数を行列分に揃える。
 8) Slot Layout Edit Mode: ツールバーの ✎ ボタンかメニューで `_isSlotLayoutEditMode` を ON にすると `EditModeIndicator` を表示し、クリック/ファイルドロップ起動を抑止する。スロット左ドラッグで `_slotLayoutDragSourceLayer/index` と `SlotLayoutDragData` を構築し、`DragDrop.DoDragDrop` を開始。`OnSlotDragEnter/Over` で `_slotLayoutPreview*` を更新し `SlotVisual.DragPreviewHost` にターゲット概要を描画する。ドラッグ中に LayerBtn に 0.8 秒ホバーすると `_hoverTargetLayer` を通じて `SetLayer` が呼ばれ別レイヤーへ切替。Drop イベントで `CompleteSlotSwap` が両レイヤーの `SlotModel` を入れ替え `ConfigService.Save`、キャンセル時はプレビューとドラッグ状態をクリアする。
 9) Prefix 変更: Change Prefix 選択で PrefixDialog を表示し、KeyChordParser で検証した結果を正規化して保存。ShortcutService に新しい Prefix を反映し、解析失敗時は Ctrl+Q を採用して MessageBox で通知する。
-10) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出し、以降の入力に MacroPassthrough タグを付けてショートカット検出を継続する。armed 中に修飾なしの `Enter` を受け取った場合は MainWindow へ復帰イベントを通知し、ウィンドウを前面にアクティブ化する（常時最前面設定は変更しない）。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
+10) Prefix & グローバルショートカット: ShortcutService が低レベルフックで Prefix 入力を検出し、4 秒間 armed 状態を維持。armed 中に Prefix を再入力すると KeyboardMacroService 経由で前面ウィンドウへ送出し、以降の入力に MacroPassthrough タグを付けてショートカット検出を継続する。armed 中に修飾なしの `Enter` を受け取った場合は MainWindow へ復帰イベントを通知し、ウィンドウを前面にアクティブ化する（常時最前面設定は変更しない）。Prefix と同じ修飾キーを含むショートカットは修飾キーを押し直さずに検出し、必要に応じ再押下にも追従する。armed 中に登録済みショートカットを検出した場合は、アプリ別タブ切替OFFの場合のみ該当レイヤーへ切替後に `TriggerSlotAsync` を呼び出し、マクロ→コマンド順で実行。スリープ復帰やセッション切替では内部状態をリセットしてラッチを残さない。マクロ実行中は他スロットのマクロ起動をキャンセル・警告するが、コマンドのみのスロットはそのまま実行する。
 11) 終了: Exit 選択またはウィンドウ閉鎖時に位置・レイヤー・常時最前面・行列設定を保存し、ShortcutService と KeyboardMacroService を破棄する。
 12) タスクトレイ最小化: `Minimize to Tray` メニューまたは Prefix+Shift+Enter を受けると `_isMinimizedToTray` を true に設定し `Hide()` でウィンドウを非表示にする。Prefix+Enter やタスクトレイアイコン左クリックで復帰要求が届いた場合は `Show()` と `WindowState=Normal` で再表示し `_isMinimizedToTray` を false に戻す。
 13) キーボード操作トグル: コンテキストメニュー「キーボード操作」で `_config.EnableEmacsNavigation` / `_config.EnableViNavigation` を切り替え、ウィンドウアクティブ時のみ Emacs/vi ライクの移動キーを受け付ける。トグルは Enter/Ctrl+J/Ctrl+M でも確定し設定へ保存され、無効化時は矢印キーと Enter/Esc の基本操作のみ有効。
@@ -96,6 +96,13 @@
 - マクロ送信は Win32 API（SendInput、SetWinEventHook）に依存し、UAC やフォーカス制御の制約を受けるが、他プロセスに依存せず完結する。
 - グローバルショートカットは低レベルキーボード/マウスフックを使用するため管理者権限不要で常駐できるが、セキュリティソフトとの互換性や 4 秒タイムアウトなど UX 配慮が必要。
 
+## DES-007 App-based Layer Selection
+- `AppLayerRuleMatcher` はWindowsに依存せず、順序付きルールを実行ファイル名・任意タイトル・任意フルパスのAND条件で評価する。`AppLayerSelection` はDispatcher所有の手動レイヤー・一時固定・最新外部対象・保留判定を管理する。自動表示レイヤーと永続化する `CurrentLayer` を分離する。
+- `NativeActiveWindowSource` は前面／トップレベルタイトル変更のWinEventをUIスレッドで受ける。同一プロセスは全所有ウィンドウを含めて除外する。ウィンドウ／プロセス情報の読取はバックグラウンドへ渡し、OSハンドルはfinallyで解放する。権限差や消失で読めない対象は表示を維持する。
+- `ActiveWindowMonitor` は150msのdebounce、最大1件の処理中読取と1件の最新要求、世代番号による古い結果／失敗の破棄で通知を集約する。外部対象変更の通知は読取前に行い、直後に自プロセスが前面になっても外部変更の判定を失わず、読取中の手動選択は尊重する。共有状態と通知はDispatcherが所有し、workerは不変スナップショットだけを返す。終了は受付解除・タイマー停止・hook解除・キャンセルの順で冪等に行い、UIスレッドでworkerを待たず遅延結果を破棄する。hookの部分初期化失敗でも確保済みhookを解除する。ログへタイトル・パスを出さない。
+- `MainWindow.AppLayers` は検索／ドラッグ／配置編集／Prefix入力待機／所有ダイアログ／メニューで適用を保留し、保留中のみタイマーで操作終了を確認する。手動選択は保留を解消し、次の外部前面化で再評価する。自動選択時は既存のショートカット実行先を維持して表示切替だけ抑止する。
+- `AppLayerSettingsWindow` はルールの複製をモデルレスで編集し、確定時だけ設定へ反映する。保存失敗は旧設定を復元する。レイヤー削減時の範囲外ルールは正規化で無効化し、暗号化転送は明示snapshotに全ルール項目を含める。関連仕様はSP-016、検証はTC-132〜134。
+
 ## Traceability (excerpt)
 - DES-002 ← SP-001/002/006/009/010 → TC-010/025/037/065/080/085/086/087/090/108/111/112/113/114/115/116/117
 - DES-002/004/005 ← SP-005 → TC-126/129/130
@@ -104,3 +111,4 @@
 - DES-005 ← SP-004/007/010/015 → TC-030/035/095/085/086/087/127
 - DES-001/005 ← SP-008 → TC-001/128/131
 - DES-004/005 ← SP-009/014 → TC-118/119/120/121/122/123/124
+- DES-007 ← SP-016 → TC-132/133/134

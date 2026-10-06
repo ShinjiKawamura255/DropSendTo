@@ -119,6 +119,7 @@ public class ConfigTransferServiceTests
     [InlineData(typeof(Layer), "ExportLayerSnapshot")]
     [InlineData(typeof(SlotModel), "ExportSlotSnapshot")]
     [InlineData(typeof(SlotMinimizeOptions), "ExportMinimizeOptions")]
+    [InlineData(typeof(AppLayerRule), "ExportAppLayerRule")]
     public void ExportSnapshot_ShouldDeclareEveryPersistedProperty(Type modelType, string snapshotTypeName)
     {
         var snapshotType = GetSnapshotType(snapshotTypeName);
@@ -157,6 +158,9 @@ public class ConfigTransferServiceTests
         imported.WindowPlacementMode.Should().Be(WindowPlacementMode.Fixed);
         imported.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
         imported.MouseGestureMinRadiusPixels.Should().Be(0);
+        imported.AppLayerSwitchingEnabled.Should().BeFalse();
+        imported.AppLayerFallbackLayer.Should().Be(-1);
+        imported.AppLayerRules.Should().BeEmpty();
     }
 
     [Fact]
@@ -222,6 +226,8 @@ public class ConfigTransferServiceTests
             {
                 "AppConfig.CurrentLayer" => 2,
                 "AppConfig.SlotRows" or "AppConfig.SlotColumns" => 7,
+                "AppConfig.AppLayerFallbackLayer" => 1,
+                _ when path.EndsWith(".LayerIndex", StringComparison.Ordinal) => 2,
                 _ => (currentValue as int? ?? 0) + 11
             };
         }
@@ -254,7 +260,8 @@ public class ConfigTransferServiceTests
             typeof(Layer),
             typeof(SlotModel),
             typeof(SlotMinimizeOptions),
-            typeof(CustomSlotSizeOptions)
+            typeof(CustomSlotSizeOptions),
+            typeof(AppLayerRule)
         };
         if (!supportedModels.Contains(type))
         {

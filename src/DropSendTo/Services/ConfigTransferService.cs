@@ -191,6 +191,9 @@ internal sealed class ConfigTransferService
         private const int MaxLayers = 8;
         public int Version { get; set; }
         public int CurrentLayer { get; set; }
+        public bool AppLayerSwitchingEnabled { get; set; }
+        public int AppLayerFallbackLayer { get; set; } = -1;
+        public List<ExportAppLayerRule> AppLayerRules { get; set; } = new();
         public double? WindowLeft { get; set; }
         public double? WindowTop { get; set; }
         public bool AlwaysOnTop { get; set; }
@@ -241,6 +244,9 @@ internal sealed class ConfigTransferService
             {
                 Version = config.Version,
                 CurrentLayer = config.CurrentLayer,
+                AppLayerSwitchingEnabled = config.AppLayerSwitchingEnabled,
+                AppLayerFallbackLayer = config.AppLayerFallbackLayer,
+                AppLayerRules = config.AppLayerRules.Select(ExportAppLayerRule.FromRule).ToList(),
                 WindowLeft = config.WindowLeft,
                 WindowTop = config.WindowTop,
                 AlwaysOnTop = config.AlwaysOnTop,
@@ -302,6 +308,9 @@ internal sealed class ConfigTransferService
             {
                 Version = Version,
                 CurrentLayer = Math.Clamp(CurrentLayer, 0, normalizedLayers.Count - 1),
+                AppLayerSwitchingEnabled = AppLayerSwitchingEnabled,
+                AppLayerFallbackLayer = AppLayerFallbackLayer,
+                AppLayerRules = (AppLayerRules ?? new()).Select(rule => rule.ToRule()).ToList(),
                 WindowLeft = WindowLeft,
                 WindowTop = WindowTop,
                 AlwaysOnTop = AlwaysOnTop,
@@ -347,6 +356,33 @@ internal sealed class ConfigTransferService
                 Theme = Theme
             };
         }
+    }
+
+    private sealed class ExportAppLayerRule
+    {
+        public bool Enabled { get; set; } = true;
+        public string ExecutableName { get; set; } = string.Empty;
+        public string TitleContains { get; set; } = string.Empty;
+        public string ExecutablePath { get; set; } = string.Empty;
+        public int LayerIndex { get; set; }
+
+        public static ExportAppLayerRule FromRule(AppLayerRule rule) => new()
+        {
+            Enabled = rule.Enabled,
+            ExecutableName = rule.ExecutableName,
+            TitleContains = rule.TitleContains,
+            ExecutablePath = rule.ExecutablePath,
+            LayerIndex = rule.LayerIndex
+        };
+
+        public AppLayerRule ToRule() => new()
+        {
+            Enabled = Enabled,
+            ExecutableName = ExecutableName,
+            TitleContains = TitleContains,
+            ExecutablePath = ExecutablePath,
+            LayerIndex = LayerIndex
+        };
     }
 
     private sealed class ExportLayerSnapshot

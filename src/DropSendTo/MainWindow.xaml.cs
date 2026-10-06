@@ -406,6 +406,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _currentLanguage = _config.Language;
         int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, MinLayers);
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
+        InitializeAppLayerState();
         if (EditModeIndicator is { } indicator)
         {
             indicator.SizeChanged += (_, _) =>
@@ -465,7 +466,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             {
                 ClampWindowWithinBounds();
             }
-            _config.CurrentLayer = _currentLayer;
+            _config.CurrentLayer = _appLayerSelection.ManualLayer;
             _config.AlwaysOnTop = this.Topmost;
             _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
             _configService.Save(_config);
@@ -912,6 +913,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
     private void ApplyLanguageToUi()
     {
         _currentLanguage = _config?.Language ?? AppLanguage.Japanese;
+        UpdateAppLayerUi();
         var text = GetUiText(_currentLanguage);
 
         if (ConfigMenuItem != null) ConfigMenuItem.Header = text.ConfigMenu;
@@ -1384,6 +1386,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
+        StartActiveWindowMonitor();
         try
         {
             var helper = new WindowInteropHelper(this);
@@ -1458,7 +1461,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     private void OnExit(object sender, RoutedEventArgs e)
     {
-        _config.CurrentLayer = _currentLayer;
+        _config.CurrentLayer = _appLayerSelection.ManualLayer;
         _config.LastWindowVisibility = _isMinimizedToTray ? WindowVisibilityState.Tray : WindowVisibilityState.Visible;
         _configService.Save(_config);
         Close();
@@ -1546,7 +1549,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private void SetLayer(int index)
+    private void SetLayer(int index, bool automatic = false)
     {
         var totalLayers = _config?.Layers?.Count ?? MinLayers;
         if (totalLayers <= 0)
@@ -1560,6 +1563,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         var target = Math.Clamp(index, 0, totalLayers - 1);
+        if (!automatic)
+        {
+            _appLayerSelection.SelectManually(target);
+            if (_config != null) _config.CurrentLayer = target;
+        }
         var delta = target - _currentLayer;
         if (delta == 0)
         {
@@ -1573,6 +1581,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         RefreshUi();
 
         ShowLayerNameOverlay();
+        UpdateAppLayerUi();
     }
 
     private void ChangeLayer(int delta)
@@ -4049,7 +4058,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         _currentLayer = Math.Clamp(_currentLayer, 0, _config.Layers.Count - 1);
-        _config.CurrentLayer = _currentLayer;
+        _appLayerSelection.SelectManually(Math.Clamp(_appLayerSelection.ManualLayer, 0, _config.Layers.Count - 1));
+        _config.CurrentLayer = _appLayerSelection.ManualLayer;
+        ConfigService.NormalizeForUse(_config);
+        _appLayerSelection.RequestEvaluation();
+        _appLayerResumeTimer?.Start();
         ClampShowLayerPreferencesToRange();
         Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
         RefreshVisibleSlotMappings();
@@ -4398,6 +4411,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _config = config;
         int totalLayers = Math.Max(_config.Layers?.Count ?? MinLayers, 1);
         _currentLayer = Math.Clamp(_config.CurrentLayer, 0, totalLayers - 1);
+        ResetAppLayerStateForConfig();
         _keyboardPlacementMode = _config.KeyboardPlacementMode;
         _mousePlacementMode = _config.MousePlacementMode;
         _mousePlacementFollowsKeyboard = _config.MousePlacementFollowsKeyboard;
@@ -5906,7 +5920,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         {
             if (string.Equals(binding.NormalizedKey, normalized, StringComparison.Ordinal))
             {
-                if (binding.LayerIndex != _currentLayer)
+                if (binding.LayerIndex != _currentLayer && AppLayerSelection.ShouldSwitchForShortcut(_config))
                 {
                     SetLayer(binding.LayerIndex);
                 }
@@ -6604,6 +6618,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     protected override void OnClosed(EventArgs e)
     {
+        DisposeAppLayerState();
         base.OnClosed(e);
         if (_notifyIcon != null)
         {

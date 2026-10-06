@@ -13,6 +13,42 @@ public class ConfigServiceTests
     private static int CurrentConfigVersion => new AppConfig().Version;
 
     [Fact]
+    public void Save_ShouldPreserveAppLayerRulesInPrimaryAndBackup()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var service = new ConfigService(temp);
+        try
+        {
+            var config = new AppConfig
+            {
+                AppLayerSwitchingEnabled = true,
+                AppLayerFallbackLayer = 3,
+                AppLayerRules = new()
+                {
+                    new() { ExecutableName = "EXCEL.EXE", TitleContains = "売上", LayerIndex = 2 },
+                    new() { Enabled = false, ExecutableName = "Code.exe", ExecutablePath = "C:\\Tools\\Code.exe", LayerIndex = 1 }
+                }
+            };
+            service.Save(config);
+            config.CurrentLayer = 1;
+            service.Save(config);
+
+            var loaded = service.LoadOrCreate();
+            var backup = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(service.GetConfigPath() + ".bak"))!;
+            foreach (var restored in new[] { loaded, backup })
+            {
+                restored.AppLayerSwitchingEnabled.Should().BeTrue();
+                restored.AppLayerFallbackLayer.Should().Be(3);
+                restored.AppLayerRules.Should().BeEquivalentTo(config.AppLayerRules, options => options.WithStrictOrdering());
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true);
+        }
+    }
+
+    [Fact]
     public void LoadOrCreate_Should_Create_Default_Config_When_Missing()
     {
         var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));

@@ -6,7 +6,10 @@ namespace DropSendTo.Models;
 public class AppConfig
 {
     public int Version { get; set; } = 37;
-    public int CurrentLayer { get; set; } = 0; // 0-based
+    public int CurrentLayer { get; set; } = 0; // Last manually selected layer (0-based).
+    public bool AppLayerSwitchingEnabled { get; set; }
+    public int AppLayerFallbackLayer { get; set; } = -1;
+    public List<AppLayerRule> AppLayerRules { get; set; } = new();
     public double? WindowLeft { get; set; } = 0;
     public double? WindowTop { get; set; } = 0;
     public bool AlwaysOnTop { get; set; } = true;

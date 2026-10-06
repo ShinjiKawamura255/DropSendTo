@@ -262,6 +262,18 @@ public class ConfigService
         }
         cfg.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(cfg.CustomSlotSize ?? CustomSlotSizeOptions.CreateDefault());
         cfg.CurrentLayer = Math.Clamp(cfg.CurrentLayer, 0, cfg.Layers.Count - 1);
+        cfg.AppLayerFallbackLayer = cfg.AppLayerFallbackLayer >= 0 && cfg.AppLayerFallbackLayer < cfg.Layers.Count
+            ? cfg.AppLayerFallbackLayer : -1;
+        cfg.AppLayerRules ??= new List<AppLayerRule>();
+        cfg.AppLayerRules.RemoveAll(rule => rule == null);
+        foreach (var rule in cfg.AppLayerRules)
+        {
+            rule.ExecutableName = (rule.ExecutableName ?? string.Empty).Trim();
+            rule.TitleContains = (rule.TitleContains ?? string.Empty).Trim();
+            rule.ExecutablePath = (rule.ExecutablePath ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(rule.ExecutableName) || rule.LayerIndex < 0 || rule.LayerIndex >= cfg.Layers.Count)
+                rule.Enabled = false;
+        }
         if (!Enum.IsDefined(typeof(StartupWindowBehavior), cfg.StartupBehavior))
         {
             cfg.StartupBehavior = StartupWindowBehavior.AlwaysShow;

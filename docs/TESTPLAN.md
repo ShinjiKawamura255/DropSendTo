@@ -82,6 +82,10 @@
 - TC-104 MacroModeSuspendResume: モード=一時停止して割り込みのとき、実行中マクロが安全ポイントで停止しスロットが「一時停止中...」表示になる。新規マクロ完了後に自動再開し、状態表示が「実行中」に戻る。多段ネストでも LIFO 順で再開されることを確認。
 - TC-098 MinimizeToTray: `Minimize to Tray` メニューおよび Prefix+Shift+Enter でウィンドウがタスクトレイへ格納され、Prefix+Enter やタスクトレイアイコン左クリックで復帰する。
 
+- TC-132 AppLayerPolicy: `AppLayerSelectionTests` で優先順位、AND条件、同一アプリ復帰、手動選択と共通タブ、保留解除、一時固定、ショートカット表示切替方針、削除済みタブの無効化を確認する。`ConfigTransferServiceTests` の全永続項目guardと旧payload既定値で転送互換性を確認する。
+- TC-133 AppLayerMonitor: `ActiveWindowMonitorTests` の制御可能な読取で、処理中の新規通知、古い応答の破棄と最新要求への集約、所有ウィンドウ除外、初期化失敗時cleanup、処理中終了のキャンセル・冪等cleanup・終了時間を確認する。
+- TC-134 AppLayerGui: Windowsで通常設定とは別のdata rootを使用し、設定画面の日英・明暗テーマ・最小サイズ・スクロール・エラー・キャンセルを実表示で確認する。テスト用外部アプリを使い、前面切替と同じウィンドウのタイトル変更、手動切替後の復帰、固定解除、検索／ドラッグ／編集後の保留解除を確認する。別タブのショートカットが表示を変えず動作すること、OFF時の従来切替、設定再読込と削減後の無効ルールも確認する。
+
 ## Execution
 - Unit: `dotnet test tests/DropSendTo.Tests -c Release`。
 - Release/CI contract: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1`、`dotnet format --verify-no-changes`、Release test/build を実行する。
@@ -112,7 +116,7 @@
 
 ## Environment & Data
 - OS: Windows 10 22H2+ / 11、.NET SDK 10.x。
-- Data: 一時フォルダにテストファイル作成。unit test は明示した一時 base directory を使用する。TC-131 だけは測定 marker と絶対 data root を子プロセスへ渡し、通常の `%AppData%/DropSendTo` を変更しない。
+- Data: 一時フォルダにテストファイル作成。unit test は明示した一時 base directory を使用する。TC-131/134 は測定 marker と絶対 data root を子プロセスへ渡し、通常の `%AppData%/DropSendTo` を変更しない。
 - Macro: マクロ試験では同一デスクトップの通常権限ウィンドウ（例: メモ帳）を事前にフォーカスしておく。
 
 ## Entry/Exit Criteria
@@ -142,6 +146,7 @@
 - FR-036 → SP-013 → DES-003 → TC-109
 - FR-037 → SP-002/004 → DES-002 → TC-073
 - FR-038 → SP-005/006 → DES-002/003 → TC-110
+- FR-042 → SP-016 → DES-007 → TC-132/133/134
 - NFR-001 → SP-008 → DES-001/005 → TC-001/128
 - NFR-002 → SP-008 → DES-001/005 → TC-131
 - NFR-003 → SP-001 → DES-003 → TC-040/045

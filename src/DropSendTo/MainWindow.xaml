@@ -25,6 +25,9 @@
             <MenuItem x:Name="LayerSettingsMenuItem" Header="レイヤー設定">
                 <MenuItem x:Name="LayerCountMenuItem" Header="レイヤー数..." Click="OnConfigureLayerCount"/>
                 <MenuItem x:Name="EditLayerNamesMenuItem" Header="レイヤー名を編集..." Click="OnEditLayerNames"/>
+                <Separator/>
+                <MenuItem x:Name="AppLayerSettingsMenuItem" Header="アプリ別タブ切替..." Click="OnAppLayerSettings"/>
+                <MenuItem x:Name="PinAppLayerMenuItem" Header="このタブを一時固定" IsCheckable="True" Click="OnPinAppLayer"/>
             </MenuItem>
             <MenuItem x:Name="LayoutDisplayMenuItem" Header="レイアウト / 表示">
                 <MenuItem x:Name="LayoutMenuItem"
@@ -237,7 +240,11 @@
         <!-- Top bar with drag area and buttons (menu + layers equally spaced) -->
         <DockPanel Grid.Row="0" LastChildFill="False" Background="Transparent" MouseLeftButtonDown="OnDragMoveArea">
             <!-- Drag handle area to move window -->
-            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="40" MouseLeftButtonDown="OnDragMove"/>
+            <Border DockPanel.Dock="Left" Background="Transparent" Height="24" MinWidth="40" MouseLeftButtonDown="OnDragMove">
+                <TextBlock x:Name="AppLayerStatusText" FontSize="10" MaxWidth="40" TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.PrimaryTextBrush}"/>
+            </Border>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                 <Button x:Name="EditModeToggleButton"
                         Content="✎"
