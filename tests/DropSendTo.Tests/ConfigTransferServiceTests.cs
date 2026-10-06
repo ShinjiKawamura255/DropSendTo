@@ -14,6 +14,36 @@ namespace DropSendTo.Tests;
 
 public class ConfigTransferServiceTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void Export_ShouldHonorImportCipherSizeBoundary_WithoutTruncatingSettings(int extraBytes)
+    {
+        const int cipherLimit = 8 * 1024 * 1024;
+        var service = new ConfigTransferService();
+        var config = new AppConfig();
+        var slot = config.Layers[0].Slots[0];
+        slot.ArgumentsTemplate = string.Empty;
+        var baseline = JsonNode.Parse(service.CreateExportPayload(config, "boundary-password"))!;
+        var overhead = Convert.FromBase64String(baseline["CipherText"]!.GetValue<string>()).Length;
+        slot.ArgumentsTemplate = new string('x', cipherLimit - overhead + extraBytes);
+
+        if (extraBytes == 0)
+        {
+            var payload = service.CreateExportPayload(config, "boundary-password");
+            var package = JsonNode.Parse(payload)!;
+            Convert.FromBase64String(package["CipherText"]!.GetValue<string>()).Length.Should().Be(cipherLimit);
+            service.ImportConfig(payload, "boundary-password").Layers[0].Slots[0].ArgumentsTemplate
+                .Should().Be(slot.ArgumentsTemplate);
+        }
+        else
+        {
+            Action export = () => service.CreateExportPayload(config, "boundary-password");
+            export.Should().Throw<InvalidOperationException>().WithMessage("*上限*config.json*");
+            slot.ArgumentsTemplate.Length.Should().Be(cipherLimit - overhead + extraBytes);
+        }
+    }
+
     [Fact]
     public void ExportImport_ShouldRoundTripConfig()
     {

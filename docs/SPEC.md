@@ -46,6 +46,7 @@
 - MUST: すべてのスロット/レイヤー設定・マクロ・クリック有効状態・常時最前面フラグ・現在レイヤーを `%AppData%/DropSendTo/config.json` に保存する。アプリ別タブ切替中の `CurrentLayer` は最後に手動選択したレイヤーを保持する（SP-016）。
 - MUST: 暗号化エクスポートは `AppConfig`、`Layer`、`SlotModel`、`SlotMinimizeOptions` の全永続プロパティを明示 snapshot へ写し、インポート後に欠落なく復元する。旧 payload に新規項目がない場合は安全な既定値と共通正規化を適用する。
 - MUST: インポート package は復号前に UTF-8 16 MiB 以下、KDF 1,000,000 iterations 以下、Salt 16 bytes、Nonce 12 bytes、Tag 16 bytes、CipherText 8 MiB 以下を検証する。現行出力は PBKDF2-SHA256 200,000 iterations と AES-GCM の同じ package version/固定要素長を維持する。
+- MUST: エクスポートは暗号化前 JSON の UTF-8 サイズが 8 MiB 以下、出力 package が UTF-8 16 MiB 以下であることを確認し、自身で復元できないサイズの出力を成功扱いで生成しない。超過時は設定を切り詰めず、config.json/.bak の直接退避を案内する。
 - MUST: 復号・共通正規化後、コマンド/マクロ/起動時実行スロット件数と次回起動時の自動実行可能性を日本語/English のモデルレス確認画面へ表示し、信頼確認前は保存・runtime反映を行わない。受理後は theme、placement、remote/search/prefix shortcut、mouse gesture、layout、language/menu を runtime へ段階適用してから候補を保存する。runtime 適用失敗時は disk を変更せず旧 runtime を復元し、候補保存失敗時は旧 disk/runtime を個別に復元する。完全復元できない場合は、未復元対象をユーザーへ明示する。
 - MUST: 起動時に JSON を検証し、破損時は `config.json.bak` から復元し、それでも不可なら既定値で再生成する。正常な backup から復旧する際は primary を同一ディレクトリ内の一時ファイル経由で修復し、復旧元の backup を上書きしない。
 - MUST: 設定保存は primary と同じディレクトリへ一時ファイルを書き、flush 後に原子的な置換または移動で確定する。書き込み、flush、置換のいずれかが失敗した場合も、既存の正常な primary と backup を維持し、残留一時ファイルを次回保存前に除去する。旧 primary の backup 昇格に失敗した場合は primary を旧内容へロールバックして失敗を返し、ロールバックにも失敗した場合は旧内容を recovery artifact として保持して失敗を返す。

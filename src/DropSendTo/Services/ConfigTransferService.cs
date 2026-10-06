@@ -27,8 +27,18 @@ internal sealed class ConfigTransferService
 
         var snapshot = ExportConfigSnapshot.FromAppConfig(config);
         var json = JsonSerializer.Serialize(snapshot);
+        // AES-GCM preserves the plaintext byte length, so an oversized export could never be imported.
+        if (Encoding.UTF8.GetByteCount(json) > MaxCipherBytes)
+        {
+            throw new InvalidOperationException("エクスポートする設定が上限 (8 MiB) を超えています。config.json と .bak を直接退避してください。");
+        }
         var package = Encrypt(json, password);
-        return JsonSerializer.Serialize(package, new JsonSerializerOptions { WriteIndented = true });
+        var payload = JsonSerializer.Serialize(package, new JsonSerializerOptions { WriteIndented = true });
+        if (Encoding.UTF8.GetByteCount(payload) > MaxPackageBytes)
+        {
+            throw new InvalidOperationException("エクスポートファイルが上限 (16 MiB) を超えています。config.json と .bak を直接退避してください。");
+        }
+        return payload;
     }
 
     public AppConfig ImportConfig(string payload, string password)
