@@ -1,3 +1,43 @@
+function Test-StableReleaseVersion {
+    param([AllowEmptyString()] [string] $Value)
+    $parsed = $null
+    return $Value -cmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -and
+        [Version]::TryParse($Value.Substring(1), [ref]$parsed)
+}
+
+function Get-ReleaseBuildProperties {
+    param([Parameter(Mandatory)] [string] $Version)
+    if (-not (Test-ReleaseVersionSafe $Version)) { throw 'Unsafe release version.' }
+    return @("-p:InformationalVersion=$Version", '-p:IncludeSourceRevisionInInformationalVersion=false')
+}
+
+function Assert-OfficialReleaseState {
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [bool] $TagMatchesHead,
+        [bool] $TrackedDirty,
+        [bool] $UntrackedDirty
+    )
+    if (-not (Test-StableReleaseVersion $Version)) { throw 'Official release tags must use vX.Y.Z.' }
+    if (-not $TagMatchesHead) { throw "The official release tag '$Version' must point to HEAD." }
+    if ($TrackedDirty -or $UntrackedDirty) { throw 'Official releases require a clean worktree, including untracked files.' }
+}
+
+function Assert-OfficialReleaseFromRepository {
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $RepoRoot)
+    $probe = Get-ReleaseVersionProbe -RepoRoot $RepoRoot
+    Push-Location $RepoRoot
+    try {
+        $tagCommit = @(& git rev-parse --verify "refs/tags/${Version}^{commit}" 2>$null)[0]
+        $tagExists = $LASTEXITCODE -eq 0
+        $headCommit = @(& git rev-parse --verify HEAD 2>$null)[0]
+        $tagMatches = $tagExists -and $LASTEXITCODE -eq 0 -and $tagCommit -ceq $headCommit
+        Assert-OfficialReleaseState -Version $Version -TagMatchesHead $tagMatches `
+            -TrackedDirty $probe.TrackedDirty -UntrackedDirty $probe.UntrackedDirty
+    }
+    finally { Pop-Location }
+}
+
 function Test-ReleaseVersionSafe {
     param([AllowEmptyString()] [string] $Value)
 
@@ -68,8 +108,8 @@ function Get-ReleaseVersionProbe {
             }
         }
 
-        $shortSha = ((& git rev-parse --short=12 HEAD 2>$null) | Select-Object -First 1).Trim()
-        $nearestTag = ((& git describe --tags --abbrev=0 HEAD 2>$null) | Select-Object -First 1)
+        $shortSha = @(& git rev-parse --short=12 HEAD 2>$null)[0].Trim()
+        $nearestTag = @(& git describe --tags --abbrev=0 HEAD 2>$null)[0]
         if ($LASTEXITCODE -ne 0 -or $null -eq $nearestTag) {
             $nearestTag = ''
         }
@@ -78,10 +118,10 @@ function Get-ReleaseVersionProbe {
         }
 
         if ($nearestTag) {
-            $commitDistance = [int](((& git rev-list "$nearestTag..HEAD" --count 2>$null) | Select-Object -First 1).Trim())
+            $commitDistance = [int](@(& git rev-list "$nearestTag..HEAD" --count 2>$null)[0].Trim())
         }
         else {
-            $commitDistance = [int](((& git rev-list HEAD --count 2>$null) | Select-Object -First 1).Trim())
+            $commitDistance = [int](@(& git rev-list HEAD --count 2>$null)[0].Trim())
         }
 
         & git diff-index --quiet HEAD --

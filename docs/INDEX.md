@@ -19,4 +19,5 @@
 
 ## Focused references
 
+- [RELEASE.md](RELEASE.md): バージョン形式、正式版の検証・配布・GitHub Releases 公開手順。
 - `MACRO_SAMPLES.md`: 現行 Macro Script だけで動くコピー＆ペースト用サンプル。

@@ -53,12 +53,13 @@ It also provides a dedicated drop-capture window so you can keep drag context an
 - ログ: `%AppData%\DropSendTo\logs\app.log`（約 1MB でローテーション、7 日保持）
 
 ## ビルド / テスト / 配布 / Build, Test, Release
+- 正式版のタグ・検証・GitHub 公開手順は [リリース規約](docs/RELEASE.md) を参照してください。
 - Build: `dotnet build`
 - Test: `dotnet test`
 - Format: `dotnet format`
 - Release ビルド & ZIP 生成 / Release build & zip:
   ```
-  powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64 -SelfContained:$false -Version vX.Y.Z
+  powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64
   ```
 - スクリプトは `DOTNET_EXE` が指定されていればその `dotnet.exe` を使い、未指定でも `%USERPROFILE%\.dotnet\dotnet.exe` があれば優先します。
   ```

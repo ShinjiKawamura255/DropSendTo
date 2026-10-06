@@ -75,6 +75,11 @@ try {
         return
     }
 
+    # Validate before stopping a running app or changing any release output.
+    if (Test-StableReleaseVersion $Version) {
+        Assert-OfficialReleaseFromRepository -Version $Version -RepoRoot $repoRoot
+    }
+
     if ($KillRunning) {
         Write-Host "== Kill running DropSendTo.exe if any =="
         Get-Process DropSendTo -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -99,7 +104,7 @@ try {
         "-p:IncludeNativeLibrariesForSelfExtract=true",
         "-p:DebugType=None",
         "-p:DebugSymbols=false"
-    )
+    ) + @(Get-ReleaseBuildProperties -Version $Version)
 
     if ($InvariantGlobalization) {
         $props += "-p:InvariantGlobalization=true"

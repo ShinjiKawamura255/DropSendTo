@@ -8,6 +8,7 @@
     <RootNamespace>DropSendTo</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">0.0.0-dev</InformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Resources\AppIcon.ico" />

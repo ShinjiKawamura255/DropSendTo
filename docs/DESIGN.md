@@ -116,3 +116,9 @@
 - DES-001/005 ← SP-008 → TC-001/128/131
 - DES-004/005 ← SP-009/014 → TC-118/119/120/121/122/123/124
 - DES-007 ← SP-016 → TC-132/133/134
+
+## DES-008 Release Identity and Update Check
+- Related: SP-017 → TC-136/137. `UpdateCheckService` は資格情報を使わない HTTP と版比較を担当し、UI から独立した結果状態を返す。`HttpClient` を共有して10秒でタイムアウトし、テストではハンドラーを差し替える。
+- `AboutWindow` は状態表示、再確認、ブラウザ起動を所有する。`MainWindow` はメイン/トレイ共通メニューから単一インスタンスをモデルレスで開く。画面の生存期間の CancellationToken により閉じた後の UI 更新を防ぎ、メイン操作を止めない。
+- 外部レスポンスの `html_url` は起動に使わず、検証済みの正式タグから当該リポジトリの固定 HTTPS URL を構築する。
+- `Build-Release.ps1` は生成識別子を InformationalVersion に渡し、Git SHA の自動追加を止める。正式版形式では `Release-Version.ps1` がタグと HEAD の一致、追跡/未追跡変更の不在を確認してから配布を許可する。通常ビルドは `0.0.0-dev` を基底にして誤判定を防ぐ。

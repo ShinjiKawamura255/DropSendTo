@@ -17,6 +17,7 @@
             <MenuItem x:Name="SettingsMenuItem" Header="設定…" Click="OnOpenSettings"/>
             <MenuItem x:Name="PinAppLayerMenuItem" Header="このタブを一時固定" IsCheckable="True" Click="OnPinAppLayer"/>
             <MenuItem x:Name="ShortcutListMenuItem" Header="ショートカット一覧…" Click="OnShowShortcutList"/>
+            <MenuItem x:Name="AboutMenuItem" Header="DropSendTo について…" Click="OnShowAbout"/>
             <Separator/>
             <MenuItem x:Name="MinimizeToTrayMenuItem" Header="トレイへ最小化" Click="OnMinimizeToTray"/>
             <MenuItem x:Name="ExitMenuItem" Header="終了" Click="OnExit"/>

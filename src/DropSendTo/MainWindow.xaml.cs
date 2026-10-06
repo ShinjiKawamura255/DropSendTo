@@ -51,6 +51,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
     private readonly List<ShortcutBinding> _shortcutBindings = new();
     private readonly List<SlotVisual> _slotVisuals = new();
     private SlotShortcutListWindow? _shortcutListWindow;
+    private AboutWindow? _aboutWindow;
     private SlotShortcutEditWindow? _shortcutEditWindow;
     private SlotStartupSettingsWindow? _startupSettingsWindow;
     private bool _keyboardNavigationActive;
@@ -751,6 +752,8 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         UpdateAppLayerUi();
         var text = GetUiText(_currentLanguage);
         SettingsMenuItem.Header = _currentLanguage == AppLanguage.English ? "Settings…" : "設定…";
+        AboutMenuItem.Header = _currentLanguage == AppLanguage.English ? "About DropSendTo…" : "DropSendTo について…";
+        _aboutWindow?.SetLanguage(_currentLanguage);
 
         if (ShortcutListMenuItem != null) ShortcutListMenuItem.Header = text.ShortcutList;
         if (MinimizeToTrayMenuItem != null) MinimizeToTrayMenuItem.Header = text.MinimizeToTray;
@@ -4443,6 +4446,21 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         _configService.Save(_config);
+    }
+
+    private void OnShowAbout(object sender, RoutedEventArgs e)
+    {
+        if (_aboutWindow != null)
+        {
+            if (_aboutWindow.WindowState == WindowState.Minimized) _aboutWindow.WindowState = WindowState.Normal;
+            _aboutWindow.Activate();
+            return;
+        }
+        var window = new AboutWindow(_currentLanguage) { Owner = this };
+        _aboutWindow = window;
+        window.Closed += (_, _) => _aboutWindow = null;
+        WindowCascadeService.Arrange(window, this);
+        window.Show();
     }
 
     private void OnShowShortcutList(object sender, RoutedEventArgs e)

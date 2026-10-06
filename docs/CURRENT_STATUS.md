@@ -24,6 +24,8 @@ The current architecture and behavior are documented through the SDD/TDD set:
 
 ## Daily Commands
 
+正式版の作成・公開は [RELEASE.md](RELEASE.md) に従う。通常ビルドは開発版として表示され、正式版の更新判定は配布スクリプトが埋め込む識別子を使用する。
+
 Run commands on Windows with .NET SDK 10.x:
 
 ```powershell
@@ -45,7 +47,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests-And-Build.ps1
 For release packaging:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64 -Version vX.Y.Z
+powershell -ExecutionPolicy Bypass -File .\scripts\Build-Release.ps1 -Rid win-x64
 ```
 
 `-Version` を省略した場合は Git 状態から一意な識別子を算出します。成果物を作らず値だけ確認するには `Build-Release.ps1 -VersionOnly` を使います。clean な完全一致タグ以外は短縮 SHA を含み、dirty worktree では dirty marker も付きます。

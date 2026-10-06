@@ -86,4 +86,43 @@ else {
 }
 Assert-Equal 'version-only leaves dist unchanged' $distSnapshotBefore $distSnapshotAfter
 
-Write-Host 'Release version tests passed (9 assertions).'
+Assert-Equal 'embedded release version' 'v1.3.0' ((Get-ReleaseBuildProperties -Version 'v1.3.0')[0] -replace '^-p:InformationalVersion=', '')
+Assert-Equal 'disable automatic commit suffix' '-p:IncludeSourceRevisionInInformationalVersion=false' (Get-ReleaseBuildProperties -Version 'v1.3.0')[1]
+Assert-Equal 'embedded development version' 'v1.3.0-dev.4.abc123.dirty' ((Get-ReleaseBuildProperties -Version 'v1.3.0-dev.4.abc123.dirty')[0] -replace '^-p:InformationalVersion=', '')
+Assert-OfficialReleaseState -Version 'v1.3.0' -TagMatchesHead $true -TrackedDirty $false -UntrackedDirty $false
+foreach ($invalidVersion in @('v01.3.0', '1.3.0', 'v1.3.0-rc.1', 'v1.3', 'v1.3.0+build')) {
+    Assert-Throws "invalid official version $invalidVersion" {
+        Assert-OfficialReleaseState -Version $invalidVersion -TagMatchesHead $true -TrackedDirty $false -UntrackedDirty $false
+    }
+}
+Assert-Throws 'official tag must match HEAD' {
+    Assert-OfficialReleaseState -Version 'v1.3.0' -TagMatchesHead $false -TrackedDirty $false -UntrackedDirty $false
+}
+Assert-Throws 'official tracked changes' {
+    Assert-OfficialReleaseState -Version 'v1.3.0' -TagMatchesHead $true -TrackedDirty $true -UntrackedDirty $false
+}
+Assert-Throws 'official untracked changes' {
+    Assert-OfficialReleaseState -Version 'v1.3.0' -TagMatchesHead $true -TrackedDirty $false -UntrackedDirty $true
+}
+
+# Exercise the Git-backed guard in an isolated repository, without modifying project tags.
+$fixtureRoot = Join-Path (Join-Path $PSScriptRoot '..\TestResults') ("ReleaseVersionFixture-" + [Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
+& git -C $fixtureRoot init --quiet
+if ($LASTEXITCODE -ne 0) { throw 'Could not initialize release version fixture.' }
+Set-Content -LiteralPath (Join-Path $fixtureRoot 'source.txt') -Value 'original'
+& git -C $fixtureRoot add source.txt
+& git -C $fixtureRoot -c user.name=ReleaseTest -c user.email=release-test@example.invalid commit --quiet -m 'fixture'
+if ($LASTEXITCODE -ne 0) { throw 'Could not commit release version fixture.' }
+& git -C $fixtureRoot tag v1.3.0
+Assert-OfficialReleaseFromRepository -Version 'v1.3.0' -RepoRoot $fixtureRoot
+Assert-Equal 'Git exact tag resolution' 'v1.3.0' (Resolve-ReleaseVersionFromRepository -RepoRoot $fixtureRoot)
+Assert-Throws 'missing official tag' { Assert-OfficialReleaseFromRepository -Version 'v9.9.9' -RepoRoot $fixtureRoot }
+Set-Content -LiteralPath (Join-Path $fixtureRoot 'untracked.txt') -Value 'untracked'
+Assert-Throws 'Git untracked changes rejected' { Assert-OfficialReleaseFromRepository -Version 'v1.3.0' -RepoRoot $fixtureRoot }
+& git -C $fixtureRoot add untracked.txt
+Assert-Throws 'Git staged changes rejected' { Assert-OfficialReleaseFromRepository -Version 'v1.3.0' -RepoRoot $fixtureRoot }
+& git -C $fixtureRoot -c user.name=ReleaseTest -c user.email=release-test@example.invalid commit --quiet -m 'after tag'
+Assert-Throws 'Git tag behind HEAD rejected' { Assert-OfficialReleaseFromRepository -Version 'v1.3.0' -RepoRoot $fixtureRoot }
+
+Write-Host 'Release version tests passed (27 assertions).'
