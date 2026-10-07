@@ -58,15 +58,6 @@ function Get-SafeVariantName($name, $index) {
     return $safe
 }
 
-function Get-ContainedOutputPath([string]$root, [string]$name) {
-    $resolvedRoot = [IO.Path]::GetFullPath($root).TrimEnd([IO.Path]::DirectorySeparatorChar)
-    $resolvedPath = [IO.Path]::GetFullPath((Join-Path $resolvedRoot $name))
-    if (-not $resolvedPath.StartsWith($resolvedRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Release output path escapes its output root.'
-    }
-    return $resolvedPath
-}
-
 $wpfTrimmingSupported = $false
 if ($PortableTrim) {
     if (-not $wpfTrimmingSupported) {
@@ -78,6 +69,7 @@ if ($PortableTrim) {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
 $dotnetExe = Resolve-DotnetExe
 Push-Location $repoRoot
+$stage = $null
 
 try {
     $Version = Resolve-ReleaseVersionFromRepository -ExplicitVersion $Version -RepoRoot $repoRoot
@@ -101,12 +93,10 @@ try {
     if ($Rid -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$') { throw 'Unsafe runtime identifier.' }
     $outRoot = if ($OutputRoot) { [IO.Path]::GetFullPath($OutputRoot) } else { Join-Path $repoRoot 'dist' }
     New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
-    $outDir = Get-ContainedOutputPath $outRoot "DropSendTo_${Rid}_$Version"
-    $portableOutDir = Get-ContainedOutputPath $outRoot "DropSendTo_Portable_${Rid}_$Version"
-    $latestDir = Get-ContainedOutputPath $outRoot 'latest'
-    if (Test-Path $latestDir) {
-        Remove-Item $latestDir -Recurse -Force
-    }
+    $stage = New-ReleaseStage $outRoot
+    $outDir = Get-ContainedOutputPath $stage.Path "DropSendTo_${Rid}_$Version"
+    $portableOutDir = Get-ContainedOutputPath $stage.Path "DropSendTo_Portable_${Rid}_$Version"
+    $latestDir = Get-ContainedOutputPath $stage.Path 'latest'
     New-Item -ItemType Directory -Force -Path $latestDir | Out-Null
 
     Invoke-Step "Restore" { Invoke-Dotnet restore $proj }
@@ -171,6 +161,7 @@ try {
     }
 
     $artifacts = @()
+    $promotionNames = @()
 
     $variantIndex = 0
     foreach ($variant in $buildVariants) {
@@ -179,9 +170,6 @@ try {
         $variantSelfContained = [bool]$variant.SelfContained
         $scFlag = if ($variantSelfContained) { 'true' } else { 'false' }
 
-        if (Test-Path $variantDir) {
-            Remove-Item $variantDir -Recurse -Force
-        }
         New-Item -ItemType Directory -Force -Path $variantDir | Out-Null
 
         Invoke-Step "Publish - $variantName" {
@@ -189,7 +177,9 @@ try {
         }
 
         $exePath = Join-Path $variantDir 'DropSendTo.exe'
+        if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw 'Published executable is missing.' }
         Copy-ReleaseDocuments -RepoRoot $repoRoot -OutputDirectory $variantDir
+        $promotionNames += [IO.Path]::GetFileName($variantDir)
 
         if ($CertificatePath) {
             Invoke-Step "Code Sign - $variantName" {
@@ -200,12 +190,12 @@ try {
 
         if (-not $NoZip) {
             $zipPath = "$variantDir.zip"
-            if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
             Invoke-Step "Zip - $variantName" { Compress-Archive -Path (Join-Path $variantDir '*') -DestinationPath $zipPath }
-            $artifacts += $zipPath
+            $promotionNames += [IO.Path]::GetFileName($zipPath)
+            $artifacts += Get-ContainedOutputPath $outRoot ([IO.Path]::GetFileName($zipPath))
         }
         else {
-            $artifacts += $variantDir
+            $artifacts += Get-ContainedOutputPath $outRoot ([IO.Path]::GetFileName($variantDir))
         }
 
         $targetLatestDir = if ($variantIndex -eq 0) {
@@ -213,9 +203,6 @@ try {
         } else {
             $safeName = Get-SafeVariantName $variantName ($variantIndex + 1)
             $nestedLatest = Get-ContainedOutputPath $latestDir $safeName
-            if (Test-Path $nestedLatest) {
-                Remove-Item $nestedLatest -Recurse -Force
-            }
             New-Item -ItemType Directory -Force -Path $nestedLatest | Out-Null
             $nestedLatest
         }
@@ -223,6 +210,10 @@ try {
 
         $variantIndex++
     }
+
+    # Publish the complete prepared set together, restoring previous outputs if any move fails.
+    $promotionNames += 'latest'
+    Invoke-Step 'Promote prepared release' { Publish-ReleaseStage -Stage $stage -Names $promotionNames }
 
     foreach ($artifact in $artifacts) {
         if ($artifact -like "*.zip") {
@@ -235,5 +226,9 @@ try {
     Write-Host "Done."
 }
 finally {
+    if ($null -ne $stage) {
+        try { Remove-ReleaseStage $stage }
+        catch { Write-Warning "Release staging cleanup failed; files retained at $($stage.Path): $($_.Exception.Message)" }
+    }
     Pop-Location
 }

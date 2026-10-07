@@ -42,6 +42,12 @@
 
 両形式へ `LICENSE` と `USER_GUIDE.md` を同梱する。ランタイム同梱版は解決された runtime pack のライセンスと第三者通知を `licenses/` に含め、ZIP にも残す。署名を指定した場合は SignTool の終了コードと Authenticode の `Valid` 状態を確認し、失敗なら ZIP 作成へ進まない。検証用の配布物は `-OutputRoot <隔離フォルダー>` に生成でき、その中の版別出力と `latest/` が更新される。
 
+配布スクリプトは OutputRoot 内の固有の staging ディレクトリで全選択形式の publish、文書同梱、署名、ZIP と `latest/` コピーを準備する。準備がすべて成功するまで、既存の同版ディレクトリ・ZIP・`latest/` を変更しない。同じ出力先への昇格は Global named mutex で Windows セッション間も直列化し、30秒で取得できない場合は既存成果物を変更せず失敗する。昇格中にファイル移動が失敗した場合は、それまでに置き換えた成果物を旧版へ戻す。復元も失敗した場合は staging を削除せず、回復ファイルの場所をエラーで示す。ロック・権限・空き容量の問題を解消してから、staging 内の `rollback/` に残る旧成果物を対応する OutputRoot のパスへ復元する。プロセス強制終了・電源断をまたぐ自動復旧は保証しない。
+
+staging と成果物のリンク検査では、[Windows SDK の CLOUD 系タグ](https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/winnt.h)を持つ OneDrive の非転送 reparse point を許容する。ジャンクション・シンボリックリンク・不明な reparse tag は昇格/削除の前に拒否し、取得できない属性情報を安全扱いで続行しない。
+
+`-NoZip` は版別ディレクトリと `latest/` のみを更新し、既存の同版 ZIP は保持する。ZIP を配布するときは `-NoZip` を付けずに再生成し、今回のビルドと一致することを確認する。
+
 ## 問題発見時
 
 公開前に問題が見つかった場合は公開せず修正と検証をやり直す。公開後の問題は説明へ追記し、必要なら GitHub の Latest を既知の正常版へ戻し、修正版を新しい PATCH 以上のバージョンで公開する。アプリは手元より古い正式版への更新を促さないため、問題版を利用中のユーザーには個別の復旧手順を案内する。
