@@ -106,6 +106,7 @@
 - Release validation: clean な完全一致タグ以外の自動バージョンには短縮 SHA と必要な dirty marker を含める。CI は release-version 回帰、format verify、test/build を実行し、TRX は追跡対象外に置く。
 - Macro safety: 検証モードではファイル変更、プロセス起動、ポップアップ表示、ウィンドウアクティブ化を行わない。`COPY`/`MOVE` は既定で上書きせず、`RUN_CAPTURE` は `UseShellExecute=false` で実行して stdout/stderr と完全な引数列をログへ出さない。`WINDOW_FIND` は複数一致を既定失敗にし、`WINDOW_ACTIVATE` は成功確認できない場合に失敗する。
 - Telemetry: 専用メトリクスは未実装。必要な診断はログで代替。
+- Macro process lifetime: linked CancellationTokenSource の期限を `WaitForExitAsync` と両出力 reader 全体へ共有する。異常経路は停止要求、reader の取消と stream 解放、遅延 fault の観測を所有し、親終了後の pipe 待機も打ち切る。任意の Job Object は異常時だけ終了させ、kill-on-close を設定しない。`BREAKAWAY_OK` で明示的な離脱起動を維持し、Job 構築/関連付け不能では従来の起動を拒否しない。
 
 ## DES-006 Trade-offs
 - WPF 採用で Windows 専用だが UI 制御が容易。WinUI3 への移行余地は保つ。

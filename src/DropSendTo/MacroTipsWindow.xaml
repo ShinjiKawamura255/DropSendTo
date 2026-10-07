@@ -153,6 +153,12 @@
                         <TextBox Style="{StaticResource TipsMonoTextStyle}"
                                  Text="COMMAND_WAIT / RUN_CAPTURE : shell を使わずプロセスを待機し、終了コードや標準出力/標準エラーを変数へ格納。CWD/TIMEOUT/MAX を指定できます。"
                                  TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}"
+                                 Text="TIMEOUT は終了待ちと出力取得全体の期限です。中断・期限切れでは起動プロセスの停止を試み、待機を終了します。&#x0a;TIMEOUT covers process exit and output capture. Cancellation or timeout stops waiting and attempts to stop the process."
+                                 TextWrapping="NoWrap"/>
+                        <TextBox Style="{StaticResource TipsMonoTextStyle}"
+                                 Text="例 / Example: RUN_CAPTURE Exit Out Err TIMEOUT 5000 MAX 1024 &quot;cmd.exe&quot; &quot;/d&quot; &quot;/c&quot; &quot;echo ok&quot;"
+                                 TextWrapping="NoWrap"/>
                     </StackPanel>
                 </Border>
 

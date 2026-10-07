@@ -15,6 +15,7 @@ using System.Globalization;
 using System.Linq;
 using DropSendTo;
 using DropSendTo.Models;
+using Microsoft.Win32.SafeHandles;
 
 namespace DropSendTo.Services;
 
@@ -2790,6 +2791,9 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var processCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            processCancellation.CancelAfter(timeout);
             var psi = CreateProcessStartInfoForTesting(fileName, arguments, cwd, capture);
             using var process = Process.Start(psi);
             if (process == null)
@@ -2797,27 +2801,55 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
                 error = "プロセスの起動に失敗しました。";
                 return false;
             }
+            using var cleanupJob = ProcessCleanupJob.TryCreate(process);
             Task<string>? stdoutTask = null;
             Task<string>? stderrTask = null;
-            if (capture)
+            Task? completionTask = null;
+            var completed = false;
+            try
             {
-                stdoutTask = ReadStreamWithByteLimitAsync(process.StandardOutput.BaseStream, maxOutput, cancellationToken);
-                stderrTask = ReadStreamWithByteLimitAsync(process.StandardError.BaseStream, maxOutput, cancellationToken);
+                if (capture)
+                {
+                    stdoutTask = ReadStreamWithByteLimitAsync(process.StandardOutput.BaseStream, maxOutput, processCancellation.Token);
+                    stderrTask = ReadStreamWithByteLimitAsync(process.StandardError.BaseStream, maxOutput, processCancellation.Token);
+                }
+                var exitTask = process.WaitForExitAsync(processCancellation.Token);
+                completionTask = capture ? Task.WhenAll(exitTask, stdoutTask!, stderrTask!) : exitTask;
+                // The same deadline covers process exit and both output pipes. A descendant can keep a pipe open
+                // after its parent exits, so waiting for exit alone does not complete RUN_CAPTURE.
+                completionTask.WaitAsync(processCancellation.Token).GetAwaiter().GetResult();
+                processCancellation.Token.ThrowIfCancellationRequested();
+                variables[tokens[0]] = process.ExitCode.ToString(CultureInfo.InvariantCulture);
+                if (capture)
+                {
+                    variables[tokens[1]] = stdoutTask!.GetAwaiter().GetResult();
+                    variables[tokens[2]] = stderrTask!.GetAwaiter().GetResult();
+                }
+                completed = true;
+                return true;
             }
-            if (!process.WaitForExit(timeout))
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                TryKillProcessTree(process);
                 error = "プロセス実行がタイムアウトしました。";
                 return false;
             }
-            cancellationToken.ThrowIfCancellationRequested();
-            variables[tokens[0]] = process.ExitCode.ToString(CultureInfo.InvariantCulture);
-            if (capture)
+            finally
             {
-                variables[tokens[1]] = stdoutTask?.GetAwaiter().GetResult() ?? string.Empty;
-                variables[tokens[2]] = stderrTask?.GetAwaiter().GetResult() ?? string.Empty;
+                if (!completed)
+                {
+                    // The optional job can terminate descendants even after the original process has exited.
+                    cleanupJob?.TryTerminate();
+                    TryKillProcessTree(process);
+                    processCancellation.Cancel();
+                    if (capture)
+                    {
+                        CloseProcessCaptureStreams(process);
+                    }
+                }
+                ObserveProcessTask(completionTask);
+                ObserveProcessTask(stdoutTask);
+                ObserveProcessTask(stderrTask);
             }
-            return true;
         }
         catch (OperationCanceledException)
         {
@@ -3049,6 +3081,125 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
                 // Best-effort cleanup only.
             }
         }
+    }
+
+    private static void CloseProcessCaptureStreams(Process process)
+    {
+        try { process.StandardOutput.Dispose(); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException) { }
+        try { process.StandardError.Dispose(); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException) { }
+    }
+
+    private static void ObserveProcessTask(Task? task)
+    {
+        if (task == null) return;
+        // Pipe cancellation/close may finish after the command returns. Observe faults without introducing
+        // another wait beyond the command deadline or retaining unbounded output.
+        _ = task.ContinueWith(static completedTask => { _ = completedTask.Exception; },
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private sealed class ProcessCleanupJob : IDisposable
+    {
+        private const uint BreakawayAllowed = 0x00000800;
+        private const int ExtendedLimitInformationClass = 9;
+        private readonly SafeFileHandle _handle;
+
+        private ProcessCleanupJob(SafeFileHandle handle) => _handle = handle;
+
+        public static ProcessCleanupJob? TryCreate(Process process)
+        {
+            // Job assignment is best effort: restricted hosts and very short-lived commands must retain
+            // their existing behavior. No kill-on-close flag: successful commands may intentionally spawn children.
+            var handle = CreateJobObject(IntPtr.Zero, null);
+            if (handle.IsInvalid)
+            {
+                handle.Dispose();
+                return null;
+            }
+            try
+            {
+                // Preserve executables that explicitly request CREATE_BREAKAWAY_FROM_JOB. Only ordinary
+                // descendants remain in this optional cleanup job; explicit escapees are best-effort cleanup.
+                var limits = new JobExtendedLimits { Basic = new JobBasicLimits { LimitFlags = BreakawayAllowed } };
+                if (!SetInformationJobObject(handle, ExtendedLimitInformationClass, ref limits,
+                    (uint)Marshal.SizeOf<JobExtendedLimits>()))
+                {
+                    handle.Dispose();
+                    return null;
+                }
+                if (AssignProcessToJobObject(handle, process.Handle))
+                {
+                    return new ProcessCleanupJob(handle);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // The process may have already exited before assignment.
+            }
+            handle.Dispose();
+            return null;
+        }
+
+        public void TryTerminate() => TerminateJobObject(_handle, uint.MaxValue);
+
+        public void Dispose() => _handle.Dispose();
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", CharSet = CharSet.Unicode)]
+        private static extern SafeFileHandle CreateJobObject(IntPtr attributes, string? name);
+
+        [DllImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
+
+        [DllImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool TerminateJobObject(SafeFileHandle job, uint exitCode);
+
+        [DllImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetInformationJobObject(SafeFileHandle job, int informationClass,
+            ref JobExtendedLimits limits, uint informationLength);
+
+#pragma warning disable CS0649 // Unused Win32 ABI fields remain zero: no resource limits are imposed.
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JobBasicLimits
+        {
+            public long PerProcessUserTimeLimit;
+            public long PerJobUserTimeLimit;
+            public uint LimitFlags;
+            public UIntPtr MinimumWorkingSetSize;
+            public UIntPtr MaximumWorkingSetSize;
+            public uint ActiveProcessLimit;
+            public UIntPtr Affinity;
+            public uint PriorityClass;
+            public uint SchedulingClass;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JobIoCounters
+        {
+            public ulong ReadOperationCount;
+            public ulong WriteOperationCount;
+            public ulong OtherOperationCount;
+            public ulong ReadTransferCount;
+            public ulong WriteTransferCount;
+            public ulong OtherTransferCount;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct JobExtendedLimits
+        {
+            public JobBasicLimits Basic;
+            public JobIoCounters IoCounters;
+            public UIntPtr ProcessMemoryLimit;
+            public UIntPtr JobMemoryLimit;
+            public UIntPtr PeakProcessMemoryUsed;
+            public UIntPtr PeakJobMemoryUsed;
+        }
+#pragma warning restore CS0649
     }
 
     private sealed class NativeMacroWindowAdapter : IMacroWindowAdapter

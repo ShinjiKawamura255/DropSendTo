@@ -220,9 +220,30 @@ internal static partial class Program
                                 Capture(window, Path.Combine(output, $"{language}-{theme}-{(small ? "small" : "normal")}-{category}.png"));
                             }
                         }
+                        var tips = new MacroTipsWindow
+                        {
+                            Owner = window, Left = -10000, Top = -10000, Width = 980, Height = 700,
+                            ShowActivated = false, ShowInTaskbar = false
+                        };
+                        try
+                        {
+                            tips.Show();
+                            Pump();
+                            var processTip = Descendants<TextBox>(tips)
+                                .Single(box => box.Text.StartsWith("TIMEOUT は終了待ち", StringComparison.Ordinal));
+                            Assert(processTip.Text.Contains("TIMEOUT covers process exit and output capture"),
+                                "Process deadline tips include Japanese and English");
+                            Descendants<TextBox>(tips).Single(box => box.Text.StartsWith("例 / Example: RUN_CAPTURE", StringComparison.Ordinal))
+                                .BringIntoView();
+                            Descendants<ScrollViewer>(tips).First().ScrollToHorizontalOffset(0);
+                            Pump();
+                            Capture(tips, Path.Combine(output, $"{language}-{theme}-macro-process-tips.png"));
+                        }
+                        finally { tips.Close(); }
                     }
                 }
                 report.Add("PASS: 40 WPF renders (5 categories × 2 languages × 2 themes × 2 sizes)");
+                report.Add("PASS: 4 WPF renders of bilingual process deadline tips (2 languages × 2 themes)");
 
                 Apply(SettingsOption.Language, AppLanguage.Japanese);
                 Apply(SettingsOption.Theme, AppTheme.Dark);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -475,6 +476,257 @@ public class KeyboardMacroServiceExpansionCommandTests : IDisposable
         result.Message.Should().Be("ABCD");
     }
 
+    [Theory]
+    [InlineData("COMMAND_WAIT")]
+    [InlineData("RUN_CAPTURE")]
+    public async Task ProcessCommand_ShouldCancelAndStopChild_WhenCanceledDuringWait(string command)
+    {
+        var pidFile = Path.Combine(_tempRoot, "waiting.pid");
+        var fixture = WriteFile("waiting.ps1",
+            $"[IO.File]::WriteAllText('{pidFile}', $PID.ToString()); Start-Sleep -Seconds 8");
+        using var service = CreateService();
+        using var cancellation = new CancellationTokenSource();
+        var variables = command == "RUN_CAPTURE" ? "Exit Out Err" : "Exit";
+        var task = service.RunMacroAsync(
+            $"{command} {variables} TIMEOUT 10000 \"powershell.exe\" \"-NoProfile\" \"-File\" \"{fixture}\"",
+            cancellationToken: cancellation.Token);
+
+        try
+        {
+            await WaitForPidFileAsync(pidFile);
+            task.IsCompleted.Should().BeFalse("the fixture is running before cancellation");
+            var stopwatch = Stopwatch.StartNew();
+            cancellation.Cancel();
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(12));
+
+            result.IsCanceled.Should().BeTrue(result.Message);
+            stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
+            await AssertProcessStoppedAsync(pidFile);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            StopFixtureProcess(pidFile);
+            await task.WaitAsync(TimeSpan.FromSeconds(12));
+        }
+    }
+
+    [Fact]
+    public async Task RunCapture_ShouldTimeoutAndStopDescendant_WhenExitedParentLeavesOutputPipeOpen()
+    {
+        var (parentScript, parentPidFile, childPidFile) = CreateInheritedPipeFixture();
+        using var service = CreateService();
+        var stopwatch = Stopwatch.StartNew();
+        var task = service.RunMacroAsync(
+            $"RUN_CAPTURE Exit Out Err TIMEOUT 2000 MAX 1024 \"powershell.exe\" \"-NoProfile\" \"-File\" \"{parentScript}\"");
+
+        try
+        {
+            await WaitForPidFileAsync(childPidFile);
+            await AssertProcessStoppedAsync(parentPidFile);
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(12));
+
+            result.Success.Should().BeFalse();
+            result.Message.Should().Contain("タイムアウト");
+            stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(4));
+            await AssertProcessStoppedAsync(parentPidFile);
+            await AssertProcessStoppedAsync(childPidFile);
+        }
+        finally
+        {
+            StopFixtureProcess(parentPidFile);
+            StopFixtureProcess(childPidFile);
+            await task.WaitAsync(TimeSpan.FromSeconds(12));
+        }
+    }
+
+    [Fact]
+    public async Task RunCapture_ShouldCancelAndStopDescendant_WhenExitedParentLeavesOutputPipeOpen()
+    {
+        var (parentScript, parentPidFile, childPidFile) = CreateInheritedPipeFixture();
+        using var service = CreateService();
+        using var cancellation = new CancellationTokenSource();
+        var task = service.RunMacroAsync(
+            $"RUN_CAPTURE Exit Out Err TIMEOUT 10000 MAX 1024 \"powershell.exe\" \"-NoProfile\" \"-File\" \"{parentScript}\"",
+            cancellationToken: cancellation.Token);
+
+        try
+        {
+            await WaitForPidFileAsync(childPidFile);
+            await AssertProcessStoppedAsync(parentPidFile);
+            task.IsCompleted.Should().BeFalse("the descendant still owns the output pipes");
+            var stopwatch = Stopwatch.StartNew();
+            cancellation.Cancel();
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(12));
+
+            result.IsCanceled.Should().BeTrue(result.Message);
+            stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
+            await AssertProcessStoppedAsync(childPidFile);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            StopFixtureProcess(parentPidFile);
+            StopFixtureProcess(childPidFile);
+            await task.WaitAsync(TimeSpan.FromSeconds(12));
+        }
+    }
+
+    [Fact]
+    public async Task CommandWait_ShouldPreserveDescendant_WhenParentCompletesNormally()
+    {
+        var (parentScript, parentPidFile, childPidFile) = CreateInheritedPipeFixture();
+        using var service = CreateService();
+        var task = service.RunMacroAsync(
+            $"COMMAND_WAIT Exit TIMEOUT 5000 \"powershell.exe\" \"-NoProfile\" \"-File\" \"{parentScript}\"");
+
+        try
+        {
+            await WaitForPidFileAsync(childPidFile);
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(12));
+
+            result.Success.Should().BeTrue(result.Message);
+            await AssertProcessStoppedAsync(parentPidFile);
+            using var child = Process.GetProcessById(int.Parse(File.ReadAllText(childPidFile)));
+            child.HasExited.Should().BeFalse("successful commands may intentionally launch background children");
+        }
+        finally
+        {
+            StopFixtureProcess(parentPidFile);
+            StopFixtureProcess(childPidFile);
+            await task.WaitAsync(TimeSpan.FromSeconds(12));
+        }
+    }
+
+    [Fact]
+    public async Task ProcessCleanupJob_ShouldRemainOptional_WhenProcessHasAlreadyExited()
+    {
+        using var process = Process.Start(KeyboardMacroService.CreateProcessStartInfoForTesting(
+            "cmd.exe", new[] { "/d", "/c", "exit /b 0" }, _tempRoot, capture: false))!;
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            var jobType = typeof(KeyboardMacroService).GetNestedType("ProcessCleanupJob", BindingFlags.NonPublic)!;
+            var tryCreate = jobType.GetMethod("TryCreate", BindingFlags.Public | BindingFlags.Static)!;
+            var cleanupJob = (IDisposable?)tryCreate.Invoke(null, new object[] { process });
+
+            cleanupJob?.Dispose();
+            cleanupJob.Should().BeNull("job assignment cannot turn an already completed command into an error");
+        }
+        finally
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessPipeReader_ShouldStop_WhenCanceledWithoutCleanupJob()
+    {
+        var pidFile = Path.Combine(_tempRoot, "unassigned-reader.pid");
+        var fixture = WriteFile("unassigned-reader.ps1",
+            $"[IO.File]::WriteAllText('{pidFile}', $PID.ToString()); Start-Sleep -Seconds 8");
+        using var cancellation = new CancellationTokenSource();
+        using var process = Process.Start(KeyboardMacroService.CreateProcessStartInfoForTesting(
+            "powershell.exe", new[] { "-NoProfile", "-File", fixture }, _tempRoot, capture: true))!;
+        var readMethod = typeof(KeyboardMacroService).GetMethod("ReadStreamWithByteLimitAsync",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var reader = (Task<string>)readMethod.Invoke(null,
+            new object[] { process.StandardOutput.BaseStream, 1024, cancellation.Token })!;
+
+        try
+        {
+            await WaitForPidFileAsync(pidFile);
+            reader.IsCompleted.Should().BeFalse("the fixture holds an empty pipe open without job assignment");
+            cancellation.Cancel();
+            Func<Task> waitForReader = async () => await reader.WaitAsync(TimeSpan.FromSeconds(2));
+
+            await waitForReader.Should().ThrowAsync<OperationCanceledException>(
+                "the reader must stop independently of process or job termination");
+            process.HasExited.Should().BeFalse("cancelling a reader alone does not stop the owned fixture");
+        }
+        finally
+        {
+            cancellation.Cancel();
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            try { await reader.WaitAsync(TimeSpan.FromSeconds(2)); }
+            catch (OperationCanceledException) { }
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task RunCapture_ShouldAllowExplicitBreakawayDescendant_WhenCommandStartsChild()
+    {
+        var childPidFile = Path.Combine(_tempRoot, "breakaway-child.pid");
+        var childScript = WriteFile("breakaway-child.ps1",
+            $"[IO.File]::WriteAllText('{childPidFile}', $PID.ToString()); Start-Sleep -Seconds 8");
+        var helper = WriteFile("BreakawayFixture.cs", """
+            using System;
+            using System.ComponentModel;
+            using System.Runtime.InteropServices;
+            using System.Text;
+            public static class BreakawayFixture
+            {
+                [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+                private struct StartupInfo
+                {
+                    public uint Size;
+                    public string Reserved, Desktop, Title;
+                    public uint X, Y, Width, Height, XChars, YChars, Fill, Flags;
+                    public ushort Show, ReservedBytes;
+                    public IntPtr ReservedPointer, Input, Output, Error;
+                }
+                [StructLayout(LayoutKind.Sequential)]
+                private struct ProcessInfo
+                {
+                    public IntPtr Process, Thread;
+                    public uint ProcessId, ThreadId;
+                }
+                [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+                private static extern bool CreateProcess(string application, StringBuilder command,
+                    IntPtr processAttributes, IntPtr threadAttributes, bool inheritHandles, uint flags,
+                    IntPtr environment, string directory, ref StartupInfo startup, out ProcessInfo process);
+                [DllImport("kernel32.dll")]
+                private static extern bool CloseHandle(IntPtr handle);
+                public static void Start(string command)
+                {
+                    var startup = new StartupInfo { Size = (uint)Marshal.SizeOf(typeof(StartupInfo)) };
+                    ProcessInfo process;
+                    // CREATE_BREAKAWAY_FROM_JOB | CREATE_NO_WINDOW; no inherited pipe handles.
+                    if (!CreateProcess(null, new StringBuilder(command), IntPtr.Zero, IntPtr.Zero, false,
+                        0x01000000 | 0x08000000, IntPtr.Zero, null, ref startup, out process))
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    CloseHandle(process.Thread);
+                    CloseHandle(process.Process);
+                }
+            }
+            """);
+        var parentScript = WriteFile("breakaway-parent.ps1", string.Join(Environment.NewLine,
+            "$ErrorActionPreference = 'Stop'",
+            $"Add-Type -Path '{helper}'",
+            $"[BreakawayFixture]::Start('\"' + (Join-Path $PSHOME 'powershell.exe') + '\" -NoProfile -File \"{childScript}\"')"));
+        using var service = CreateService();
+        var task = service.RunMacroAsync(string.Join('\n',
+            $"RUN_CAPTURE Exit Out Err TIMEOUT 10000 \"powershell.exe\" \"-NoProfile\" \"-File\" \"{parentScript}\"",
+            "RETURN {{Exit}}|{{Err}}"));
+
+        try
+        {
+            var result = await task.WaitAsync(TimeSpan.FromSeconds(12));
+
+            result.Success.Should().BeTrue(result.Message);
+            result.Message.Should().StartWith("0|", "explicit breakaway child creation must remain permitted");
+            await WaitForPidFileAsync(childPidFile);
+            using var child = Process.GetProcessById(int.Parse(File.ReadAllText(childPidFile)));
+            child.HasExited.Should().BeFalse();
+        }
+        finally
+        {
+            StopFixtureProcess(childPidFile);
+            await task.WaitAsync(TimeSpan.FromSeconds(12));
+        }
+    }
+
     [Fact]
     public void ProcessCommand_ShouldNotLaunch_WhenValidateOnly()
     {
@@ -607,6 +859,65 @@ public class KeyboardMacroServiceExpansionCommandTests : IDisposable
         var path = Path.Combine(_tempRoot, name);
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private static async Task WaitForPidFileAsync(string path)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (!File.Exists(path) || string.IsNullOrWhiteSpace(File.ReadAllText(path)))
+        {
+            if (stopwatch.Elapsed > TimeSpan.FromSeconds(5))
+            {
+                throw new TimeoutException("The owned process fixture did not start.");
+            }
+            await Task.Delay(20);
+        }
+    }
+
+    private (string Script, string ParentPidFile, string ChildPidFile) CreateInheritedPipeFixture()
+    {
+        var childPidFile = Path.Combine(_tempRoot, "descendant.pid");
+        var childScript = WriteFile("descendant.ps1",
+            $"[IO.File]::WriteAllText('{childPidFile}', $PID.ToString()); Start-Sleep -Seconds 8");
+        var parentPidFile = Path.Combine(_tempRoot, "parent.pid");
+        var parentScript = WriteFile("parent.ps1", string.Join(Environment.NewLine,
+            $"[IO.File]::WriteAllText('{parentPidFile}', $PID.ToString())",
+            "$start = New-Object Diagnostics.ProcessStartInfo",
+            "$start.FileName = 'powershell.exe'",
+            $"$start.Arguments = '-NoProfile -File \"{childScript}\"'",
+            "$start.UseShellExecute = $false",
+            "$start.CreateNoWindow = $true",
+            "$child = [Diagnostics.Process]::Start($start)",
+            "$clock = [Diagnostics.Stopwatch]::StartNew()",
+            $"while (!(Test-Path -LiteralPath '{childPidFile}') -and $clock.ElapsedMilliseconds -lt 5000) {{ Start-Sleep -Milliseconds 20 }}",
+            "[Console]::WriteLine('parent-completed')"));
+        return (parentScript, parentPidFile, childPidFile);
+    }
+
+    private static async Task AssertProcessStoppedAsync(string pidFile)
+    {
+        var pid = int.Parse(File.ReadAllText(pidFile));
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (ArgumentException)
+        {
+            // An exited fixture may already have been removed from the process table.
+        }
+    }
+
+    private static void StopFixtureProcess(string pidFile)
+    {
+        if (!File.Exists(pidFile) || !int.TryParse(File.ReadAllText(pidFile), out var pid)) return;
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            process.Kill(entireProcessTree: true);
+        }
+        catch (ArgumentException) { }
+        catch (InvalidOperationException) { }
     }
 
     private static MethodInfo GetFileOperationMethod()

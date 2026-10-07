@@ -40,6 +40,7 @@
 - TC-119 MacroDatePath: `DATE`/`TIME`/`NOW` の既定形式、`UTC`/`LOCAL`、`FORMAT`、`FILENAME`、無効書式を確認し、`PATH_*` が UNC、root、末尾 separator、拡張子なしを期待通り分解することを確認する。
 - TC-120 MacroFileOps: `MKDIR` が既存ディレクトリで成功し同名ファイルで失敗すること、`COPY`/`MOVE` がファイル/ディレクトリを処理し、宛先存在・親ディレクトリ未存在・ワイルドカード・検証モード副作用なしを確認する。
 - TC-121 MacroProcessCapture: `COMMAND_WAIT` と `RUN_CAPTURE` が shell 無効で起動し、作業ディレクトリ、timeout、終了コード、stdout/stderr、出力上限、検証モード副作用なし、stdout/stderr 非ログを確認する。
+  `KeyboardMacroServiceExpansionCommandTests` は子プロセス待機中の取消、親終了後の継承 pipe に対する期限/取消、正常成功時の子孫維持、明示的 breakaway、終了済み親への任意 Job fallback、Job に依存しない reader 取消を確認する。fixture は所有 PID と有限寿命を持ち、失敗時も生成したプロセスだけを停止する。
 - TC-122 MacroTryCatch: `TRY`/`CATCH`/`ENDTRY` が実行時エラーを捕捉し、エラー変数を格納すること、構文エラーとキャンセルは捕捉しないこと、ネストと未閉鎖検証を確認する。
 - TC-123 MacroWindow: `WINDOW_FIND` が title/class/process/pid で検索でき、複数一致は既定失敗、`INDEX` 指定で選択、`WINDOW_ACTIVATE` は成功確認できない場合に失敗し、検証モードで副作用がないことを確認する。
 - TC-135 MacroDisplayMove: `MacroDisplayMoveTests` / `NativeMacroDisplayAdapterTests` / `KeyboardMacroServiceMouseCommandTests` で9点・オフセット・負座標・解像度・境界、番号選択、複製表示、未接続・不正領域・不正構文での停止、変数展開、命令ごとの領域取得、既存絶対移動経路との一致、検証モードで列挙/入力送信しないことを確認する。Windows 実機では「識別」の番号と対象ディスプレイを照合し、拡張表示・複製表示・異なる DPI・接続変更後にクリックを伴わない移動で確認する。Tips の説明・使用例と挿入メニューの2項目が表示され、スクロールして参照/挿入できることも確認する。
