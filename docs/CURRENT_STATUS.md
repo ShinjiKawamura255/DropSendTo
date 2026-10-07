@@ -31,9 +31,11 @@ Run commands on Windows with .NET SDK 10.x:
 ```powershell
 dotnet restore
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Artifacts.ps1
 dotnet format --verify-no-changes --no-restore
 dotnet test -c Release --no-restore
 dotnet build -c Release --no-restore
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-SettingsWindow.ps1 -Configuration Release
 ```
 
 From WSL, call Windows PowerShell as documented in `AGENTS.md` and `README.md`.

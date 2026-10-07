@@ -18,9 +18,11 @@
    ```powershell
    dotnet restore
    ./scripts/Test-Release-Version.ps1
+   ./scripts/Test-Release-Artifacts.ps1
    dotnet format --verify-no-changes --no-restore
    dotnet test -c Release --no-restore
    dotnet build -c Release --no-restore
+   ./scripts/Test-SettingsWindow.ps1 -Configuration Release
    ```
 
 3. 変更をコミットし、検証したコミットへ未使用のタグを付ける。以下は例なので実際の次期バージョンに置き換える。
@@ -37,6 +39,8 @@
 7. 公開ページとダウンロードを確認する。更新確認機能を備えた旧正式版がある場合は「DropSendTo について…」を開き、新版とダウンロードボタンが表示されることを確認する。新版自身では更新不要になることを確認する。
 
 `dist/` は生成物であり直接編集しない。タグの push、Release の作成・公開は保守者が行う外部公開操作で、ローカルのビルドスクリプトは実行しない。
+
+両形式へ `LICENSE` と `USER_GUIDE.md` を同梱する。ランタイム同梱版は解決された runtime pack のライセンスと第三者通知を `licenses/` に含め、ZIP にも残す。署名を指定した場合は SignTool の終了コードと Authenticode の `Valid` 状態を確認し、失敗なら ZIP 作成へ進まない。検証用の配布物は `-OutputRoot <隔離フォルダー>` に生成でき、その中の版別出力と `latest/` が更新される。
 
 ## 問題発見時
 

@@ -23,7 +23,13 @@ jobs:
         run: ./scripts/Test-Release-Version.ps1
       - name: Format
         run: dotnet format --verify-no-changes --no-restore
+      - name: Release artifact tests
+        shell: pwsh
+        run: ./scripts/Test-Release-Artifacts.ps1
       - name: Test
-        run: dotnet test --no-restore
+        run: dotnet test -c Release --no-restore
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build -c Release --no-restore
+      - name: Settings GUI probe
+        shell: pwsh
+        run: ./scripts/Test-SettingsWindow.ps1 -Configuration Release

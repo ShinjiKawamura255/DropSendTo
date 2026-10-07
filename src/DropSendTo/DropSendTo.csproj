@@ -21,4 +21,24 @@
       <Link>img\icon_green.ico</Link>
     </Resource>
   </ItemGroup>
+  <Target Name="CopyRuntimeNotices" AfterTargets="Publish" Condition="'$(SelfContained)' == 'true'">
+    <ItemGroup>
+      <_RuntimeNoticePack Include="@(ResolvedRuntimePack)"
+                          Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App' or '%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.WindowsDesktop.App'" />
+    </ItemGroup>
+    <Error Condition="'@(_RuntimeNoticePack)' == ''" Text="Could not resolve bundled runtime licenses." />
+    <Error Condition="!Exists('%(_RuntimeNoticePack.PackageDirectory)/LICENSE') and !Exists('%(_RuntimeNoticePack.PackageDirectory)/LICENSE.TXT')"
+           Text="License missing for runtime pack %(_RuntimeNoticePack.Identity)." />
+    <Error Condition="'%(_RuntimeNoticePack.FrameworkName)' == 'Microsoft.NETCore.App' and !Exists('%(_RuntimeNoticePack.PackageDirectory)/THIRD-PARTY-NOTICES.TXT')"
+           Text="Third-party notices missing for the bundled .NET runtime." />
+    <Copy SourceFiles="%(_RuntimeNoticePack.PackageDirectory)/LICENSE"
+          DestinationFiles="$(PublishDir)licenses/%(_RuntimeNoticePack.Identity)/LICENSE"
+          Condition="Exists('%(_RuntimeNoticePack.PackageDirectory)/LICENSE')" />
+    <Copy SourceFiles="%(_RuntimeNoticePack.PackageDirectory)/LICENSE.TXT"
+          DestinationFiles="$(PublishDir)licenses/%(_RuntimeNoticePack.Identity)/LICENSE.TXT"
+          Condition="Exists('%(_RuntimeNoticePack.PackageDirectory)/LICENSE.TXT')" />
+    <Copy SourceFiles="%(_RuntimeNoticePack.PackageDirectory)/THIRD-PARTY-NOTICES.TXT"
+          DestinationFiles="$(PublishDir)licenses/%(_RuntimeNoticePack.Identity)/THIRD-PARTY-NOTICES.TXT"
+          Condition="Exists('%(_RuntimeNoticePack.PackageDirectory)/THIRD-PARTY-NOTICES.TXT')" />
+  </Target>
 </Project>

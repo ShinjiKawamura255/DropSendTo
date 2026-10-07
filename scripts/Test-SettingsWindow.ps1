@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$OutputDirectory)
+param([string]$OutputDirectory, [ValidateSet('Debug', 'Release')] [string]$Configuration = 'Debug')
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -13,12 +13,12 @@ $dotnetPath = if ($env:DOTNET_EXE) { $env:DOTNET_EXE } elseif (Test-Path "$env:U
     "$env:USERPROFILE/.dotnet/dotnet.exe"
 } else { (Get-Command dotnet -ErrorAction Stop).Source }
 $buildLog = Join-Path $OutputDirectory 'build.log'
-& $dotnetPath build $projectPath --verbosity quiet *> $buildLog
+& $dotnetPath build $projectPath -c $Configuration --verbosity quiet *> $buildLog
 if ($LASTEXITCODE -ne 0) {
     Get-Content -LiteralPath $buildLog -Tail 20
     throw 'Settings probe build failed.'
 }
-$probePath = Join-Path $repoRoot 'tests/DropSendTo.SettingsProbe/bin/Debug/net10.0-windows/DropSendTo.SettingsProbe.exe'
+$probePath = Join-Path $repoRoot "tests/DropSendTo.SettingsProbe/bin/$Configuration/net10.0-windows/DropSendTo.SettingsProbe.exe"
 $reportPath = Join-Path $OutputDirectory 'report.txt'
 if (Test-Path $reportPath) { Remove-Item -LiteralPath $reportPath }
 $probeProcess = Start-Process -FilePath $probePath -ArgumentList ('"' + $OutputDirectory + '"') -WindowStyle Hidden -PassThru `

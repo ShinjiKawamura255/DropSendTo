@@ -15,6 +15,7 @@
 - TC-010 Slots: 現在の行列構成（2〜8 × 2〜8）で全スロットの登録/解除/復元が可能で、タイトル/コマンド/引数/マクロ/ショートカット/クリック可否が保存される。
 - TC-020 LaunchDrop: ファイル/フォルダのドロップで `{args}` がクォートされ、登録コマンドに渡る。
 - TC-021 LaunchCli: CLI 引数で現在レイヤー優先→全レイヤー検索が行われる。失敗時は UI 表示とログ出力。
+  `StartupLaunchCoordinatorTests` は常駐中の成功・失敗・登録なし、引数なし二重起動、設定読込失敗を検証する。WPF probe は常駐 mutex を保持して実際の `App.OnStartup` へ日本語・空白・複数引数を渡し、対象コマンドの実行、一時プロセス終了、保存済み設定の不変を確認する。
 - TC-025 MacroScriptHappy: `KEY`/`WAIT`/`WAIT_UNTIL`/`TEXT`/`REPEAT`/`FOREACH_DROP` など代表的な命令が期待通り展開・送信され、複数ドロップ時に各パスへ `SET`/`REPLACE` を適用できる。
 - TC-026 MacroScriptValidation: 不正なキー名/REPEAT 上限超過/未閉鎖ブロック/FOREACH_DROP の書式不正や未閉鎖でエラーが返る。
 - TC-027 MacroScriptVariables: `SET`/`UNSET`/`ADD`/`SUB`/`MUL`/`DIV`/`APPEND`/`PREPEND` で変数を操作し、`{{Var}}` 展開が成功する。未定義・不正名・整数でない値・0 除算は失敗およびログ記録となる。
@@ -90,8 +91,12 @@
 - TC-134 AppLayerGui: Windowsで通常設定とは別のdata rootを使用し、設定画面の日英・明暗テーマ・最小サイズ・スクロール・エラー・キャンセルを実表示で確認する。テスト用外部アプリを使い、前面切替と同じウィンドウのタイトル変更、手動切替後の復帰、固定解除、検索／ドラッグ／編集後の保留解除を確認する。別タブのショートカットが表示を変えず動作すること、OFF時の従来切替、設定再読込と削減後の無効ルールも確認する。
 
 ## Execution
+- 設定保存の回帰: `Test-SettingsWindow.ps1` で `.bak` の読取ロックを保持し、タブ削減・テーマ・言語・最前面・配置・カスタムサイズの保存を失敗させる。disk/runtime の復元と、次の無関係な保存へ変更が混入しないことを確認する。
+- 設定ファイル I/O: `ConfigPayloadFileTests` で既知の超過の読込前拒否、長さ不明の上限＋1 byte 判定、上限一致、日本語/BOM、取消と既存エクスポートの保持を検証する。
+- 配布物: `Test-Release-Artifacts.ps1` で LICENSE の同梱、署名の非0終了、署名不成立の拒否を検証する。隔離した `Build-Release.ps1 -Portable -OutputRoot ...` の両 ZIP で LICENSE、ランタイム通知、USER_GUIDE を確認する。
 - Unit: `dotnet test tests/DropSendTo.Tests -c Release`。
 - Release/CI contract: `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Release-Version.ps1`、`dotnet format --verify-no-changes`、Release test/build を実行する。
+  CI は `Test-Release-Artifacts.ps1` と `Test-SettingsWindow.ps1 -Configuration Release` も実行する。
 - Warm-start: Release build 後に `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Measure-WarmStartup.ps1` を実行し、TC-131 の隔離・不変・閾値を検証する。
 - Manual: 手順
   1) アプリ起動→常時最前面・半透明・角丸・ボタンスタイルを確認。

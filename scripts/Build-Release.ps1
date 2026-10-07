@@ -11,7 +11,8 @@ param(
     [string]$CertificatePath,
     [string]$CertificatePassword,
     [string]$SignToolPath = "signtool.exe",
-    [string]$TimestampUrl = "http://timestamp.digicert.com"
+    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [string]$OutputRoot = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +20,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 . (Join-Path $PSScriptRoot 'Release-Version.ps1')
+. (Join-Path $PSScriptRoot 'Release-Artifacts.ps1')
 
 function Invoke-Step($name, $script) {
     Write-Host "== $name =="
@@ -56,6 +58,15 @@ function Get-SafeVariantName($name, $index) {
     return $safe
 }
 
+function Get-ContainedOutputPath([string]$root, [string]$name) {
+    $resolvedRoot = [IO.Path]::GetFullPath($root).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $resolvedPath = [IO.Path]::GetFullPath((Join-Path $resolvedRoot $name))
+    if (-not $resolvedPath.StartsWith($resolvedRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Release output path escapes its output root.'
+    }
+    return $resolvedPath
+}
+
 $wpfTrimmingSupported = $false
 if ($PortableTrim) {
     if (-not $wpfTrimmingSupported) {
@@ -87,11 +98,12 @@ try {
     }
 
     $proj = Join-Path $repoRoot 'src/DropSendTo/DropSendTo.csproj'
-    $outRoot = Join-Path $repoRoot 'dist'
+    if ($Rid -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]*$') { throw 'Unsafe runtime identifier.' }
+    $outRoot = if ($OutputRoot) { [IO.Path]::GetFullPath($OutputRoot) } else { Join-Path $repoRoot 'dist' }
     New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
-    $outDir = Join-Path $outRoot "DropSendTo_${Rid}_$Version"
-    $portableOutDir = Join-Path $outRoot "DropSendTo_Portable_${Rid}_$Version"
-    $latestDir = Join-Path $outRoot 'latest'
+    $outDir = Get-ContainedOutputPath $outRoot "DropSendTo_${Rid}_$Version"
+    $portableOutDir = Get-ContainedOutputPath $outRoot "DropSendTo_Portable_${Rid}_$Version"
+    $latestDir = Get-ContainedOutputPath $outRoot 'latest'
     if (Test-Path $latestDir) {
         Remove-Item $latestDir -Recurse -Force
     }
@@ -177,29 +189,12 @@ try {
         }
 
         $exePath = Join-Path $variantDir 'DropSendTo.exe'
-        $userGuidePath = Join-Path $repoRoot 'USER_GUIDE.md'
-        if (Test-Path $userGuidePath) {
-            Copy-Item $userGuidePath -Destination (Join-Path $variantDir 'USER_GUIDE.md') -Force
-        }
+        Copy-ReleaseDocuments -RepoRoot $repoRoot -OutputDirectory $variantDir
 
         if ($CertificatePath) {
-            if (-not (Test-Path $CertificatePath)) {
-                throw "Certificate not found: $CertificatePath"
-            }
-            if (-not (Test-Path $exePath)) {
-                throw "Executable not found for signing: $exePath"
-            }
-            $signArgs = @('sign', '/fd', 'SHA256', '/f', $CertificatePath)
-            if ($CertificatePassword) {
-                $signArgs += @('/p', $CertificatePassword)
-            }
-            if ($TimestampUrl) {
-                $signArgs += @('/tr', $TimestampUrl, '/td', 'SHA256')
-            }
-            $signArgs += $exePath
-
             Invoke-Step "Code Sign - $variantName" {
-                & $SignToolPath @signArgs
+                Invoke-ReleaseSigning -ExecutablePath $exePath -CertificatePath $CertificatePath `
+                    -CertificatePassword $CertificatePassword -SignToolPath $SignToolPath -TimestampUrl $TimestampUrl
             }
         }
 
@@ -217,7 +212,7 @@ try {
             $latestDir
         } else {
             $safeName = Get-SafeVariantName $variantName ($variantIndex + 1)
-            $nestedLatest = Join-Path $latestDir $safeName
+            $nestedLatest = Get-ContainedOutputPath $latestDir $safeName
             if (Test-Path $nestedLatest) {
                 Remove-Item $nestedLatest -Recurse -Force
             }

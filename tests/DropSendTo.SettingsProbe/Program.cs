@@ -1,4 +1,5 @@
 using System.IO;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.Windows;
@@ -22,13 +23,26 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        string output = Path.GetFullPath(args[0]);
+        if (args.Length >= 2 && args[0] == "--cli-target")
+        {
+            File.WriteAllText(args[1], JsonSerializer.Serialize(args.Skip(2).ToArray()));
+            return 0;
+        }
+        bool cliOnly = args[0] == "--cli-only";
+        string output = Path.GetFullPath(args[cliOnly ? 1 : 0]);
         Directory.CreateDirectory(output);
         Environment.SetEnvironmentVariable(AppDataPathResolver.StartupProbeEnvironmentVariable, "1");
         Environment.SetEnvironmentVariable(AppDataPathResolver.DataRootEnvironmentVariable, Path.Combine(output, "data"));
         var report = new List<string>();
         try
         {
+            VerifyResidentCli(output, cliOnly ? args[2] : null);
+            report.Add("PASS: actual App startup executes CLI arguments while the resident mutex is held, without rewriting saved settings");
+            if (cliOnly)
+            {
+                File.WriteAllLines(Path.Combine(output, "report.txt"), report);
+                return 0;
+            }
             var app = new Application();
             SynchronizationContext.SetSynchronizationContext(
                 new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
@@ -94,6 +108,51 @@ internal static class Program
                 Pump();
                 Assert(main.IsVisible, "Tray left-click restores MainWindow");
                 report.Add("PASS: simulated tray mouse events open a modeless About, reuse it, close it and restore MainWindow");
+
+                // Exercise a real persistence failure after destructive in-memory edits.
+                Apply(SettingsOption.LayerCount, 5);
+                ReadConfig().Layers[4].Name = "save-failure-sentinel";
+                Apply(SettingsOption.HideEmptySlotNames, false);
+                string backupPath = Path.Combine(output, "data", "DropSendTo", "config.json.bak");
+                using (var backupLock = new FileStream(backupPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    bool failed = false;
+                    try { Apply(SettingsOption.LayerCount, 4); }
+                    catch (TargetInvocationException ex) when (ex.InnerException is IOException) { failed = true; }
+                    Assert(failed, "Locked backup causes a real save failure");
+                    Assert(ReadConfig().Layers.Count == 5 && ReadDisk(output).Layers.Count == 5,
+                        "Failed tab reduction restores both runtime and saved settings");
+                    Assert(ReadConfig().Layers[4].Name == "save-failure-sentinel", "Failed reduction retains slots and tab names");
+                    foreach (var failedOption in new (SettingsOption Option, object Value)[]
+                    {
+                        (SettingsOption.Theme, AppTheme.Light), (SettingsOption.Language, AppLanguage.English),
+                        (SettingsOption.AlwaysOnTop, false), (SettingsOption.KeyboardPlacement, 2),
+                        (SettingsOption.MousePlacement, 1), (SettingsOption.SearchPlacement, 2)
+                    })
+                    {
+                        try { Apply(failedOption.Option, failedOption.Value); throw new Exception("Expected persistence failure"); }
+                        catch (TargetInvocationException ex) when (ex.InnerException is IOException) { }
+                        Assert(ReadConfig().Theme == AppTheme.Dark && ThemeService.GetCurrentTheme() == AppTheme.Dark &&
+                            ReadConfig().Language == AppLanguage.Japanese && main.Topmost &&
+                            ReadConfig().KeyboardPlacementMode == WindowPlacementMode.Fixed &&
+                            ReadConfig().MousePlacementFollowsKeyboard &&
+                            ReadConfig().SearchPlacementMode == SearchOverlayPlacementMode.Fixed,
+                            $"{failedOption.Option} restores runtime services and configuration");
+                    }
+                    try
+                    {
+                        typeof(MainWindow).GetMethod("ApplyCustomSlotSize", PrivateInstance)!.Invoke(main,
+                            new object[] { new CustomSlotSizeOptions { SlotHeight = 60, TitleFontSize = 20 } });
+                        throw new Exception("Expected detail persistence failure");
+                    }
+                    catch (TargetInvocationException ex) when (ex.InnerException is IOException) { }
+                    Assert(ReadConfig().SlotSize == SlotSize.Medium, "Failed detail change restores custom sizing");
+                }
+                Apply(SettingsOption.HideEmptySlotNames, true);
+                Assert(ReadDisk(output).Layers.Count == 5 && ReadDisk(output).Layers[4].Name == "save-failure-sentinel",
+                    "An unrelated save cannot commit a previously failed tab reduction");
+                Apply(SettingsOption.LayerCount, 4);
+                report.Add("PASS: real backup-lock failures restore tabs, theme, language, topmost, placement and custom sizing without leaking into a later save");
 
                 void NotifyTrayClick(string button)
                 {
@@ -225,6 +284,45 @@ internal static class Program
 
     private static AppConfig ReadDisk(string output) => JsonSerializer.Deserialize<AppConfig>(
         File.ReadAllText(Path.Combine(output, "data", "DropSendTo", "config.json")))!;
+
+    private static void VerifyResidentCli(string output, string? executable = null)
+    {
+        string root = Path.Combine(output, "cli-data");
+        string resultPath = Path.Combine(output, "cli-result.json");
+        if (File.Exists(resultPath)) File.Delete(resultPath);
+        var config = new AppConfig { CurrentLayer = 2 };
+        config.Layers[2].Slots[0] = new SlotModel
+        {
+            Command = Environment.ProcessPath,
+            ArgumentsTemplate = $"--cli-target \"{resultPath}\" {{args}}"
+        };
+        var service = new ConfigService(root);
+        service.Save(config);
+        string configBefore = File.ReadAllText(service.GetConfigPath());
+        using var resident = new SingleInstanceService(@"Global\DropSendTo");
+        _ = resident.TryAcquire(); // An existing real resident also satisfies the test's mutex precondition.
+        var start = new ProcessStartInfo(executable ?? Path.Combine(AppContext.BaseDirectory, "DropSendTo.exe"))
+        {
+            UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden
+        };
+        start.Environment[AppDataPathResolver.StartupProbeEnvironmentVariable] = "1";
+        start.Environment[AppDataPathResolver.DataRootEnvironmentVariable] = root;
+        string[] arguments = [@"C:\入力 folder\file one.txt", "plain.txt"];
+        foreach (string argument in arguments) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        try
+        {
+            Assert(process.WaitForExit(10000), "Transient CLI process exits while the resident mutex is held");
+            Assert(process.ExitCode == 0, "CLI startup succeeds");
+            Assert(SpinWait.SpinUntil(() =>
+            {
+                try { return JsonSerializer.Deserialize<string[]>(File.ReadAllText(resultPath))!.SequenceEqual(arguments); }
+                catch (Exception ex) when (ex is IOException or JsonException) { return false; }
+            }, 5000), "CLI preserves Japanese, spaces and multiple arguments");
+            Assert(File.ReadAllText(service.GetConfigPath()) == configBefore, "Transient CLI leaves saved settings unchanged");
+        }
+        finally { if (!process.HasExited) { process.Kill(); process.WaitForExit(); } }
+    }
 
     private static void Assert(bool condition, string message)
     {

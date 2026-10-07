@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using DropSendTo.Services;
-using DropSendTo.Models;
 using System.Windows;
 using WpfApplication = System.Windows.Application;
 using WpfMessageBox = System.Windows.MessageBox;
@@ -41,10 +38,25 @@ public partial class App : WpfApplication
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        if (!_singleInstance.TryAcquire())
+        bool ownsInstance = _singleInstance.TryAcquire();
+        var startup = StartupLaunchCoordinator.Start(ownsInstance, e.Args,
+            _configService.LoadOrCreate, (slot, paths) => _launcher.Launch(slot, paths));
+        if (startup.Status == StartupLaunchStatus.AlreadyRunning)
         {
             _logger.Warn("Another DropSendTo instance is already running.");
             WpfMessageBox.Show("DropSendTo はすでに起動しています。既存のウィンドウを確認してください。", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
+        if (startup.Error != null)
+        {
+            _logger.Error("CLI launch failed.");
+            WpfMessageBox.Show(startup.Error, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        if (startup.Status is StartupLaunchStatus.CliLaunched or StartupLaunchStatus.CliFailed)
+        {
+            _logger.Info($"Transient CLI launch completed (status={startup.Status}, args={e.Args.Length}).");
             Shutdown();
             return;
         }
@@ -60,38 +72,6 @@ public partial class App : WpfApplication
             var cfg = _configService.LoadOrCreate();
             _logger.Info($"Configuration ready (path={_configService.GetConfigPath()}, rows={cfg.SlotRows}, cols={cfg.SlotColumns}, currentLayer={cfg.CurrentLayer + 1}).");
             ThemeService.ApplyTheme(cfg.Theme);
-            var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
-            if (args.Length > 0)
-            {
-                _logger.Info($"CLI launch requested with {args.Length} argument(s).");
-                // Choose first registered slot in current layer, otherwise across layers
-                var layers = cfg.Layers ?? new List<Layer>();
-                int totalLayers = Math.Max(layers.Count, 1);
-                var layer = Math.Clamp(cfg.CurrentLayer, 0, totalLayers - 1);
-                var slot = layers[layer].Slots.FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command))
-                           ?? layers.SelectMany(l => l.Slots).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s.Command));
-                if (slot != null)
-                {
-                    var result = _launcher.Launch(slot, args);
-                    if (!result.Success)
-                    {
-                        _logger.Error($"Launch failed: {result.Message}");
-                        WpfMessageBox.Show(result.Message, "Launch Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                        // Fall through to show UI for manual drop
-                    }
-                    else
-                    {
-                        _logger.Info($"Launched via CLI with {args.Length} arg(s)");
-                        Shutdown();
-                        return;
-                    }
-                }
-                else
-                {
-                    _logger.Warn("No registered slot found for CLI launch");
-                    WpfMessageBox.Show("No registered slot found. Please register a slot.", "DropSendTo", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
         }
         catch (Exception ex)
         {

@@ -14,6 +14,18 @@ namespace DropSendTo.Tests;
 
 public class ConfigTransferServiceTests
 {
+    [Fact]
+    public void ExportSnapshot_ShouldRemainDetached_WhenSettingsChangeBeforeEncryption()
+    {
+        var config = new AppConfig();
+        config.Layers[0].Slots[0].Title = "captured";
+        string snapshot = ConfigTransferService.CreateExportSnapshot(config);
+        config.Layers[0].Slots[0].Title = "edited later";
+        string payload = ConfigTransferService.EncryptExportSnapshot(snapshot, "password");
+        var imported = new ConfigTransferService().ImportConfig(payload, "password");
+        imported.Layers[0].Slots[0].Title.Should().Be("captured");
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(1)]

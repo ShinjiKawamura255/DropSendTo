@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using DropSendTo.Models;
@@ -42,11 +43,41 @@ public partial class MainWindow
     }
 
     private void ApplySetting(SettingsOption option, object value)
+        => ApplyConfigChange(() => ApplySettingCore(option, value));
+
+    private void ApplyConfigChange(Action change)
     {
-        try { ApplySettingCore(option, value); }
+        // Keep a detached snapshot: tab reduction and normalization mutate nested collections.
+        var previous = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(_config))!;
+        int previousLayer = _currentLayer;
+        bool wasPinned = _appLayerSelection.IsPinned;
+        double previousLeft = Left;
+        double previousTop = Top;
+        try { change(); }
         catch (Exception ex)
         {
-            _logger.Error($"Settings update {option} failed: {ex}");
+            try
+            {
+                ConfigRuntimeApplier.Apply(previous, this);
+                _currentLayer = previousLayer;
+                _appLayerSelection.SetPinned(wasPinned);
+                Left = previousLeft;
+                Top = previousTop;
+                Title = "DropSendTo (Layer " + (_currentLayer + 1) + ")";
+                RefreshUi();
+                UpdateAppLayerUi();
+            }
+            catch (Exception restoreException)
+            {
+                // Never let another save persist the failed edit, even if a runtime service cannot recover.
+                _config = previous;
+                _logger.Error($"Settings runtime restore failed: {restoreException}");
+                throw new InvalidOperationException(previous.Language == AppLanguage.English
+                    ? "The setting failed and the running state could not be fully restored. Restart the app."
+                    : "設定変更に失敗し、実行中の状態を完全には復元できませんでした。アプリを再起動してください。",
+                    new AggregateException(ex, restoreException));
+            }
+            _logger.Error($"Settings update failed: {ex}");
             throw;
         }
     }

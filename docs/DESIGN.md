@@ -9,6 +9,7 @@
 
 ## DES-002 Components
 - App: 例外ハンドラ登録、ログ初期化、CLI 引数処理、UI 起動制御を担う。
+  `StartupLaunchCoordinator` は常駐 mutex の所有と引数を基に起動結果を返す。引数付き一時プロセスは `LauncherService` で保存済み設定のコマンドだけを実行し、メイン UI や常駐フックを初期化しない。
 - MainWindow: 2〜8 行×2〜8 列のスロットグリッドを描画し、レイヤー切替・レイアウト変更・ドロップ/クリック/ショートカット起動・Prefix インジケーター（左上オーバーレイ表示）・設定保存を統括する。設定画面のスロットサイズで Small/Medium/Large/Custom を切り替え（既定は Medium）。Small=1 行（ステータスオーバーレイ）、Medium=2 行、Large=3 行のタイトル表示を実現し、Custom ではスロット高さ・フォントサイズ・余白・行列ステップを指定したメトリクスで再構成する。タスクトレイアイコンとのやり取りと最小化状態 (`_isMinimizedToTray`) を管理し、Prefix+Shift+Enter やメニュー操作でウィンドウを格納/復帰する。起動時は `RunOnStartup` が有効なスロットを順に実行する。マクロ実行状態は `SlotRunContext` のスタックで管理し、割り込み/一時停止モード時に UI へ「キャンセル中...」/「一時停止中...」を表示しつつ、復帰後は直前のスロット状態を再描画する。検索レイヤーでは `SlotSearchService` が返す順序付き検索結果を表示スロットへマッピングし、MainWindow 自体は検索オーバーレイ、フォーカス、キーボード移動、表示更新に責務を限定する。Slot Setup Mode はツールバーの ✎ ボタンで `_isSlotLayoutEditMode` を切り替え、左上に「SLOT SETUP MODE」オーバーレイを表示してクリック/ドロップ起動を抑止する。モード中は `_slotLayoutDragSourceLayer/index` を保持し、`DragDrop.DoDragDrop` に `SlotLayoutDragData`（レイヤー+スロット番号）を渡して UI ベースのドラッグ＆ドロップを実現。`SlotVisual.DragPreviewHost` を重ね描画してターゲットスロットのプレビューを元位置に表示し、`LayerBtn` 上のホバータイマーを流用して別レイヤーへの切替・スワップも同一操作で行う。ドロップ完了時にのみ `_config.Layers` のスロットを入れ替え `ConfigService` で保存する。設定画面で日本語/English を切り替えた場合は `UiText` 辞書からメニューと検索ラベルの文言を即時反映し、選択を config に保持する。
 - SettingsWindow / MainWindow.Settings: モデルレスの設定画面を単一インスタンスで保持する。SettingsWindow は 5 カテゴリの入力と現在値の同期を担当し、`Func<AppConfig>` でインポート後の設定差し替えを追従する。再同期中は変更イベントを抑止する。選択項目は `ApplySetting` で既存の UI・ショートカット・保存処理へ接続し、詳細編集は Task で結果を受け取る。詳細編集中は設定項目を無効化し、Owner の終了で詳細画面も閉じる。設定 JSON と暗号化転送のスキーマは変更しない。
 - StartupRegistrationService: 現在ユーザーの `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` に `DropSendTo` 値を作成/削除し、起動コマンドを引用符付きで保存する。配布 exe を直接起動するほか、開発時の `dotnet` ホストではエントリ DLL を引数に含める。登録状態の読み取りは 設定画面のチェック状態同期に利用し、設定 JSON には複製しない。
@@ -40,6 +41,10 @@
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
 ## DES-003 UI Flows
+
+設定変更の `ApplyConfigChange` は直前の設定を独立した JSON snapshot として捕捉する。変更・保存失敗時は `ConfigRuntimeApplier` で設定・テーマ・ショートカット・配置・言語を戻し、元の表示タブと一時固定を復元する。snapshot は失敗時だけ差し替え、通常の成功時には開いているスロット編集の参照を維持する。設定差し替え後の古いスロット編集結果は参照一致の確認で拒否する。
+
+設定転送は dispatcher でエクスポート snapshot を固定し、暗号化・復号を worker へ渡す。`ConfigPayloadFile` は非同期の有界読込と、同じディレクトリへの一時書込・置換を担当する。所有画面の生存期間 token は画面終了後の保存・runtime 適用を防ぐ。
 1) 起動: App が ConfigService で設定を読み込み SlotRows/SlotColumns を正規化、ログクリーンアップを実行。CLI 引数があれば優先スロットで LauncherService を呼び出し成功時は UI を表示せず終了。失敗または引数なしの場合は MainWindow を生成し、WindowPlacementService で位置を補正して表示。`SourceInitialized` で KeyboardMacroService と ShortcutService を初期化し、Prefix/ショートカット設定を登録する。読み込んだ `_config.Language` を基に `ApplyLanguageToUi` でメニュー/検索ラベルの文言を初期化し、起動時実行フラグが有効なスロットを順に起動する。起動時の挙動が「常にタスクトレイで起動」の場合は `Loaded` 後に `MinimizeWindowToTray` を呼び、前回状態を復元する場合は `LastWindowVisibility` が Tray なら同じ処理を行う。
 2) レイヤー切替: ボタン押下またはマウスホイールで `_currentLayer` を更新し、タイトルと UI を刷新。ドロップ中にレイヤーボタンへ 800ms 以上滞在した場合は DispatcherTimer で自動切替する。
 3) ドロップ: Border の Drop イベントでファイルパス配列を取得。コマンド未設定なら情報ダイアログ、`Macro Script` モードは引き続きドロップ禁止。`Macro Script 拡張` かつマクロ/コマンド両方が設定されている場合は `TriggerSlotAsync(..., SlotTriggerSource.Drop, paths)` を呼び出し、ドロップパスを `MacroExecutionContext.DroppedPaths` としてマクロへ渡す。マクロ内の `{{drop_args}}` / `{{drop_count}}` / `{{drop_path}}` / `{{drop_path:n}}` で参照でき、`COMMAND` から引数省略で呼び出した場合はドロップパス付きの `ArgumentsTemplate` が展開される。その他のモードでは LauncherService が ClipboardHistoryService から取得した履歴を含めて `ArgumentsTemplate` を展開（`{args}` / `{drop_args}` / `{drop_count}` / `{drop_path}` / `{drop_path:n}` / `{clipboard}` / `{clipboard_args}` / `{clipboard_args:n}`）し実行。失敗時はエラーダイアログ表示とログ出力。ドラッグ中のホイールクリック時は DropCaptureWindow を表示し、そこで受けたドロップパスを `_pendingDropPaths` として保持し、左上インジケーターを点灯させた上でメインウィンドウを表示する。

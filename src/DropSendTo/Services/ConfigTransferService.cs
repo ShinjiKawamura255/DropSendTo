@@ -24,7 +24,13 @@ internal sealed class ConfigTransferService
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
         if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("パスワードを指定してください。", nameof(password));
+        return EncryptExportSnapshot(CreateExportSnapshot(config), password);
+    }
 
+    // Capture on the dispatcher before background crypto so modeless edits cannot race serialization.
+    internal static string CreateExportSnapshot(AppConfig config)
+    {
+        if (config == null) throw new ArgumentNullException(nameof(config));
         var snapshot = ExportConfigSnapshot.FromAppConfig(config);
         var json = JsonSerializer.Serialize(snapshot);
         // AES-GCM preserves the plaintext byte length, so an oversized export could never be imported.
@@ -32,6 +38,12 @@ internal sealed class ConfigTransferService
         {
             throw new InvalidOperationException("エクスポートする設定が上限 (8 MiB) を超えています。config.json と .bak を直接退避してください。");
         }
+        return json;
+    }
+
+    internal static string EncryptExportSnapshot(string json, string password)
+    {
+        if (string.IsNullOrWhiteSpace(password)) throw new ArgumentException("パスワードを指定してください。", nameof(password));
         var package = Encrypt(json, password);
         var payload = JsonSerializer.Serialize(package, new JsonSerializerOptions { WriteIndented = true });
         if (Encoding.UTF8.GetByteCount(payload) > MaxPackageBytes)

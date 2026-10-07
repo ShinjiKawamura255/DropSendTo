@@ -3170,6 +3170,13 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
         dlg.SlotSaved += (_, args) =>
         {
+            if (!ReferenceEquals(config, _config))
+            {
+                WpfMessageBox.Show(_currentLanguage == AppLanguage.English
+                    ? "The configuration changed. Reopen the slot editor."
+                    : "設定が変更されました。スロット編集画面を開き直してください。", Title);
+                return;
+            }
             slot.Title = args.AppTitle;
             slot.Command = args.CommandPath;
             slot.ArgumentsTemplate = args.ArgumentsTemplate;
@@ -3801,12 +3808,15 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        _config.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(options.Clone());
-        _config.SlotSize = SlotSize.Custom;
-        ApplySlotLayout();
-        RefreshUi();
-        ClampWindowWithinBounds();
-        _configService.Save(_config);
+        ApplyConfigChange(() =>
+        {
+            _config.CustomSlotSize = CustomSlotSizeNormalizer.Normalize(options.Clone());
+            _config.SlotSize = SlotSize.Custom;
+            ApplySlotLayout();
+            RefreshUi();
+            ClampWindowWithinBounds();
+            _configService.Save(_config);
+        });
     }
 
     private void OnEditModeToggleButtonClick(object sender, RoutedEventArgs e)
@@ -3926,6 +3936,10 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     private async Task ExportConfigAsync()
     {
+        var operationOwner = _settingsWindow ?? (Window)this;
+        using var lifetime = new CancellationTokenSource();
+        EventHandler onClosed = (_, _) => lifetime.Cancel();
+        operationOwner.Closed += onClosed;
         try
         {
             var passwordDialog = new PasswordPromptDialog(
@@ -3933,7 +3947,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 "エクスポートファイルを保護するパスワードを入力してください。",
                 requireConfirmation: true)
             {
-                Owner = _settingsWindow ?? (Window)this
+                Owner = operationOwner
             };
             WindowCascadeService.Arrange(passwordDialog, passwordDialog.Owner);
             if (!await passwordDialog.ShowForResultAsync())
@@ -3956,24 +3970,34 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 FileName = $"DropSendTo_{DateTime.Now:yyyyMMdd_HHmmss}.dstcfg"
             };
 
-            if (saveDialog.ShowDialog(_settingsWindow ?? (Window)this) != true)
+            if (saveDialog.ShowDialog(operationOwner) != true)
             {
                 return;
             }
 
-            var payload = _configTransferService.CreateExportPayload(_config, password);
-            File.WriteAllText(saveDialog.FileName, payload);
+            var snapshot = ConfigTransferService.CreateExportSnapshot(_config);
+            var payload = await Task.Run(() => ConfigTransferService.EncryptExportSnapshot(snapshot, password), lifetime.Token);
+            lifetime.Token.ThrowIfCancellationRequested();
+            string exportPath = saveDialog.FileName;
+            await Task.Run(() => ConfigPayloadFile.WriteFileAsync(exportPath, payload, lifetime.Token), lifetime.Token);
+            lifetime.Token.ThrowIfCancellationRequested();
             WpfMessageBox.Show("コンフィグのエクスポートが完了しました。", "Export Config", MessageBoxButton.OK, MessageBoxImage.Information);
         }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception ex)
         {
             _logger.Error($"Config export failed: {ex}");
             WpfMessageBox.Show("コンフィグのエクスポートに失敗しました。ログをご確認ください。", "Export Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally { operationOwner.Closed -= onClosed; }
     }
 
     private async Task ImportConfigAsync()
     {
+        var operationOwner = _settingsWindow ?? (Window)this;
+        using var lifetime = new CancellationTokenSource();
+        EventHandler onClosed = (_, _) => lifetime.Cancel();
+        operationOwner.Closed += onClosed;
         try
         {
             var openDialog = new Microsoft.Win32.OpenFileDialog
@@ -3982,18 +4006,20 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 Filter = "DropSendTo Export (*.dstcfg)|*.dstcfg|All files (*.*)|*.*",
                 DefaultExt = ".dstcfg"
             };
-            if (openDialog.ShowDialog(_settingsWindow ?? (Window)this) != true)
+            if (openDialog.ShowDialog(operationOwner) != true)
             {
                 return;
             }
 
-            var payload = File.ReadAllText(openDialog.FileName);
+            string importPath = openDialog.FileName;
+            var payload = await Task.Run(() => ConfigPayloadFile.ReadFileAsync(importPath, lifetime.Token), lifetime.Token);
+            lifetime.Token.ThrowIfCancellationRequested();
             var passwordDialog = new PasswordPromptDialog(
                 "コンフィグのインポート",
                 "エクスポート時に設定したパスワードを入力してください。",
                 requireConfirmation: false)
             {
-                Owner = _settingsWindow ?? (Window)this
+                Owner = operationOwner
             };
             WindowCascadeService.Arrange(passwordDialog, passwordDialog.Owner);
             if (!await passwordDialog.ShowForResultAsync())
@@ -4008,15 +4034,17 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 return;
             }
 
-            var imported = _configTransferService.ImportConfig(payload, password);
+            var imported = await Task.Run(() => _configTransferService.ImportConfig(payload, password), lifetime.Token);
+            lifetime.Token.ThrowIfCancellationRequested();
             ConfigService.NormalizeForUse(imported);
             var risk = ConfigImportRiskSummary.FromConfig(imported);
             var confirmationDialog = new ConfigImportConfirmationDialog(_currentLanguage, risk)
             {
-                Owner = _settingsWindow ?? (Window)this
+                Owner = operationOwner
             };
             WindowCascadeService.Arrange(confirmationDialog, confirmationDialog.Owner);
             bool approved = await confirmationDialog.ShowForResultAsync();
+            lifetime.Token.ThrowIfCancellationRequested();
 
             var result = _configImportCoordinator.Commit(
                 _config,
@@ -4030,6 +4058,15 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             }
 
             WpfMessageBox.Show("コンフィグのインポートが完了しました。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (ConfigPayloadSizeException)
+        {
+            _logger.Warn("Config import file rejected by size limit.");
+            WpfMessageBox.Show(_currentLanguage == AppLanguage.English
+                ? "The import file exceeds the 16 MiB limit."
+                : "インポートファイルが上限 (16 MiB) を超えています。",
+                "Import Config", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (ConfigImportCommitException ex)
         {
@@ -4050,6 +4087,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             _logger.Error($"Config import error: {ex}");
             WpfMessageBox.Show("コンフィグのインポートに失敗しました。ログをご確認ください。", "Import Config", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally { operationOwner.Closed -= onClosed; }
     }
 
     void IConfigRuntimeApplyTarget.ApplyCore(AppConfig config)
@@ -4130,19 +4168,22 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         WindowCascadeService.Arrange(dlg, dlg.Owner);
         if (await dlg.ShowForResultAsync())
         {
-            var newPrefix = dlg.NormalizedPrefix;
-            bool prefixChanged = !string.Equals(_config.ShortcutPrefix, newPrefix, StringComparison.Ordinal);
-            bool disableChanged = _config.ShortcutPrefixDisabled != dlg.IsPrefixDisabled;
-
-            _shortcutService.UpdatePrefix(newPrefix, dlg.IsPrefixDisabled);
-            if (prefixChanged || disableChanged)
+            ApplyConfigChange(() =>
             {
-                _config.ShortcutPrefix = newPrefix;
-                _config.ShortcutPrefixDisabled = dlg.IsPrefixDisabled;
-                _configService.Save(_config);
-            }
+                var newPrefix = dlg.NormalizedPrefix;
+                bool prefixChanged = !string.Equals(_config.ShortcutPrefix, newPrefix, StringComparison.Ordinal);
+                bool disableChanged = _config.ShortcutPrefixDisabled != dlg.IsPrefixDisabled;
 
-            UpdateShortcutRegistrations();
+                _shortcutService.UpdatePrefix(newPrefix, dlg.IsPrefixDisabled);
+                if (prefixChanged || disableChanged)
+                {
+                    _config.ShortcutPrefix = newPrefix;
+                    _config.ShortcutPrefixDisabled = dlg.IsPrefixDisabled;
+                }
+
+                UpdateShortcutRegistrations();
+                if (prefixChanged || disableChanged) _configService.Save(_config);
+            });
         }
     }
 
@@ -4162,10 +4203,13 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        _config.SearchHotkeyEnabled = enabled;
-        _config.SearchHotkey = hotkey;
-        _shortcutService.UpdateSearchHotkey(hotkey, enabled);
-        _configService.Save(_config);
+        ApplyConfigChange(() =>
+        {
+            _config.SearchHotkeyEnabled = enabled;
+            _config.SearchHotkey = hotkey;
+            _shortcutService.UpdateSearchHotkey(hotkey, enabled);
+            _configService.Save(_config);
+        });
     }
 
     private async Task ConfigureMouseGesturesAsync()
@@ -4204,20 +4248,23 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
                 return;
             }
 
-            _config.EnableMouseGestures = result.Enabled;
-            _config.EnableDragMiddleClickShow = result.EnableDragMiddleClickShow;
-            _config.EnablePrefixDropCapture = dlg.EnablePrefixDropCapture;
-            _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
-            _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
-            _config.MouseGestureInvertDirections = result.InvertDirections;
-            _config.MouseGestureRequireCtrl = result.RequireCtrl;
-            _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
-            _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
-            _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
+            ApplyConfigChange(() =>
+            {
+                _config.EnableMouseGestures = result.Enabled;
+                _config.EnableDragMiddleClickShow = result.EnableDragMiddleClickShow;
+                _config.EnablePrefixDropCapture = dlg.EnablePrefixDropCapture;
+                _config.MouseGestureClockwiseTurnsToShow = result.ClockwiseTurnsToShow;
+                _config.MouseGestureCounterClockwiseTurnsToHide = result.CounterClockwiseTurnsToHide;
+                _config.MouseGestureInvertDirections = result.InvertDirections;
+                _config.MouseGestureRequireCtrl = result.RequireCtrl;
+                _config.MouseGestureSuppressDuringPresentation = result.SuppressDuringPresentation;
+                _config.MouseGestureEnforceRadiusLimit = result.EnforceRadiusLimit;
+                _config.MouseGestureMaxRadiusPixels = result.MaxRadiusPixels;
 
-            ApplyMouseGestureOptions();
-            _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
-            _configService.Save(_config);
+                ApplyMouseGestureOptions();
+                _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
+                _configService.Save(_config);
+            });
         }
         catch (Exception ex)
         {
@@ -4248,33 +4295,36 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
 
         var result = dialog.ResultOptions;
-        bool changed = false;
+        ApplyConfigChange(() =>
+        {
+            bool changed = false;
 
-        if (_config.MouseGestureShowLayerWhenVisible != result.MouseGestureVisibleLayer)
-        {
-            _config.MouseGestureShowLayerWhenVisible = result.MouseGestureVisibleLayer;
-            changed = true;
-        }
-        if (_config.MouseGestureShowLayerWhenHidden != result.MouseGestureHiddenLayer)
-        {
-            _config.MouseGestureShowLayerWhenHidden = result.MouseGestureHiddenLayer;
-            changed = true;
-        }
-        if (_config.PrefixShowLayerWhenVisible != result.PrefixVisibleLayer)
-        {
-            _config.PrefixShowLayerWhenVisible = result.PrefixVisibleLayer;
-            changed = true;
-        }
-        if (_config.PrefixShowLayerWhenHidden != result.PrefixHiddenLayer)
-        {
-            _config.PrefixShowLayerWhenHidden = result.PrefixHiddenLayer;
-            changed = true;
-        }
+            if (_config.MouseGestureShowLayerWhenVisible != result.MouseGestureVisibleLayer)
+            {
+                _config.MouseGestureShowLayerWhenVisible = result.MouseGestureVisibleLayer;
+                changed = true;
+            }
+            if (_config.MouseGestureShowLayerWhenHidden != result.MouseGestureHiddenLayer)
+            {
+                _config.MouseGestureShowLayerWhenHidden = result.MouseGestureHiddenLayer;
+                changed = true;
+            }
+            if (_config.PrefixShowLayerWhenVisible != result.PrefixVisibleLayer)
+            {
+                _config.PrefixShowLayerWhenVisible = result.PrefixVisibleLayer;
+                changed = true;
+            }
+            if (_config.PrefixShowLayerWhenHidden != result.PrefixHiddenLayer)
+            {
+                _config.PrefixShowLayerWhenHidden = result.PrefixHiddenLayer;
+                changed = true;
+            }
 
-        if (changed)
-        {
-            _configService.Save(_config);
-        }
+            if (changed)
+            {
+                _configService.Save(_config);
+            }
+        });
     }
 
     private async Task EditLayerNamesAsync()
@@ -4292,22 +4342,25 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        bool changed = false;
-        for (int i = 0; i < _config.Layers.Count && i < dialog.LayerNames.Count; i++)
+        ApplyConfigChange(() =>
         {
-            var newName = dialog.LayerNames[i] ?? string.Empty;
-            if (!string.Equals(_config.Layers[i].Name, newName, StringComparison.Ordinal))
+            bool changed = false;
+            for (int i = 0; i < _config.Layers.Count && i < dialog.LayerNames.Count; i++)
             {
-                _config.Layers[i].Name = newName;
-                changed = true;
+                var newName = dialog.LayerNames[i] ?? string.Empty;
+                if (!string.Equals(_config.Layers[i].Name, newName, StringComparison.Ordinal))
+                {
+                    _config.Layers[i].Name = newName;
+                    changed = true;
+                }
             }
-        }
 
-        if (changed)
-        {
-            _configService.Save(_config);
-            ShowLayerNameOverlay();
-        }
+            if (changed)
+            {
+                _configService.Save(_config);
+                ShowLayerNameOverlay();
+            }
+        });
     }
 
     private void OnMinimizeToTray(object sender, RoutedEventArgs e)
@@ -4398,20 +4451,23 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        _config.DefaultMinimizeOptions = dlg.GetDefaultOptions();
-        foreach (var update in dlg.GetSlotUpdates())
+        ApplyConfigChange(() =>
         {
-            if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
-            var layer = _config.Layers[update.LayerIndex];
-            layer.Slots ??= new List<SlotModel>();
-            if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
-            var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
-            slot.MinimizeOptions = update.Options?.Clone() ?? SlotMinimizeOptions.CreateDefault();
-            layer.Slots[update.SlotIndex] = slot;
-        }
+            _config.DefaultMinimizeOptions = dlg.GetDefaultOptions();
+            foreach (var update in dlg.GetSlotUpdates())
+            {
+                if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
+                var layer = _config.Layers[update.LayerIndex];
+                layer.Slots ??= new List<SlotModel>();
+                if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
+                var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
+                slot.MinimizeOptions = update.Options?.Clone() ?? SlotMinimizeOptions.CreateDefault();
+                layer.Slots[update.SlotIndex] = slot;
+            }
 
-        _configService.Save(_config);
-        RefreshUi();
+            RefreshUi();
+            _configService.Save(_config);
+        });
     }
 
     private async Task ConfigureStartupSlotsAsync()
@@ -4434,18 +4490,21 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             return;
         }
 
-        foreach (var update in updates)
+        ApplyConfigChange(() =>
         {
-            if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
-            var layer = _config.Layers[update.LayerIndex];
-            layer.Slots ??= new List<SlotModel>();
-            if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
-            var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
-            slot.RunOnStartup = update.RunOnStartup;
-            layer.Slots[update.SlotIndex] = slot;
-        }
+            foreach (var update in updates)
+            {
+                if (update.LayerIndex < 0 || update.LayerIndex >= _config.Layers.Count) continue;
+                var layer = _config.Layers[update.LayerIndex];
+                layer.Slots ??= new List<SlotModel>();
+                if (update.SlotIndex < 0 || update.SlotIndex >= layer.Slots.Count) continue;
+                var slot = layer.Slots[update.SlotIndex] ?? new SlotModel();
+                slot.RunOnStartup = update.RunOnStartup;
+                layer.Slots[update.SlotIndex] = slot;
+            }
 
-        _configService.Save(_config);
+            _configService.Save(_config);
+        });
     }
 
     private void OnShowAbout(object sender, RoutedEventArgs e)

@@ -22,7 +22,7 @@
 
 ## 1. Overview
 
-DropSendTo は .NET 10 / WPF で実装された Windows 常駐ランチャーである。スロットグリッド、レイヤー、ドラッグアンドドロップ、CLI 引数、Prefix ショートカット、マクロ実行、検索レイヤー、タスクトレイ常駐、暗号化設定転送を単一プロセス内で扱う。
+DropSendTo は .NET 10 / WPF で実装された Windows 常駐ランチャーである。スロットグリッド、レイヤー、ドラッグアンドドロップ、Prefix ショートカット、マクロ実行、検索レイヤー、タスクトレイ常駐、暗号化設定転送を常駐プロセスで扱い、CLI 引数付き起動は常駐中も一時プロセスで処理する。
 
 この詳細設計書は、既存の `docs/DESIGN.md` が示す全体設計を、実装モジュール単位の責務・入出力・失敗時挙動へ展開する。設計根拠は `src/DropSendTo` 配下の実装、`tests/DropSendTo.Tests` 配下のテスト、`docs/REQUIREMENTS.md` / `docs/SPEC.md` / `docs/DESIGN.md` / `docs/TESTPLAN.md` とする。
 
@@ -137,7 +137,8 @@ stateDiagram-v2
   [*] --> Starting
   Starting --> CliLaunch: args exist and slot launch succeeds
   CliLaunch --> Shutdown
-  Starting --> MainVisible: no args or CLI failure
+  Starting --> MainVisible: owns resident mutex and no args or CLI failure
+  Starting --> Shutdown: resident exists and no args or CLI failure
   MainVisible --> TrayHidden: Minimize to Tray / Prefix+Shift+Enter
   TrayHidden --> MainVisible: tray click / Prefix+Enter / search request
   MainVisible --> SearchLayer: Prefix+Alt+Space / search hotkey
@@ -159,9 +160,9 @@ stateDiagram-v2
 - Responsibility: 起動入口、単一インスタンス制御、未処理例外ハンドラ、初期設定ロード、CLI 起動、メインウィンドウ表示、終了時リソース解放。
 - Public Interface: `OnStartup(StartupEventArgs)`, `OnExit(ExitEventArgs)`。
 - Inputs / Outputs: 入力はコマンドライン引数と実行環境。出力は UI 表示、または CLI 起動成功時の即時終了。
-- Internal Logic: `SingleInstanceService` で多重起動を抑止し、`ConfigService.LoadOrCreate()` で設定を得る。CLI 引数があれば現在レイヤーの最初の登録済みスロット、なければ全レイヤー最初の登録済みスロットを `LauncherService` に渡す。
+- Internal Logic: `SingleInstanceService` で常駐ウィンドウの多重起動を抑止する。`StartupLaunchCoordinator` は引数付きの一時プロセスを常駐中も受け付け、`ConfigService.LoadOrCreate()` で得た保存済み現在レイヤーの最初の登録済みスロット、なければ全レイヤー最初の登録済みスロットを `LauncherService` に渡す。引数付き成功時は UI と常駐フックを作らず終了する。
 - Dependencies: `ConfigService`, `LauncherService`, `LoggerService`, `ThemeService`, `SingleInstanceService`, `HorizontalMouseWheelService`。
-- Failure Modes: 設定ロード失敗はログ化し UI 起動へ継続する。CLI 起動失敗は MessageBox とログで通知し、手動操作のため UI を表示する。
+- Failure Modes: CLI 起動・設定読込失敗は MessageBox とログで通知する。常駐ウィンドウがない場合は手動操作のため UI を表示し、常駐中は追加のウィンドウを作らず一時プロセスだけ終了する。
 
 ### 7.2 MainWindow
 
@@ -267,7 +268,7 @@ stateDiagram-v2
 - Responsibility: 現在ユーザーの Windows サインイン時に DropSendTo を起動する Run キーの登録状態を管理する。
 - Public Interface: `StartupRegistrationService.IsRegistered()`, `Register()`, `Unregister()`。
 - Inputs / Outputs: 入力はメニュー操作。出力は `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` の `DropSendTo` 文字列値。配布 exe は引用符付きで保存し、開発時の `dotnet` ホストではエントリ DLL を引数に含める。
-- Internal Logic: `CurrentUserStartupRegistrationStore` が `Registry.CurrentUser` のみを操作する。UI のチェック状態はメニューを開くたびにレジストリから再読込し、`AppConfig` や暗号化エクスポートには含めない。
+- Internal Logic: `CurrentUserStartupRegistrationStore` が `Registry.CurrentUser` のみを操作する。UI のチェック状態は設定画面の再表示・再アクティブ化時にレジストリから再読込し、`AppConfig` や暗号化エクスポートには含めない。
 - Failure Modes: Run キーの読み書き失敗や起動パス取得失敗は MainWindow がログへ記録し、ユーザー向けエラーダイアログを表示する。既存の登録値を削除する解除操作は値が存在しなくても成功扱いとする。
 
 [[↑ Back to Top]](#top)
