@@ -20,6 +20,8 @@ public class LoggerService : IAppLogger
     private readonly object _lock = new();
 
     public string LogDirectory => _logDir;
+    /// <summary>Whether the most recent initialization or write could access the configured log destination.</summary>
+    public bool IsAvailable { get; private set; }
 
     private LoggerService()
         : this(
@@ -48,8 +50,17 @@ public class LoggerService : IAppLogger
         _localNow = localNow;
         _utcNow = utcNow;
         _maxLogBytes = maxLogBytes;
-        Directory.CreateDirectory(_logDir);
         _logPath = Path.Combine(_logDir, "app.log");
+        try
+        {
+            Directory.CreateDirectory(_logDir);
+            IsAvailable = true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Logging must not prevent the application from reaching its startup error handlers.
+            IsAvailable = false;
+        }
         CleanupOldLogs();
     }
 
@@ -97,16 +108,19 @@ public class LoggerService : IAppLogger
             var line = $"{now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}";
             lock (_lock)
             {
+                Directory.CreateDirectory(_logDir);
                 if (File.Exists(_logPath) && new FileInfo(_logPath).Length > _maxLogBytes)
                 {
                     TryRotate(now);
                 }
 
                 File.AppendAllText(_logPath, line, Encoding.UTF8);
+                IsAvailable = true;
             }
         }
         catch
         {
+            IsAvailable = false;
             // swallow logging errors
         }
     }

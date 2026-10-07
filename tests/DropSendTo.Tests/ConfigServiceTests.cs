@@ -504,6 +504,212 @@ public class ConfigServiceTests
         Directory.GetFiles(configDir, "config.json.*.tmp").Should().BeEmpty();
     }
 
+    [Fact]
+    public void LoadOrCreate_ShouldPreserveFiles_WhenPrimaryReadFailsTemporarily()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out var primary, out var backup);
+        fs.Failure = ConfigFileFailure.Read;
+
+        var action = () => CreateService(temp, fs).LoadOrCreate();
+
+        action.Should().Throw<IOException>();
+        AssertPrimaryBackupAndTemps(temp, primary, backup);
+    }
+
+    [Fact]
+    public void LoadOrCreate_ShouldUseLatestConfigWithoutReplacingFiles_WhenMigrationSaveFails()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out var backup);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        var legacy = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path))!;
+        legacy.Version = CurrentConfigVersion - 1;
+        File.WriteAllText(path, JsonSerializer.Serialize(legacy));
+        var primary = File.ReadAllText(path);
+        fs.Failure = ConfigFileFailure.Flush;
+
+        var loaded = CreateService(temp, fs).LoadOrCreate();
+
+        loaded.AlwaysOnTop.Should().BeTrue();
+        loaded.Version.Should().Be(CurrentConfigVersion);
+        AssertPrimaryBackupAndTemps(temp, primary, backup);
+    }
+
+    [Fact]
+    public void LoadOrCreate_ShouldRestoreValidBackup_WhenPrimaryIsJsonNull()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out var backup);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        File.WriteAllText(path, "null");
+
+        var loaded = CreateService(temp, fs).LoadOrCreate();
+
+        loaded.AlwaysOnTop.Should().BeFalse();
+        JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path))!.AlwaysOnTop.Should().BeFalse();
+        File.ReadAllText(path + ".bak").Should().Be(backup);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{ malformed")]
+    [InlineData("{\"Layers\":[null]}")]
+    public void LoadOrCreate_ShouldPreserveInvalidInputsBeforeRegenerating_WhenNoValidBackupExists(string invalidJson)
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out _);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        File.WriteAllText(path, invalidJson);
+        File.WriteAllText(path + ".bak", "null");
+
+        var loaded = CreateService(temp, fs).LoadOrCreate();
+
+        loaded.Version.Should().Be(CurrentConfigVersion);
+        JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path))!.Version.Should().Be(CurrentConfigVersion);
+        var recovery = Directory.GetFiles(Path.GetDirectoryName(path)!, "config.json.corrupt.*.recovery");
+        recovery.Should().ContainSingle();
+        File.ReadAllText(recovery[0]).Should().Be(invalidJson);
+        File.ReadAllText(path + ".bak").Should().Be("null");
+    }
+
+    [Fact]
+    public void LoadOrCreateAndSave_ShouldPreserveFutureSchema_WhenPrimaryIsNewer()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out var backup);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        var json = $"{{\"Version\":{CurrentConfigVersion + 1},\"FutureOnlyData\":\"keep\"}}";
+        File.WriteAllText(path, json);
+        var service = CreateService(temp, fs);
+
+        var load = () => service.LoadOrCreate();
+        var save = () => service.Save(new AppConfig());
+
+        load.Should().Throw<InvalidOperationException>();
+        save.Should().Throw<InvalidOperationException>();
+        AssertPrimaryBackupAndTemps(temp, json, backup);
+    }
+
+    [Fact]
+    public void LoadOrCreate_ShouldKeepBothDamagedInputsRecoverable_AfterFollowingSave()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out _);
+        var directory = Path.Combine(temp, "DropSendTo");
+        File.WriteAllText(Path.Combine(directory, "config.json"), "{ damaged primary");
+        File.WriteAllText(Path.Combine(directory, "config.json.bak"), "{ damaged backup");
+        var service = CreateService(temp, fs);
+
+        var defaults = service.LoadOrCreate();
+        service.Save(defaults);
+
+        File.ReadAllText(Directory.GetFiles(directory, "config.json.corrupt.*.recovery").Single())
+            .Should().Be("{ damaged primary");
+        File.ReadAllText(Directory.GetFiles(directory, "config.json.bak.corrupt.*.recovery").Single())
+            .Should().Be("{ damaged backup");
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{ malformed")]
+    [InlineData("{\"Layers\":[null]}")]
+    public void Save_ShouldPreserveValidBackup_WhenExistingPrimaryIsMalformed(string invalidJson)
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out var backup);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        File.WriteAllText(path, invalidJson);
+
+        CreateService(temp, fs).Save(new AppConfig { AlwaysOnTop = true });
+
+        JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(path))!.AlwaysOnTop.Should().BeTrue();
+        File.ReadAllText(path + ".bak").Should().Be(backup);
+    }
+
+    [Fact]
+    public void Save_ShouldRejectFutureCandidateWithoutChangingFiles()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out var primary, out var backup);
+        var save = () => CreateService(temp, fs).Save(new AppConfig { Version = CurrentConfigVersion + 1 });
+
+        save.Should().Throw<InvalidOperationException>();
+        AssertPrimaryBackupAndTemps(temp, primary, backup);
+    }
+
+    [Fact]
+    public void LoadOrCreate_ShouldPreserveFiles_WhenOnlyBackupHasFutureSchema()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out _);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        File.WriteAllText(path, "null");
+        var future = $"{{\"Version\":{CurrentConfigVersion + 1},\"FutureOnlyData\":\"keep\"}}";
+        File.WriteAllText(path + ".bak", future);
+
+        var load = () => CreateService(temp, fs).LoadOrCreate();
+
+        load.Should().Throw<InvalidOperationException>();
+        AssertPrimaryBackupAndTemps(temp, "null", future);
+    }
+
+    [Fact]
+    public void NormalizeForUse_ShouldRejectFutureImportCandidate()
+    {
+        var normalize = () => ConfigService.NormalizeForUse(new AppConfig { Version = CurrentConfigVersion + 1 });
+
+        normalize.Should().Throw<InvalidOperationException>();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SaveAndMigration_ShouldPreserveFutureBackup_WhenPrimaryUsesSupportedSchema(bool migrate)
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out _);
+        var path = Path.Combine(temp, "DropSendTo", "config.json");
+        var primary = JsonSerializer.Serialize(new AppConfig
+        {
+            Version = migrate ? CurrentConfigVersion - 1 : CurrentConfigVersion,
+            AlwaysOnTop = false
+        });
+        var backup = $"{{\"Version\":{CurrentConfigVersion + 1},\"FutureOnlyData\":\"keep\"}}";
+        File.WriteAllText(path, primary);
+        File.WriteAllText(path + ".bak", backup);
+        var service = CreateService(temp, fs);
+        Action operation = migrate ? () => service.LoadOrCreate() : () => service.Save(new AppConfig());
+
+        operation.Should().Throw<InvalidOperationException>();
+        AssertPrimaryBackupAndTemps(temp, primary, backup);
+    }
+
+    [Fact]
+    public void Save_ShouldRejectOverlappingWriterWithoutDeletingActiveTemp()
+    {
+        var temp = CreateTempRoot();
+        var fs = PreparePrimaryAndBackup(temp, out _, out _);
+        var other = CreateService(temp, new PhysicalConfigFileSystem());
+        Exception? competingFailure = null;
+        fs.AfterWrite = () =>
+        {
+            var thread = new Thread(() =>
+            {
+                try { other.Save(new AppConfig { AlwaysOnTop = false }); }
+                catch (Exception ex) { competingFailure = ex; }
+            });
+            thread.Start();
+            thread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+        };
+
+        CreateService(temp, fs).Save(new AppConfig { AlwaysOnTop = true });
+
+        competingFailure.Should().BeOfType<IOException>();
+        other.LoadOrCreate().AlwaysOnTop.Should().BeTrue();
+        Directory.GetFiles(Path.Combine(temp, "DropSendTo"), "config.json.*.tmp").Should().BeEmpty();
+    }
+
     private static string CreateTempRoot() =>
         Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
 
@@ -536,6 +742,7 @@ public class ConfigServiceTests
     private enum ConfigFileFailure
     {
         None,
+        Read,
         Write,
         Flush,
         Replace,
@@ -546,17 +753,24 @@ public class ConfigServiceTests
     private sealed class FaultInjectingConfigFileSystem(IConfigFileSystem inner) : IConfigFileSystem
     {
         public ConfigFileFailure Failure { get; set; }
+        public Action? AfterWrite { get; set; }
 
         public bool DirectoryExists(string path) => inner.DirectoryExists(path);
         public void CreateDirectory(string path) => inner.CreateDirectory(path);
         public bool FileExists(string path) => inner.FileExists(path);
-        public string ReadAllText(string path) => inner.ReadAllText(path);
+        public string ReadAllText(string path)
+        {
+            if (Failure == ConfigFileFailure.Read && path.EndsWith("config.json", StringComparison.Ordinal))
+                throw new IOException("Injected temporary primary read failure.");
+            return inner.ReadAllText(path);
+        }
         public IEnumerable<string> EnumerateFiles(string path, string pattern) => inner.EnumerateFiles(path, pattern);
 
         public void WriteAllText(string path, string contents)
         {
             if (Failure == ConfigFileFailure.Write) throw new IOException("Injected write failure.");
             inner.WriteAllText(path, contents);
+            AfterWrite?.Invoke();
         }
 
         public void FlushFile(string path)

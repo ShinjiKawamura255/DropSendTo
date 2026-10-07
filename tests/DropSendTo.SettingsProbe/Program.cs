@@ -16,13 +16,23 @@ using DropSendTo.Models;
 using DropSendTo.Services;
 
 // Run only through Test-SettingsWindow.ps1, with an isolated data directory.
-internal static class Program
+internal static partial class Program
 {
     private static readonly BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 3 && args[0] == "--startup-diagnostics")
+        {
+            try { return VerifyStartupDiagnostics(args[1], args[2]); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                File.WriteAllText(Path.Combine(args[2], "report.txt"), ex.ToString());
+                return 1;
+            }
+        }
         if (args.Length >= 2 && args[0] == "--cli-target")
         {
             File.WriteAllText(args[1], JsonSerializer.Serialize(args.Skip(2).ToArray()));

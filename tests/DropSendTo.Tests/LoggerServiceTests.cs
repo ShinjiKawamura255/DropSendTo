@@ -123,6 +123,40 @@ public sealed class LoggerServiceTests : IDisposable
         action.Should().NotThrow();
     }
 
+    [Fact]
+    public void ConstructorAndWrite_ShouldNotThrow_WhenLogDirectoryIsBlockedByFile()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var blocked = Path.Combine(_tempRoot, "blocked");
+        File.WriteAllText(blocked, "keep");
+
+        var action = () =>
+        {
+            var logger = new LoggerService(blocked, () => DateTime.Now, () => DateTime.UtcNow, 1000);
+            logger.IsAvailable.Should().BeFalse();
+            logger.Warn("unavailable");
+            logger.IsAvailable.Should().BeFalse();
+        };
+
+        action.Should().NotThrow();
+        File.ReadAllText(blocked).Should().Be("keep");
+    }
+
+    [Fact]
+    public void Write_ShouldResumeLogging_WhenDestinationBecomesAvailable()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var blocked = Path.Combine(_tempRoot, "blocked");
+        File.WriteAllText(blocked, "fixture");
+        var logger = new LoggerService(blocked, () => DateTime.Now, () => DateTime.UtcNow, 1000);
+        File.Delete(blocked);
+
+        logger.Info("recovered");
+
+        logger.IsAvailable.Should().BeTrue();
+        File.ReadAllText(Path.Combine(blocked, "app.log")).Should().Contain("recovered");
+    }
+
     public void Dispose()
     {
         try

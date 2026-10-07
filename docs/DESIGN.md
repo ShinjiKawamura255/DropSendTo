@@ -40,6 +40,12 @@
 - Release-Version scripts: `Release-Version.ps1` が Git 状態から配布識別子を一意に算出し、`Test-Release-Version.ps1` が clean tag、post-tag、dirty、タグなし等の回帰ケースを検証する。`Build-Release.ps1 -VersionOnly` は成果物を生成せず算出結果だけを返す。
 - WindowPlacementService: 仮想スクリーン境界内にウィンドウ位置を収めるユーティリティ。
 
+### Configuration transaction boundary
+
+`ConfigService` は正規化した絶対設定パスの hash をキーとする Global named mutex を、読込から復旧/移行保存完了まで、または通常保存全体で所有する。同一スレッドの再入も拒否し、競合は待機なしの I/O エラーで呼出元へ返す。内部保存は同じ transaction を再取得しない。stale temp の除去もこの境界内で行う。
+
+読込の JSON/構造不正だけを backup 復旧の対象にする。I/O・アクセス拒否・未対応 schema は呼出元へ返し、正常に読めた設定の移行保存失敗はメモリー上の最新設定を保持する。両入力の破損時は既定値再生成前に primary と backup を別々の一意な recovery artifact として退避する。再生成時は backup を更新せず、後続保存で `.bak` が更新されても recovery artifact を残す。通常保存も既存 primary と backup の schema を検査し、未対応の新しい版を上書きしない。
+
 ## DES-003 UI Flows
 
 設定変更の `ApplyConfigChange` は直前の設定を独立した JSON snapshot として捕捉する。変更・保存失敗時は `ConfigRuntimeApplier` で設定・テーマ・ショートカット・配置・言語を戻し、元の表示タブと一時固定を復元する。snapshot は失敗時だけ差し替え、通常の成功時には開いているスロット編集の参照を維持する。設定差し替え後の古いスロット編集結果は参照一致の確認で拒否する。
@@ -89,10 +95,11 @@
   - `Info/Warn/Error(string)`：レベル付きでログ追記。
   - `CleanupOldLogs()`: 起動時に呼び出し、古いファイルを削除。
   - `LogDirectory`: Open Logs メニュー向けに公開。
+  - `IsAvailable`: 最新の初期化/書込の保存先利用可否。保存先障害を構築から外へ投げず、次の書込で再試行する。起動入口は保存不能を警告する。
 
 ## DES-005 Errors/Timeout/Telemetry
 - Errors: `LauncherService` は例外を捕捉してユーザー向けメッセージへ変換。`KeyboardMacroService` はターゲット取得失敗・未知コマンド・上限超過などを失敗として返す。`ShortcutService` は Prefix/ショートカット解析失敗を警告ログに記録し、Prefix 解析失敗時は既定値へフォールバックする。
-- UI 通知: 失敗時は MessageBox で簡潔な文面を表示し、処理は継続。Prefix フォールバック時もメッセージで通知する。
+- UI 通知: 失敗時は MessageBox で簡潔な文面を表示する。設定の読込を続行できない起動はエラー通知後に終了し、読込を繰り返して空の常駐状態を残さない。ログ保存不能は起動時に警告して続行する。Prefix フォールバック時もメッセージで通知する。
 - Logging: App 入口で未処理例外を捕捉し `ERROR` で記録。CLI 成功/失敗・マクロ開始/結果・スロットトリガー・コマンド起動・変数操作・設定読み込み失敗もロガーで記録する。ログは UTF-8 で 1 行 1 レコードとし、展開済み引数、コマンドパス、スロットタイトル、クリップボード/ドロップ値、マクロ変数/`RETURN` 値は記録せず、件数・長さ・状態へ置き換える。OS/API 例外メッセージは診断経路として残り得るため、外部共有前に確認する。
 - Log lifecycle: current log が 1MB を超えた後の次回書込で世代化し、同秒衝突は連番 suffix で回避する。rotation に失敗しても current log が書込可能なら今回のメッセージを追記し、最終更新が UTC 基準で7日ちょうどのログは保持、7日を超えたログだけ削除する。
 - Startup performance: Release build を専用 data root で起動し、process start から WPF process の input-idle までを warm-up 1 回と測定 5 回以上で計測する。最大値 1000ms 未満、保存先 containment、実ユーザー config/log の hash・mtime 不変を検証する。

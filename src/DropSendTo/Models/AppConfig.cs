@@ -5,7 +5,9 @@ namespace DropSendTo.Models;
 
 public class AppConfig
 {
-    public int Version { get; set; } = 37;
+    /// <summary>The newest configuration schema this application can safely read and write.</summary>
+    public const int CurrentVersion = 37;
+    public int Version { get; set; } = CurrentVersion;
     public int CurrentLayer { get; set; } = 0; // Last manually selected layer (0-based).
     public bool AppLayerSwitchingEnabled { get; set; }
     public int AppLayerFallbackLayer { get; set; } = -1;

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Threading;
 using DropSendTo.Models;
 
 namespace DropSendTo.Services;
@@ -11,6 +14,8 @@ public class ConfigService
     private readonly string _baseDir;
     private readonly IConfigFileSystem _fileSystem;
     private readonly IAppLogger _logger;
+    [ThreadStatic]
+    private static HashSet<string>? _heldConfigPaths;
 
     public ConfigService(string? baseDir = null) :
         this(baseDir, new PhysicalConfigFileSystem(), LoggerService.Instance)
@@ -31,32 +36,43 @@ public class ConfigService
 
     public AppConfig LoadOrCreate()
     {
+        using var transaction = AcquireTransaction();
         EnsureConfigDirectory();
-        Exception? primaryError = null;
+        JsonException? primaryError = null;
         if (_fileSystem.FileExists(ConfigPath))
         {
+            AppConfig? cfg = null;
+            bool migrated = false;
             try
             {
-                var cfg = LoadAndValidate(ConfigPath, out var migrated);
+                cfg = LoadAndValidate(ConfigPath, out migrated);
+            }
+            catch (JsonException ex)
+            {
+                primaryError = ex;
+            }
+            if (cfg != null)
+            {
                 if (migrated)
                 {
-                    _logger.Info($"Config migrated to version {cfg.Version}.");
-                    Save(cfg);
+                    try { SaveCore(cfg); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // A persistence failure does not invalidate the successfully read latest configuration.
+                        _logger.Warn($"Config migration is active in memory but could not be saved: {ex}");
+                    }
                 }
                 _logger.Info($"Config loaded from {ConfigPath} (version={cfg.Version}).");
                 return cfg;
             }
-            catch (Exception ex)
-            {
-                primaryError = ex;
-            }
         }
 
+        string? damagedBackupJson = null;
         if (_fileSystem.FileExists(BackupPath))
         {
             try
             {
-                var cfg = LoadAndValidate(BackupPath, out var migrated);
+                var cfg = LoadAndValidate(BackupPath, out var migrated, json => damagedBackupJson = json);
                 try
                 {
                     RepairPrimaryFromBackup(cfg);
@@ -69,36 +85,162 @@ public class ConfigService
                 _logger.Warn($"Config restored from backup {BackupPath}.");
                 return cfg;
             }
-            catch (Exception backupEx)
+            catch (JsonException backupEx)
             {
                 _logger.Error($"Failed to load backup config from {BackupPath}: {backupEx}");
             }
         }
 
         if (primaryError != null) _logger.Warn($"Failed to load config from {ConfigPath}: {primaryError}");
+        if (damagedBackupJson != null) PreserveDamagedBackup(damagedBackupJson);
         var fresh = new AppConfig();
-        Save(fresh);
+        if (primaryError != null)
+        {
+            // Keep the damaged inputs for manual recovery while retaining the default-regeneration contract.
+            var recoveryPath = Path.Combine(ConfigDir, $"config.json.corrupt.{Guid.NewGuid():N}.recovery");
+            CleanupOwnedTempFiles();
+            CommitJson(JsonSerializer.Serialize(fresh, new JsonSerializerOptions { WriteIndented = true }),
+                preserveExistingBackup: true, recoveryPath);
+            _logger.Warn($"Invalid primary config preserved at {recoveryPath} before default regeneration.");
+        }
+        else
+        {
+            SaveCore(fresh);
+        }
         _logger.Info($"Created new default config at {ConfigPath}.");
         return fresh;
     }
 
     public void Save(AppConfig config)
     {
+        using var transaction = AcquireTransaction();
+        SaveCore(config);
+    }
+
+    private void SaveCore(AppConfig config)
+    {
+        EnsureSupportedVersion(config.Version);
+        bool preserveExistingBackup = false;
+        if (_fileSystem.FileExists(ConfigPath))
+        {
+            try { _ = DeserializeValidatedConfig(_fileSystem.ReadAllText(ConfigPath)); }
+            catch (JsonException)
+            {
+                // A known valid in-memory config can repair primary, but damaged data is not a new backup.
+                preserveExistingBackup = true;
+            }
+        }
+        if (_fileSystem.FileExists(BackupPath))
+        {
+            try { EnsureSupportedJsonVersion(_fileSystem.ReadAllText(BackupPath)); }
+            catch (JsonException) { /* A malformed backup can be replaced by a supported valid primary. */ }
+        }
         NormalizeForUse(config);
         EnsureConfigDirectory();
         CleanupOwnedTempFiles();
         var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-        CommitJson(json, preserveExistingBackup: false);
+        CommitJson(json, preserveExistingBackup);
         _logger.Info($"Config saved to {ConfigPath}.");
     }
 
-    private AppConfig LoadAndValidate(string path, out bool migrated)
+    private AppConfig LoadAndValidate(string path, out bool migrated, Action<string>? onRead = null)
     {
         var json = _fileSystem.ReadAllText(path);
-        var cfg = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+        onRead?.Invoke(json);
+        var cfg = DeserializeValidatedConfig(json);
         NormalizeForUse(cfg);
         migrated = Migrate(cfg);
         return cfg;
+    }
+
+    private static AppConfig DeserializeValidatedConfig(string json)
+    {
+        EnsureSupportedJsonVersion(json);
+        var cfg = JsonSerializer.Deserialize<AppConfig>(json)
+            ?? throw new JsonException("Configuration must be a JSON object, not null.");
+        if (cfg.Layers != null)
+        {
+            foreach (var layer in cfg.Layers)
+            {
+                if (layer == null) throw new JsonException("Configuration contains a null layer.");
+                if (layer.Slots != null && layer.Slots.Exists(slot => slot == null))
+                    throw new JsonException("Configuration contains a null slot.");
+            }
+        }
+        return cfg;
+    }
+
+    private void PreserveDamagedBackup(string json)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        var temporary = Path.Combine(ConfigDir, $"config.json.{id}.tmp");
+        var recovery = Path.Combine(ConfigDir, $"config.json.bak.corrupt.{id}.recovery");
+        try
+        {
+            _fileSystem.WriteAllText(temporary, json);
+            _fileSystem.FlushFile(temporary);
+            _fileSystem.MoveFile(temporary, recovery);
+            _logger.Warn($"Invalid backup preserved at {recovery} before default regeneration.");
+        }
+        finally { DeleteOwnedTempIfPresent(temporary); }
+    }
+
+    private static void EnsureSupportedVersion(int version)
+    {
+        if (version > AppConfig.CurrentVersion)
+            throw new InvalidOperationException(
+                $"Configuration version {version} is newer than supported version {AppConfig.CurrentVersion}. " +
+                "Use the matching or a newer application, or restore a compatible configuration backup.");
+    }
+
+    private static void EnsureSupportedJsonVersion(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind == JsonValueKind.Object &&
+            document.RootElement.TryGetProperty(nameof(AppConfig.Version), out var version) &&
+            version.ValueKind == JsonValueKind.Number)
+        {
+            if (!version.TryGetInt32(out var number))
+                throw new InvalidOperationException("Configuration version is outside the supported range.");
+            EnsureSupportedVersion(number);
+        }
+    }
+
+    private IDisposable AcquireTransaction()
+    {
+        var path = Path.GetFullPath(ConfigPath).ToUpperInvariant();
+        var heldPaths = _heldConfigPaths ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!heldPaths.Add(path)) throw new IOException("Another configuration transaction is in progress. Try again.");
+        Mutex? mutex = null;
+        try
+        {
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(path)));
+            mutex = new Mutex(false, @"Global\DropSendTo.Config." + hash);
+            bool acquired;
+            try { acquired = mutex.WaitOne(0); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired) throw new IOException("Another configuration transaction is in progress. Try again.");
+            return new ConfigTransaction(mutex, heldPaths, path);
+        }
+        catch
+        {
+            mutex?.Dispose();
+            heldPaths.Remove(path);
+            throw;
+        }
+    }
+
+    private sealed class ConfigTransaction(Mutex mutex, HashSet<string> heldPaths, string path) : IDisposable
+    {
+        public void Dispose()
+        {
+            try { mutex.ReleaseMutex(); }
+            finally
+            {
+                mutex.Dispose();
+                heldPaths.Remove(path);
+            }
+        }
     }
 
     private void RepairPrimaryFromBackup(AppConfig config)
@@ -131,7 +273,7 @@ public class ConfigService
         }
     }
 
-    private void CommitJson(string json, bool preserveExistingBackup)
+    private void CommitJson(string json, bool preserveExistingBackup, string? recoveryPath = null)
     {
         var operationId = Guid.NewGuid().ToString("N");
         var tempPath = Path.Combine(ConfigDir, $"config.json.{operationId}.tmp");
@@ -149,7 +291,7 @@ public class ConfigService
 
             if (preserveExistingBackup)
             {
-                _fileSystem.ReplaceFile(tempPath, ConfigPath, backupPath: null);
+                _fileSystem.ReplaceFile(tempPath, ConfigPath, recoveryPath);
                 return;
             }
 
@@ -252,6 +394,7 @@ public class ConfigService
 
     internal static void NormalizeForUse(AppConfig cfg)
     {
+        EnsureSupportedVersion(cfg.Version);
         EnsureLayerCount(cfg);
         cfg.ShortcutPrefix ??= string.Empty;
         cfg.SlotRows = NormalizeSlotRows(cfg.SlotRows);

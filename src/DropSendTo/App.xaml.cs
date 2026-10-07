@@ -1,4 +1,5 @@
 using System;
+using DropSendTo.Models;
 using DropSendTo.Services;
 using System.Windows;
 using WpfApplication = System.Windows.Application;
@@ -66,22 +67,51 @@ public partial class App : WpfApplication
 
         _logger.Info($"DropSendTo starting (args={e.Args.Length}).");
 
+        AppConfig cfg;
         try
         {
             _logger.CleanupOldLogs();
-            var cfg = _configService.LoadOrCreate();
+            cfg = _configService.LoadOrCreate();
             _logger.Info($"Configuration ready (path={_configService.GetConfigPath()}, rows={cfg.SlotRows}, cols={cfg.SlotColumns}, currentLayer={cfg.CurrentLayer + 1}).");
-            ThemeService.ApplyTheme(cfg.Theme);
         }
         catch (Exception ex)
         {
-            _logger.Error($"Startup error: {ex}");
+            _logger.Error($"Configuration startup failed: {ex}");
+            ShowStartupNotice(
+                "設定を読み込めないため起動を中止します。アクセス権や設定の対応バージョンを確認してください。\n" +
+                "Startup stopped. Check access rights and the configuration version.\n" + ex.Message,
+                MessageBoxImage.Error);
+            Shutdown(1);
+            return;
         }
 
-        var win = new MainWindow();
-        win.Show();
-        _logger.Info("Main window shown.");
+        try { ThemeService.ApplyTheme(cfg.Theme); }
+        catch (Exception ex) { _logger.Error($"Startup theme error: {ex}"); }
+
+        if (!_logger.IsAvailable)
+        {
+            var message = cfg.Language == AppLanguage.English
+                ? "Logs cannot be saved. The app will continue. Check the log folder's permissions and available disk space."
+                : "ログを保存できません。アプリは続行します。ログフォルダーのアクセス権や空き容量を確認してください。";
+            ShowStartupNotice(message, MessageBoxImage.Warning);
+        }
+
+        try
+        {
+            var win = new MainWindow();
+            win.Show();
+            _logger.Info("Main window shown.");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Main window startup failed: {ex}");
+            ShowStartupNotice(ex.Message, MessageBoxImage.Error);
+            Shutdown(1);
+        }
     }
+
+    internal virtual void ShowStartupNotice(string message, MessageBoxImage image) =>
+        WpfMessageBox.Show(message, "DropSendTo", MessageBoxButton.OK, image);
 
     protected override void OnExit(ExitEventArgs e)
     {

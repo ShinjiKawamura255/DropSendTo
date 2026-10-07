@@ -23,6 +23,7 @@
 - TC-029 MacroCommandValidation: `COMMAND` 命令を Macro Script 拡張モード以外で使用するとエラーとなり、ログに失敗理由が出力される。
 - TC-030 Errors: 実行不可パスやマクロエラーでメッセージが表示され、ログに ERROR が残る。
 - TC-126 ConfigAtomicPersistence: write/flush/replace の各失敗で既存 primary/backup が維持され、backup promotion 失敗時は旧 primary が復元されること、promotion と rollback の両方が失敗しても旧内容の recovery artifact が残ること、stale temp が次回保存前に除去されること、破損 primary を正常 backup から修復しても backup 自体を上書きしないことを `ConfigServiceTests` で確認する。
+  `ConfigServiceTests` の読込 I/O 失敗・移行保存失敗・JSON null/構造不正・重複 writer・未対応 primary/backup/candidate のケースで、最新設定と既存ファイルを保護する。両入力破損時は既定値再生成と、後続保存後も両入力の recovery artifact が残ることを検証する。`NormalizeForUse` の版境界も import runtime 適用前の拒否として確認する。
 - TC-127 LoggingPrivacy: sentinel をコマンド、引数テンプレート、タイトル、drop path、マクロ変数、`RETURN` 値へ設定しても `LauncherService` / `KeyboardMacroService` の通常 capture log に現れないことを `LoggingPrivacyTests` で確認する。clipboard placeholder は同じ展開済み引数ログ経路を使うこと、MainWindow の統合ログも値を直接出さないことを静的監査する。OS/API 例外メッセージが残り得ることは共有時の確認対象とする。
 - TC-128 ReleaseIdentity: `Test-Release-Version.ps1` の 9 ケースで clean exact tag、post-tag、dirty、タグなし、明示 override 等の識別子を検証する。CI が version test、format verify、test/build を実行し、生成した TRX が `.gitignore` 対象であることも確認する。
 - TC-129 ConfigTransferCompleteness: `AppConfig`、`Layer`、`SlotModel`、`SlotMinimizeOptions` の公開永続プロパティが対応 snapshot に存在することを reflection inventory で保証する。さらに `CustomSlotSizeOptions` を含む全 writable property を再帰的に非既定の有効値へ設定し、暗号化 round-trip 後の完全 equivalence を確認する。未知の追加型に sentinel を生成できない場合は明示的に失敗させ、export/import いずれか片方向の代入漏れも検知する。旧 payload の既定値を確認し、package UTF-8 16 MiB、KDF 1,000,000、Salt/Nonce/Tag 固定長、CipherText 8 MiB の違反は復号前に拒否する。 エクスポートの 8 MiB 境界での往復復元と1バイト超過時の拒否・設定非変更は `ConfigTransferServiceTests.Export_ShouldHonorImportCipherSizeBoundary_WithoutTruncatingSettings` で検証する。
@@ -80,6 +81,7 @@
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: 設定・一時固定・ショートカット一覧・最小化・終了が機能する。設定画面から設定ファイル/ログフォルダーを開き、Prefix/行列/最前面を変更できる。
 - TC-095 LoggingRetention: current log は 1MB ちょうどでは維持し、1MB を超えた後の書込でローテーションする。同秒の反復 rotation と既存 archive 衝突では一意名を使い、rotation 失敗時も current log が書込可能なら今回のメッセージを失わない。UTC 最終更新が7日ちょうどの `app*.log` は保持し、7日を超えたものだけ削除することを `LoggerServiceTests` で確認する。
+  `LoggerServiceTests` は保存先がファイルで塞がれた構築/書込の非例外化と、保存先回復後の記録再開も確認する。`Test-StartupDiagnostics.ps1` は提示先を記録用に差し替えた実 WPF 起動経路で日英通知・継続起動・未対応設定版の非変更終了を確認する。Windows 標準ダイアログの実表示は手動項目とし、実ユーザー設定には障害を注入しない。
 - TC-097 CommandOnlyParallel: マクロ実行中（排他/割り込み/一時停止いずれのモードでも）でもコマンドのみのスロットはショートカット/クリックから並列に実行でき、ログには「Command-only slot triggered while macro is active」が記録される。
 - TC-102 MacroModeExclusive: モード=排他のとき、実行中スロットを再トリガーするとキャンセルが発行され UI が「キャンセル中...」表示になる。他スロットからの実行は警告ダイアログで拒否され、設定を切り替えても再起動後に保持される。
 - TC-103 MacroModeInterrupt: モード=割り込み実行のとき、新規マクロ要求で実行中マクロがキャンセルされ、ログに interrupt が記録されてから新しいマクロが開始される。旧マクロが完全に停止するまで新マクロが開始されないことを確認。
