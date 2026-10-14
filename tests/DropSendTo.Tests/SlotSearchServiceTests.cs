@@ -325,6 +325,181 @@ public class SlotSearchServiceTests
             .Equal(new SlotSearchResult(0, 0));
     }
 
+    [Fact]
+    public void Search_ShouldRankWholeMatchesBeforeSubstringsAndFuzzyMatches_AcrossLayers()
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "Visual Studio Code"), Slot(title: "My VSC tool"), EmptySlot()] },
+            new Layer { Slots = [Slot(title: "VSC", keywords: "editor"), Slot(title: "VSC helper")] },
+            new Layer { Slots = [Slot(title: "Editor", keywords: "code vsc ide"), Slot(title: "Very Simple Compiler")] }
+        };
+
+        SlotSearchService.Search(layers, "vsc", IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(1, 0),
+            new SlotSearchResult(2, 0),
+            new SlotSearchResult(0, 1),
+            new SlotSearchResult(1, 1),
+            new SlotSearchResult(0, 0),
+            new SlotSearchResult(2, 1));
+    }
+
+    [Theory]
+    [InlineData("cafe", "CAF\u00c9", "Cafe helper", "Cool Application For Editing")]
+    [InlineData("abc", "\uff21\uff22\uff23", "ABC helper", "Alpha Beta Compiler")]
+    [InlineData("gakkou", "がっこう", "がっこう用", "がくこう")]
+    [InlineData("raamen", "ラーメン", "ラーメン用", "ラアメモン")]
+    [InlineData("a-b-c", "abc", "abc helper", "Alpha Beta Compiler")]
+    public void Search_ShouldRankNormalizedWholeMatchesFirst(
+        string query, string wholeTitle, string partialTitle, string fuzzyTitle)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: fuzzyTitle), Slot(title: partialTitle), Slot(title: wholeTitle)] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 2), new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("alpha beta")]
+    [InlineData("alpha|gamma beta")]
+    [InlineData("alpha beta !blocked")]
+    [InlineData("  alpha\t beta  ")]
+    public void Search_ShouldRankMultiTermMatchesUsingAllIncludeTerms(string query)
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Alpha", keywords: "Be Cool Tool App"),
+                    Slot(title: "Alpha", keywords: "Beta"),
+                    Slot(title: "Alpha Beta helper"),
+                    Slot(title: "Alpha Beta", keywords: "extra"),
+                    Slot(title: "Other", keywords: "Alpha Beta"),
+                    Slot(title: "Alpha"),
+                    Slot(title: "Blocked")
+                ]
+            }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 3), new SlotSearchResult(0, 4),
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 2), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("vsc|code")]
+    [InlineData("vsc|code !blocked")]
+    public void Search_ShouldRankTheBestMatchingAlternative_AndKeepExclusions(string query)
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "Visual Studio Code"),
+                    Slot(title: "VSC"),
+                    Slot(title: "Code"),
+                    Slot(title: "Very Simple Compiler"),
+                    Slot(title: "Blocked")
+                ]
+            }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 2),
+            new SlotSearchResult(0, 0), new SlotSearchResult(0, 3));
+    }
+
+    [Theory]
+    [InlineData("'vsc", false)]
+    [InlineData("^vsc", true)]
+    [InlineData("^'vsc", false)]
+    [InlineData("vsc$", true)]
+    [InlineData("'vsc$", false)]
+    public void Search_ShouldPreserveOperatorsWhenRanking(string query, bool includesFuzzy)
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots = [Slot(title: "Very Simple Compiler classic"), Slot(title: "VSC VSC"), Slot(title: "VSC")]
+            }
+        };
+
+        var expected = new List<SlotSearchResult> { new(0, 2), new(0, 1) };
+        if (includesFuzzy)
+        {
+            expected.Add(new SlotSearchResult(0, 0));
+        }
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(expected);
+    }
+
+    [Fact]
+    public void Search_ShouldNotRankAnAlternativeThatFailsItsAnchorAsAWholeMatch()
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "My Code VSC helper", keywords: "code"), Slot(title: "VSC")] }
+        };
+
+        SlotSearchService.Search(layers, "^code|vsc", IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Fact]
+    public void Search_ShouldKeepFuzzyTiesStable_WhenBothAnchorsRequireAWholeMatch()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots = [Slot(title: "Very Simple Compiler classic"), Slot(title: "VSC VSC"), Slot(title: "VSC")]
+            }
+        };
+
+        SlotSearchService.Search(layers, "^vsc$", IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 2), new SlotSearchResult(0, 0), new SlotSearchResult(0, 1));
+    }
+
+    [Fact]
+    public void Search_ShouldExcludeWholeMatchesBeforeRanking()
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots = [Slot(title: "VSC helper"), Slot(title: "VSC", keywords: "blocked"), Slot(title: "VSC")]
+            }
+        };
+
+        SlotSearchService.Search(layers, "vsc !blocked", IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 2), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(" ")]
+    [InlineData("!")]
+    [InlineData("!blocked")]
+    public void Search_ShouldKeepLayerAndSlotOrder_WhenThereAreNoIncludeTerms(string? query)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "VSC helper"), Slot(title: "Visual Studio Code")] },
+            new Layer { Slots = [Slot(title: "VSC")] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 0), new SlotSearchResult(0, 1), new SlotSearchResult(1, 0));
+    }
+
     private static SlotModel Slot(
         string? title = null,
         string? keywords = null,

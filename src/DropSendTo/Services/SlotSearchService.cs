@@ -17,7 +17,7 @@ internal static class SlotSearchService
         if (layers == null) throw new ArgumentNullException(nameof(layers));
         if (isSlotEmpty == null) throw new ArgumentNullException(nameof(isSlotEmpty));
 
-        var results = new List<SlotSearchResult>();
+        var results = new List<(SlotSearchResult Result, MatchRank Rank)>();
         var spec = ParseQuery(query);
         bool matchAll = spec.IncludeTerms.Count == 0 && spec.ExcludeTerms.Count == 0;
 
@@ -34,14 +34,83 @@ internal static class SlotSearchService
                     continue;
                 }
 
-                if (matchAll || MatchesQuery(BuildSlotSearchTargets(slot), spec))
+                var targets = matchAll ? Array.Empty<string>() : BuildSlotSearchTargets(slot);
+                if (matchAll || MatchesQuery(targets, spec))
                 {
-                    results.Add(new SlotSearchResult(layerIndex, slotIndex));
+                    results.Add((new SlotSearchResult(layerIndex, slotIndex), GetMatchRank(slot, targets, spec)));
                 }
             }
         }
 
-        return results;
+        // OrderBy is stable, so ties retain layer/slot order.
+        return results.OrderBy(result => result.Rank).Select(result => result.Result).ToArray();
+    }
+
+    private static MatchRank GetMatchRank(SlotModel slot, IReadOnlyList<string> targets, QuerySpec spec)
+    {
+        if (spec.IncludeTerms.Count == 0)
+        {
+            return MatchRank.WholeField;
+        }
+
+        if (!spec.IncludeTerms.All(set => set.Alternatives.Any(pattern =>
+            targets.Any(target => MatchesExact(pattern, target)))))
+        {
+            return MatchRank.Fuzzy;
+        }
+
+        if (MatchesWholeField(slot.Title, targets, spec) || MatchesWholeField(slot.SearchKeywords, targets, spec))
+        {
+            return MatchRank.WholeField;
+        }
+
+        // SearchKeywords is a whitespace-separated list of individual keywords.
+        if (spec.IncludeTerms.Count == 1 && SplitSearchWords(slot.SearchKeywords)
+            .Any(keyword => MatchesWholeField(keyword, targets, spec)))
+        {
+            return MatchRank.WholeField;
+        }
+
+        return MatchRank.Substring;
+    }
+
+    private static bool MatchesWholeField(string? text, IReadOnlyList<string> targets, QuerySpec spec)
+    {
+        var words = SplitSearchWords(text);
+        if (words.Length != spec.IncludeTerms.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < words.Length; i++)
+        {
+            // Romaji conversion drops non-kana characters, so it only represents
+            // a whole word when every character can participate in that conversion.
+            var wordTargets = IsKanaWord(words[i])
+                ? BuildSearchTargets(words[i])
+                : new[] { words[i], NormalizeForSearch(words[i]) };
+            if (!spec.IncludeTerms[i].Alternatives.Any(pattern =>
+                targets.Any(target => MatchesExact(pattern, target)) &&
+                wordTargets.Any(target => string.Equals(target, pattern.Core, StringComparison.OrdinalIgnoreCase))))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string[] SplitSearchWords(string? text) => (text ?? string.Empty)
+        .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+    private static bool IsKanaWord(string text) => ToHiragana(text.Normalize(NormalizationForm.FormKC))
+        .All(ch => SingleKanaRomaji.ContainsKey(ch) || ch == 'っ' || ch == 'ゃ' || ch == 'ゅ' || ch == 'ょ');
+
+    private enum MatchRank
+    {
+        WholeField,
+        Substring,
+        Fuzzy
     }
 
     internal static IReadOnlyList<string> Tokenize(string? query)
@@ -64,6 +133,11 @@ internal static class SlotSearchService
         var title = slot.Title ?? string.Empty;
         var keywords = slot.SearchKeywords ?? string.Empty;
         var baseText = (title + " " + keywords).ReplaceLineEndings(" ").Trim();
+        return BuildSearchTargets(baseText);
+    }
+
+    private static IReadOnlyList<string> BuildSearchTargets(string baseText)
+    {
         if (string.IsNullOrWhiteSpace(baseText))
         {
             return Array.Empty<string>();
