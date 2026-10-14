@@ -17,7 +17,7 @@ internal static class SlotSearchService
         if (layers == null) throw new ArgumentNullException(nameof(layers));
         if (isSlotEmpty == null) throw new ArgumentNullException(nameof(isSlotEmpty));
 
-        var results = new List<SlotSearchResult>();
+        var results = new List<(SlotSearchResult Result, MatchRank Rank)>();
         var spec = ParseQuery(query);
         bool matchAll = spec.IncludeTerms.Count == 0 && spec.ExcludeTerms.Count == 0;
 
@@ -34,14 +34,126 @@ internal static class SlotSearchService
                     continue;
                 }
 
-                if (matchAll || MatchesQuery(BuildSlotSearchTargets(slot), spec))
+                var targets = matchAll ? Array.Empty<string>() : BuildSlotSearchTargets(slot);
+                if (matchAll || MatchesQuery(targets, spec))
                 {
-                    results.Add(new SlotSearchResult(layerIndex, slotIndex));
+                    results.Add((new SlotSearchResult(layerIndex, slotIndex), GetMatchRank(slot, targets, spec)));
                 }
             }
         }
 
-        return results;
+        // OrderBy is stable, so ties retain layer/slot order.
+        return results.OrderBy(result => result.Rank).Select(result => result.Result).ToArray();
+    }
+
+    private static MatchRank GetMatchRank(SlotModel slot, IReadOnlyList<string> targets, QuerySpec spec)
+    {
+        if (spec.IncludeTerms.Count == 0)
+        {
+            return MatchRank.WholeField;
+        }
+
+        // Apply query cleanup only to ranking candidates; hit/exclusion matching
+        // must continue to use the original targets and parsed query.
+        var rankingTargets = BuildRankingTargets(targets);
+        if (!spec.IncludeTerms.All(set => set.Alternatives.Any(pattern =>
+            MatchesRankingAlternative(pattern, targets, rankingTargets))))
+        {
+            return MatchRank.Fuzzy;
+        }
+
+        if (MatchesWholeField(slot.Title, targets, rankingTargets, spec) ||
+            MatchesWholeField(slot.SearchKeywords, targets, rankingTargets, spec))
+        {
+            return MatchRank.WholeField;
+        }
+
+        // SearchKeywords is a whitespace-separated list of individual keywords.
+        if (spec.IncludeTerms.Count == 1 && SplitSearchWords(slot.SearchKeywords)
+            .Any(keyword => MatchesWholeField(keyword, targets, rankingTargets, spec)))
+        {
+            return MatchRank.WholeField;
+        }
+
+        return MatchRank.Substring;
+    }
+
+    private static bool MatchesRankingAlternative(
+        MatcherPattern pattern, IReadOnlyList<string> targets, IReadOnlyList<string> rankingTargets)
+    {
+        // Cleanup can satisfy a quote/anchor that failed on the original targets.
+        // Only alternatives that actually hit may contribute to ranking.
+        return targets.Any(target => MatchesPattern(pattern, target)) &&
+            rankingTargets.Any(target => MatchesExact(pattern, target));
+    }
+
+    private static bool MatchesWholeField(
+        string? text, IReadOnlyList<string> targets, IReadOnlyList<string> rankingTargets, QuerySpec spec)
+    {
+        var words = SplitSearchWords(text);
+        var wordTargets = words.Select(BuildRankingWordTargets).ToArray();
+        var positions = new HashSet<int> { 0 };
+
+        // A parsed alternative can span multiple words after width normalization.
+        // Track possible boundaries so OR alternatives need not consume the same
+        // number of words, without changing query tokenization or hit matching.
+        foreach (var set in spec.IncludeTerms)
+        {
+            var nextPositions = new HashSet<int>();
+            foreach (var pattern in set.Alternatives)
+            {
+                if (!MatchesRankingAlternative(pattern, targets, rankingTargets)) continue;
+                var cores = SplitSearchWords(pattern.Core);
+                if (cores.Length == 0) continue;
+
+                foreach (int position in positions)
+                {
+                    if (position + cores.Length > words.Length) continue;
+                    if (Enumerable.Range(0, cores.Length).All(i => wordTargets[position + i]
+                        .Any(target => string.Equals(target, cores[i], StringComparison.OrdinalIgnoreCase))))
+                    {
+                        nextPositions.Add(position + cores.Length);
+                    }
+                }
+            }
+
+            if (nextPositions.Count == 0)
+            {
+                return false;
+            }
+            positions = nextPositions;
+        }
+
+        return positions.Contains(words.Length);
+    }
+
+    private static IReadOnlyList<string> BuildRankingWordTargets(string word)
+    {
+        // Romaji conversion drops non-kana characters, so it only represents
+        // a whole word when every character can participate in that conversion.
+        var targets = IsKanaWord(word)
+            ? BuildSearchTargets(word)
+            : new[] { word, NormalizeForSearch(word) };
+        return BuildRankingTargets(targets);
+    }
+
+    private static string[] SplitSearchWords(string? text) => (text ?? string.Empty)
+        .Normalize(NormalizationForm.FormKC)
+        .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+    private static IReadOnlyList<string> BuildRankingTargets(IReadOnlyList<string> targets) => targets
+        .Concat(targets.Select(NormalizeTokenForSearch))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private static bool IsKanaWord(string text) => ToHiragana(text.Normalize(NormalizationForm.FormKC))
+        .All(ch => SingleKanaRomaji.ContainsKey(ch) || ch == 'っ' || ch == 'ゃ' || ch == 'ゅ' || ch == 'ょ');
+
+    private enum MatchRank
+    {
+        WholeField,
+        Substring,
+        Fuzzy
     }
 
     internal static IReadOnlyList<string> Tokenize(string? query)
@@ -64,6 +176,11 @@ internal static class SlotSearchService
         var title = slot.Title ?? string.Empty;
         var keywords = slot.SearchKeywords ?? string.Empty;
         var baseText = (title + " " + keywords).ReplaceLineEndings(" ").Trim();
+        return BuildSearchTargets(baseText);
+    }
+
+    private static IReadOnlyList<string> BuildSearchTargets(string baseText)
+    {
         if (string.IsNullOrWhiteSpace(baseText))
         {
             return Array.Empty<string>();
