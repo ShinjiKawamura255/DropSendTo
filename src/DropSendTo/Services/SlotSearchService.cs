@@ -53,20 +53,24 @@ internal static class SlotSearchService
             return MatchRank.WholeField;
         }
 
+        // Apply query cleanup only to ranking candidates; hit/exclusion matching
+        // must continue to use the original targets and parsed query.
+        var rankingTargets = BuildRankingTargets(targets);
         if (!spec.IncludeTerms.All(set => set.Alternatives.Any(pattern =>
-            targets.Any(target => MatchesExact(pattern, target)))))
+            MatchesRankingAlternative(pattern, targets, rankingTargets))))
         {
             return MatchRank.Fuzzy;
         }
 
-        if (MatchesWholeField(slot.Title, targets, spec) || MatchesWholeField(slot.SearchKeywords, targets, spec))
+        if (MatchesWholeField(slot.Title, targets, rankingTargets, spec) ||
+            MatchesWholeField(slot.SearchKeywords, targets, rankingTargets, spec))
         {
             return MatchRank.WholeField;
         }
 
         // SearchKeywords is a whitespace-separated list of individual keywords.
         if (spec.IncludeTerms.Count == 1 && SplitSearchWords(slot.SearchKeywords)
-            .Any(keyword => MatchesWholeField(keyword, targets, spec)))
+            .Any(keyword => MatchesWholeField(keyword, targets, rankingTargets, spec)))
         {
             return MatchRank.WholeField;
         }
@@ -74,34 +78,73 @@ internal static class SlotSearchService
         return MatchRank.Substring;
     }
 
-    private static bool MatchesWholeField(string? text, IReadOnlyList<string> targets, QuerySpec spec)
+    private static bool MatchesRankingAlternative(
+        MatcherPattern pattern, IReadOnlyList<string> targets, IReadOnlyList<string> rankingTargets)
+    {
+        // Cleanup can satisfy a quote/anchor that failed on the original targets.
+        // Only alternatives that actually hit may contribute to ranking.
+        return targets.Any(target => MatchesPattern(pattern, target)) &&
+            rankingTargets.Any(target => MatchesExact(pattern, target));
+    }
+
+    private static bool MatchesWholeField(
+        string? text, IReadOnlyList<string> targets, IReadOnlyList<string> rankingTargets, QuerySpec spec)
     {
         var words = SplitSearchWords(text);
-        if (words.Length != spec.IncludeTerms.Count)
-        {
-            return false;
-        }
+        var wordTargets = words.Select(BuildRankingWordTargets).ToArray();
+        var positions = new HashSet<int> { 0 };
 
-        for (int i = 0; i < words.Length; i++)
+        // A parsed alternative can span multiple words after width normalization.
+        // Track possible boundaries so OR alternatives need not consume the same
+        // number of words, without changing query tokenization or hit matching.
+        foreach (var set in spec.IncludeTerms)
         {
-            // Romaji conversion drops non-kana characters, so it only represents
-            // a whole word when every character can participate in that conversion.
-            var wordTargets = IsKanaWord(words[i])
-                ? BuildSearchTargets(words[i])
-                : new[] { words[i], NormalizeForSearch(words[i]) };
-            if (!spec.IncludeTerms[i].Alternatives.Any(pattern =>
-                targets.Any(target => MatchesExact(pattern, target)) &&
-                wordTargets.Any(target => string.Equals(target, pattern.Core, StringComparison.OrdinalIgnoreCase))))
+            var nextPositions = new HashSet<int>();
+            foreach (var pattern in set.Alternatives)
+            {
+                if (!MatchesRankingAlternative(pattern, targets, rankingTargets)) continue;
+                var cores = SplitSearchWords(pattern.Core);
+                if (cores.Length == 0) continue;
+
+                foreach (int position in positions)
+                {
+                    if (position + cores.Length > words.Length) continue;
+                    if (Enumerable.Range(0, cores.Length).All(i => wordTargets[position + i]
+                        .Any(target => string.Equals(target, cores[i], StringComparison.OrdinalIgnoreCase))))
+                    {
+                        nextPositions.Add(position + cores.Length);
+                    }
+                }
+            }
+
+            if (nextPositions.Count == 0)
             {
                 return false;
             }
+            positions = nextPositions;
         }
 
-        return true;
+        return positions.Contains(words.Length);
+    }
+
+    private static IReadOnlyList<string> BuildRankingWordTargets(string word)
+    {
+        // Romaji conversion drops non-kana characters, so it only represents
+        // a whole word when every character can participate in that conversion.
+        var targets = IsKanaWord(word)
+            ? BuildSearchTargets(word)
+            : new[] { word, NormalizeForSearch(word) };
+        return BuildRankingTargets(targets);
     }
 
     private static string[] SplitSearchWords(string? text) => (text ?? string.Empty)
-        .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        .Normalize(NormalizationForm.FormKC)
+        .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+    private static IReadOnlyList<string> BuildRankingTargets(IReadOnlyList<string> targets) => targets
+        .Concat(targets.Select(NormalizeTokenForSearch))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     private static bool IsKanaWord(string text) => ToHiragana(text.Normalize(NormalizationForm.FormKC))
         .All(ch => SingleKanaRomaji.ContainsKey(ch) || ch == 'っ' || ch == 'ゃ' || ch == 'ゅ' || ch == 'ょ');

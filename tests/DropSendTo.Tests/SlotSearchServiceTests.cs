@@ -500,6 +500,142 @@ public class SlotSearchServiceTests
             new SlotSearchResult(0, 0), new SlotSearchResult(0, 1), new SlotSearchResult(1, 0));
     }
 
+    [Theory]
+    [InlineData("alpha beta", "Alpha\u3000Beta")]
+    [InlineData("alpha beta", "Alpha\u00a0Beta")]
+    [InlineData("alpha beta", "Alpha\u2003Beta")]
+    [InlineData("alpha beta", "\uff21\uff4c\uff50\uff48\uff41\u3000\uff22\uff45\uff54\uff41")]
+    [InlineData("alpha\u3000beta", "Alpha Beta")]
+    [InlineData("alpha\u3000beta", "Alpha\u3000Beta")]
+    public void Search_ShouldRankWholeTitlesFirst_WhenWhitespaceIsNormalized(string query, string wholeTitle)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "Alpha Beta helper"), Slot(title: wholeTitle)] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("code\u3000vsc")]
+    [InlineData("code\u00a0vsc")]
+    [InlineData("code\u2003vsc")]
+    public void Search_ShouldRankIndividualKeywordsFirst_WhenWhitespaceIsNormalized(string keywords)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "VSC helper"), Slot(title: "Editor", keywords: keywords)] }
+        };
+
+        SlotSearchService.Search(layers, "vsc", IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("alpha\u3000beta gamma")]
+    [InlineData("alpha|alpha\u3000beta gamma")]
+    [InlineData("alpha\u3000beta|alpha beta gamma")]
+    public void Search_ShouldRankWholeTitlesFirst_WhenNormalizedPhrasesMixWithAndOrTerms(string query)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "Alpha Beta Gamma helper"), Slot(title: "Alpha Beta Gamma")] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("VS-Code", "VS-Code", "VSCode helper")]
+    [InlineData("VS-Code", "VS\uff0dCode", "VSCode helper")]
+    [InlineData("VS\uff0dCode", "VS-Code", "VS-Code helper")]
+    [InlineData("ラーメン", "ラーメン", "ラメン用")]
+    [InlineData("ラーメン", "\uff97\uff70\uff92\uff9d", "ラメン用")]
+    public void Search_ShouldRankWholeTitlesFirst_WhenQueryRemovesHyphensOrProlongedMarks(
+        string query, string wholeTitle, string partialTitle)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: partialTitle), Slot(title: wholeTitle)] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("VS-Code", "VSCode helper", "code VS-Code ide")]
+    [InlineData("ラーメン", "ラメン用", "food ラーメン noodles")]
+    public void Search_ShouldRankIndividualKeywordsFirst_WhenQueryRemovesHyphensOrProlongedMarks(
+        string query, string partialTitle, string keywords)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: partialTitle), Slot(title: "Other", keywords: keywords)] }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
+    [Theory]
+    [InlineData("VS-Code", new[] { 0, 1, 7 })]
+    [InlineData("'VS-Code", new[] { 1, 7 })]
+    [InlineData("^'VS-Code", new[] { 1 })]
+    [InlineData("VS-Code$", new[] { 0, 7 })]
+    [InlineData("^VS-Code$", new[] { 0 })]
+    [InlineData("VS-Code !blocked", new[] { 0, 1 })]
+    [InlineData("!VS-Code", new[] { 0, 2, 3, 4, 5, 6 })]
+    [InlineData("VS-Code|ラーメン", new[] { 0, 1, 2, 3, 7 })]
+    [InlineData("'ラーメン", new[] { 3 })]
+    [InlineData("alpha\u3000beta", new[] { 4, 5 })]
+    [InlineData("vsc", new[] { 0, 1, 6, 7 })]
+    public void Search_ShouldPreserveHitConditions_WhenOnlyRankingIsNormalized(string query, int[] expectedSlots)
+    {
+        var layers = new[]
+        {
+            new Layer
+            {
+                Slots =
+                [
+                    Slot(title: "VS-Code"),
+                    Slot(title: "VSCode helper"),
+                    Slot(title: "ラーメン"),
+                    Slot(title: "ラメン用"),
+                    Slot(title: "Alpha\u3000Beta"),
+                    Slot(title: "Alpha Beta helper"),
+                    Slot(title: "Editor", keywords: "code\u3000vsc"),
+                    Slot(title: "blocked VSCode")
+                ]
+            }
+        };
+
+        SlotSearchService.Search(layers, query, IsSlotEmpty)
+            .Select(result => result.SlotIndex).OrderBy(index => index)
+            .Should().Equal(expectedSlots);
+    }
+
+    [Theory]
+    [InlineData("^'vscode|code")]
+    [InlineData("'vscode|code")]
+    [InlineData("'vscode$|code")]
+    [InlineData("^'vscode$|code")]
+    public void Search_ShouldNotRankAnOrAlternativeThatOnlyMatchesAfterRankingCleanup(string query)
+    {
+        var layers = new[]
+        {
+            new Layer { Slots = [Slot(title: "VS-Code"), Slot(title: "Code")] }
+        };
+
+        // VS-Code hits only through the substring alternative "code". The quoted
+        // "vscode" alternative must not promote it over the whole-field Code hit.
+        SlotSearchService.Search(layers, query, IsSlotEmpty).Should().Equal(
+            new SlotSearchResult(0, 1), new SlotSearchResult(0, 0));
+    }
+
     private static SlotModel Slot(
         string? title = null,
         string? keywords = null,
