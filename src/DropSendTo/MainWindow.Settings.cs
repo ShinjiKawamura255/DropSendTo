@@ -154,6 +154,10 @@ public partial class MainWindow
                 _config.EnableEmacsNavigation = (bool)value;
                 UpdateSearchOverlayNavigationModes();
                 break;
+            case SettingsOption.AcceptExternalMacroInput:
+                _config.AcceptExternalMacroInput = (bool)value;
+                _shortcutService.SetAcceptExternalMacroInput(_config.AcceptExternalMacroInput);
+                break;
             case SettingsOption.ViNavigation:
                 _config.EnableViNavigation = (bool)value;
                 UpdateSearchOverlayNavigationModes();

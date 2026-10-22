@@ -224,6 +224,7 @@ internal sealed class ConfigTransferService
         public WindowPlacementMode WindowPlacementMode { get; set; }
         public string ShortcutPrefix { get; set; } = string.Empty;
         public bool ShortcutPrefixDisabled { get; set; }
+        public bool AcceptExternalMacroInput { get; set; }
         public bool EnablePrefixDropCapture { get; set; }
         public bool EnableEmacsNavigation { get; set; }
         public bool EnableViNavigation { get; set; }
@@ -277,6 +278,7 @@ internal sealed class ConfigTransferService
                 WindowPlacementMode = config.WindowPlacementMode,
                 ShortcutPrefix = config.ShortcutPrefix,
                 ShortcutPrefixDisabled = config.ShortcutPrefixDisabled,
+                AcceptExternalMacroInput = config.AcceptExternalMacroInput,
                 EnablePrefixDropCapture = config.EnablePrefixDropCapture,
                 EnableEmacsNavigation = config.EnableEmacsNavigation,
                 EnableViNavigation = config.EnableViNavigation,
@@ -341,6 +343,7 @@ internal sealed class ConfigTransferService
                 WindowPlacementMode = WindowPlacementMode,
                 ShortcutPrefix = ShortcutPrefix ?? string.Empty,
                 ShortcutPrefixDisabled = ShortcutPrefixDisabled,
+                AcceptExternalMacroInput = AcceptExternalMacroInput,
                 EnablePrefixDropCapture = EnablePrefixDropCapture,
                 EnableEmacsNavigation = EnableEmacsNavigation,
                 EnableViNavigation = EnableViNavigation,

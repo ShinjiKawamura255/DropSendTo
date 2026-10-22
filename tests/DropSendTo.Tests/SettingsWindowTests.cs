@@ -8,6 +8,40 @@ namespace DropSendTo.Tests;
 
 public class SettingsWindowTests
 {
+    [Theory]
+    [InlineData(AppLanguage.Japanese, "外部マクロのキー入力を受け付ける")]
+    [InlineData(AppLanguage.English, "Accept external macro keyboard input")]
+    public void ExternalMacroInput_ShouldDefaultOff_ApplyOnceAndRefreshWithoutChanges(AppLanguage language, string title)
+    {
+        RunSta(() =>
+        {
+            var config = new AppConfig { Language = language };
+            var changes = new List<bool>();
+            var window = new SettingsWindow(() => config, () => false,
+                (option, value) =>
+                {
+                    Assert.Equal(SettingsOption.AcceptExternalMacroInput, option);
+                    config.AcceptExternalMacroInput = (bool)value;
+                    changes.Add((bool)value);
+                }, _ => Task.CompletedTask);
+            try
+            {
+                window.SelectCategory(1);
+                var box = (CheckBox)window.GetSettingControl(SettingsOption.AcceptExternalMacroInput);
+                Assert.Equal(title, box.Content);
+                Assert.False(box.IsChecked);
+                box.IsChecked = true;
+                box.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(new[] { true }, changes);
+                config = new AppConfig { Language = language };
+                window.RefreshSettings();
+                Assert.False(box.IsChecked);
+                Assert.Single(changes);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Fact]
     public void Refresh_ShouldNotApplyChanges_AndShouldReadReplacedConfig()
     {

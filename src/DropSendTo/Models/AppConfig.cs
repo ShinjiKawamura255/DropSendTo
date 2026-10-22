@@ -23,6 +23,8 @@ public class AppConfig
     public bool MousePlacementFollowsKeyboard { get; set; } = true;
     public string ShortcutPrefix { get; set; } = "CTRL+Q";
     public bool ShortcutPrefixDisabled { get; set; }
+    /// <summary>Accept externally injected keyboard input for global shortcuts. Disabled by default.</summary>
+    public bool AcceptExternalMacroInput { get; set; }
     public bool EnablePrefixDropCapture { get; set; } = true;
     public bool EnableEmacsNavigation { get; set; }
     public bool EnableViNavigation { get; set; }

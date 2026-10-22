@@ -72,6 +72,7 @@ public class ConfigTransferServiceTests
             ShortcutPrefix = "CTRL+ALT+K",
             ShortcutPrefixDisabled = true,
             EnablePrefixDropCapture = false,
+            AcceptExternalMacroInput = true,
             SlotRows = 3,
             SlotColumns = 3,
             SlotSize = SlotSize.Medium,
@@ -117,6 +118,7 @@ public class ConfigTransferServiceTests
         imported.StartupBehavior.Should().Be(StartupWindowBehavior.StartInTray);
         imported.LastWindowVisibility.Should().Be(WindowVisibilityState.Tray);
         imported.EnablePrefixDropCapture.Should().BeFalse();
+        imported.AcceptExternalMacroInput.Should().BeTrue();
         imported.CurrentLayer.Should().Be(config.CurrentLayer);
         imported.EnableMouseGestures.Should().BeFalse();
         imported.EnableDragMiddleClickShow.Should().BeTrue();
@@ -201,6 +203,7 @@ public class ConfigTransferServiceTests
         imported.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
         imported.MouseGestureMinRadiusPixels.Should().Be(0);
         imported.AppLayerSwitchingEnabled.Should().BeFalse();
+        imported.AcceptExternalMacroInput.Should().BeFalse();
         imported.AppLayerFallbackLayer.Should().Be(-1);
         imported.AppLayerRules.Should().BeEmpty();
     }

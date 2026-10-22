@@ -80,6 +80,8 @@ internal sealed class ShortcutService : IDisposable
     private bool _prefixDisabled;
     private bool _prefixDropCaptureEnabled = true;
     private bool _preferRemoteSessions;
+    private bool _acceptExternalMacroInput;
+    private Dictionary<ushort, int>? _externalSuppressedKeyUps;
     private Func<bool> _remoteSessionDetector;
     private bool _sequenceCaptureInProgress;
     private bool _awaitingFirstShortcutKey;
@@ -277,6 +279,20 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
+    public void SetAcceptExternalMacroInput(bool enabled)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
+        lock (_stateLock)
+        {
+            if (_acceptExternalMacroInput == enabled) return;
+            _acceptExternalMacroInput = enabled;
+            ResetPrefixStateLocked();
+            _activeModifiers.Clear();
+            _modifierLastPressedUtc.Clear();
+            // Keep pending suppressed releases so toggling off cannot leak a consumed key's key-up.
+        }
+    }
+
     public void ResetPrefixState(bool clearModifiers = false)
     {
         if (_disposed) throw new ObjectDisposedException(nameof(ShortcutService));
@@ -348,33 +364,42 @@ internal sealed class ShortcutService : IDisposable
         bool isInjected = (info.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
         bool isMacroInjection = InputExtraInfo.IsMacroInjection(info.dwExtraInfo);
         bool isMacroPassthrough = InputExtraInfo.IsMacroPassthrough(info.dwExtraInfo);
-        if (isMacroPassthrough && !_prefixArmed)
-        {
-            return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
-        }
-
-        if (isInjected && !isMacroInjection && !isMacroPassthrough)
-        {
-            // マクロが送出したキーや他プロセスによる合成入力は監視対象外とし、OSへそのまま渡す
-            return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
-        }
+        bool isExternalMacro = isInjected && !isMacroInjection && !isMacroPassthrough;
+        bool isKeyUp = msg == WM_KEYUP || msg == WM_SYSKEYUP;
 
         bool suppress = false;
         ShortcutAction action = ShortcutAction.None;
         lock (_stateLock)
         {
+            // Own passthrough input must never re-arm Prefix, even when external macros are accepted.
+            if (isMacroPassthrough && !_prefixArmed)
+            {
+                return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+            }
+            if (isExternalMacro && !_acceptExternalMacroInput)
+            {
+                if (isKeyUp && _externalSuppressedKeyUps != null
+                    && ConsumeSuppressedKey(_externalSuppressedKeyUps, (ushort)info.vkCode))
+                {
+                    return new IntPtr(1);
+                }
+                return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+            }
             if (_prefixChord == null)
             {
                 return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
             }
 
+            var pendingKeyUps = isExternalMacro ? _externalSuppressedKeyUps ??= new() : _suppressedKeyUps;
             if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
             {
-                action = ProcessKeyDown(info.vkCode, out suppress);
+                action = isExternalMacro
+                    ? ProcessKeyDownCore(info.vkCode, out suppress, pendingKeyUps)
+                    : ProcessKeyDown(info.vkCode, out suppress);
             }
-            else if (msg == WM_KEYUP || msg == WM_SYSKEYUP)
+            else if (isKeyUp)
             {
-                suppress = ProcessKeyUp(info.vkCode);
+                suppress = isExternalMacro ? ProcessKeyUpCore(info.vkCode, pendingKeyUps) : ProcessKeyUp(info.vkCode);
             }
         }
 
@@ -388,7 +413,10 @@ internal sealed class ShortcutService : IDisposable
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
 
-    private ShortcutAction ProcessKeyDown(uint vkCode, out bool suppress)
+    private ShortcutAction ProcessKeyDown(uint vkCode, out bool suppress) =>
+        ProcessKeyDownCore(vkCode, out suppress, _suppressedKeyUps);
+
+    private ShortcutAction ProcessKeyDownCore(uint vkCode, out bool suppress, Dictionary<ushort, int> pendingKeyUps)
     {
         suppress = false;
         var chord = _prefixChord!;
@@ -409,7 +437,7 @@ internal sealed class ShortcutService : IDisposable
         {
             if (vk == _searchHotkeyChord.MainKey && AreModifiersSatisfied(_searchHotkeyChord.Modifiers))
             {
-                MarkKeyForSuppression(vk);
+                MarkKeyForSuppression(pendingKeyUps, vk);
                 suppress = true;
                 return ShortcutAction.CreateSearchHotkey();
             }
@@ -432,7 +460,7 @@ internal sealed class ShortcutService : IDisposable
             }
 
             SetPrefixArmedLocked(true, now);
-            MarkKeyForSuppression(vk);
+            MarkKeyForSuppression(pendingKeyUps, vk);
             suppress = true;
             return ShortcutAction.None;
         }
@@ -440,7 +468,7 @@ internal sealed class ShortcutService : IDisposable
         if (vk == chord.MainKey && AreModifiersSatisfied(chord.Modifiers))
         {
             SetPrefixArmedLocked(false, now);
-            MarkKeyForSuppression(vk);
+            MarkKeyForSuppression(pendingKeyUps, vk);
             suppress = true;
             return ShortcutAction.CreatePrefixPassthrough(_prefixText);
         }
@@ -461,7 +489,7 @@ internal sealed class ShortcutService : IDisposable
 
         if (TryResolveSpecialCommand(vk, modifiers, prefixResidue, out var specialAction))
         {
-            MarkKeyForSuppression(vk);
+            MarkKeyForSuppression(pendingKeyUps, vk);
             suppress = true;
             SetPrefixArmedLocked(false, now);
             return specialAction;
@@ -487,12 +515,12 @@ internal sealed class ShortcutService : IDisposable
         switch (sequenceEvaluation.Result)
         {
             case ShortcutSequenceEvaluationResult.CompletedMatch when sequenceEvaluation.MatchedSequence != null:
-                MarkKeyForSuppression(vk);
+                MarkKeyForSuppression(pendingKeyUps, vk);
                 suppress = true;
                 SetPrefixArmedLocked(false, now);
                 return ShortcutAction.CreateShortcut(sequenceEvaluation.MatchedSequence);
             case ShortcutSequenceEvaluationResult.PartialMatch:
-                MarkKeyForSuppression(vk);
+                MarkKeyForSuppression(pendingKeyUps, vk);
                 suppress = true;
                 SetPrefixArmedLocked(true, now);
                 return ShortcutAction.None;
@@ -503,11 +531,13 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
-    private bool ProcessKeyUp(uint vkCode)
+    private bool ProcessKeyUp(uint vkCode) => ProcessKeyUpCore(vkCode, _suppressedKeyUps);
+
+    private bool ProcessKeyUpCore(uint vkCode, Dictionary<ushort, int> pendingKeyUps)
     {
         var vk = (ushort)vkCode;
         TrackModifierKeyUpLocked(vk);
-        if (ConsumeSuppressedKey(vk))
+        if (ConsumeSuppressedKey(pendingKeyUps, vk))
         {
             return true;
         }
@@ -1005,6 +1035,7 @@ internal sealed class ShortcutService : IDisposable
         _activeModifiers.Clear();
         _modifierLastPressedUtc.Clear();
         _suppressedKeyUps.Clear();
+        _externalSuppressedKeyUps?.Clear();
     }
 
     private void OnSystemPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
@@ -1055,31 +1086,31 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
-    private void MarkKeyForSuppression(ushort vk)
+    private static void MarkKeyForSuppression(Dictionary<ushort, int> pending, ushort vk)
     {
-        if (_suppressedKeyUps.TryGetValue(vk, out var count))
+        if (pending.TryGetValue(vk, out var count))
         {
-            _suppressedKeyUps[vk] = count + 1;
+            pending[vk] = count + 1;
         }
         else
         {
-            _suppressedKeyUps[vk] = 1;
+            pending[vk] = 1;
         }
     }
 
-    private bool ConsumeSuppressedKey(ushort vk)
+    private static bool ConsumeSuppressedKey(Dictionary<ushort, int> pending, ushort vk)
     {
-        if (!_suppressedKeyUps.TryGetValue(vk, out var count) || count <= 0)
+        if (!pending.TryGetValue(vk, out var count) || count <= 0)
         {
             return false;
         }
         if (count == 1)
         {
-            _suppressedKeyUps.Remove(vk);
+            pending.Remove(vk);
         }
         else
         {
-            _suppressedKeyUps[vk] = count - 1;
+            pending[vk] = count - 1;
         }
         return true;
     }

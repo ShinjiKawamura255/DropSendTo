@@ -10,6 +10,7 @@
 - Manual: チェックリストで確認（スクショ取得）。
 
 ## Test Cases (excerpt)
+- TC-138 ExternalMacroInput (SP-010): `ShortcutServiceExternalMacroTests` で実際のキーボードフック判定を直接呼び、通常入力・外部合成入力（通常／lower integrity）・自前タグ、既定OFF／ON、PrefixとKeyUp抑止、複数キーのスロット起動、再入力パススルー、SYSKEYによる検索ホットキー、リモート優先・Prefix無効、切替時の状態解除・抑止済み解放の消費、入力元ごとのKeyUp分離、同値再適用を検証する。OSへの入力送信やグローバルフック登録は行わない。`ConfigServiceTests` / `ConfigTransferServiceTests` で新規・既存の欠落項目のOFF、primary／backup、暗号化往復を検証する。`SettingsWindowTests` と `scripts/Test-SettingsWindow.ps1` で日英表示、即時保存・runtime反映、保存失敗時の復元、明暗・最小サイズの表示を確認する。実機の左手キーボード・設定ソフトからの送信方式と動作は別途手動で確認する。
 - TC-044 SettingsWindow: `SettingsWindowTests` で初期化・再同期が変更通知を出さないこと、設定オブジェクト差し替えへの追従、選択変更の一度だけの反映、日英の全カテゴリ・詳細操作への到達、マウス／検索のキーボード追従、言語切替時のカテゴリ保持を確認する。実表示ではメニューとトレイからの起動・再選択時の単一インスタンス・最小化復元、詳細編集後の現在値、設定インポート後の同期、明暗テーマと日英、660×460 のスクロール、Tab/Space/矢印による操作、閉じた後も保存値が維持されることを確認する。スタートアップ登録の変更は隔離環境で実施する。
 - TC-001 Platform: Windows の .NET 10 でビルド/実行できる。
 - TC-010 Slots: 現在の行列構成（2〜8 × 2〜8）で全スロットの登録/解除/復元が可能で、タイトル/コマンド/引数/マクロ/ショートカット/クリック可否が保存される。

@@ -74,6 +74,9 @@ internal static partial class Program
             AppConfig ReadConfig() => (AppConfig)configField.GetValue(main)!;
             var apply = typeof(MainWindow).GetMethod("ApplySetting", PrivateInstance)!;
             void Apply(SettingsOption option, object value) => apply.Invoke(main, new[] { (object)option, value });
+            var shortcuts = (ShortcutService)typeof(MainWindow).GetField("_shortcutService", PrivateInstance)!.GetValue(main)!;
+            bool AcceptsExternalInput() => (bool)typeof(ShortcutService)
+                .GetField("_acceptExternalMacroInput", PrivateInstance)!.GetValue(shortcuts)!;
             var execute = typeof(MainWindow).GetMethod("ExecuteSettingsActionAsync", PrivateInstance)!;
             var window = new SettingsWindow(ReadConfig, () => false, Apply,
                 action => (Task)execute.Invoke(main, new object[] { action })!)
@@ -137,7 +140,8 @@ internal static partial class Program
                     {
                         (SettingsOption.Theme, AppTheme.Light), (SettingsOption.Language, AppLanguage.English),
                         (SettingsOption.AlwaysOnTop, false), (SettingsOption.KeyboardPlacement, 2),
-                        (SettingsOption.MousePlacement, 1), (SettingsOption.SearchPlacement, 2)
+                        (SettingsOption.MousePlacement, 1), (SettingsOption.SearchPlacement, 2),
+                        (SettingsOption.AcceptExternalMacroInput, true)
                     })
                     {
                         try { Apply(failedOption.Option, failedOption.Value); throw new Exception("Expected persistence failure"); }
@@ -146,7 +150,8 @@ internal static partial class Program
                             ReadConfig().Language == AppLanguage.Japanese && main.Topmost &&
                             ReadConfig().KeyboardPlacementMode == WindowPlacementMode.Fixed &&
                             ReadConfig().MousePlacementFollowsKeyboard &&
-                            ReadConfig().SearchPlacementMode == SearchOverlayPlacementMode.Fixed,
+                            ReadConfig().SearchPlacementMode == SearchOverlayPlacementMode.Fixed &&
+                            !ReadConfig().AcceptExternalMacroInput && !AcceptsExternalInput(),
                             $"{failedOption.Option} restores runtime services and configuration");
                     }
                     try
@@ -174,6 +179,18 @@ internal static partial class Program
                 }
 
                 // Check persistence through the real MainWindow and ConfigService paths.
+                window.SelectCategory(1);
+                window.RefreshSettings();
+                var externalMacro = (CheckBox)window.GetSettingControl(SettingsOption.AcceptExternalMacroInput);
+                Assert(externalMacro.IsChecked == false && !AcceptsExternalInput(), "External macro input defaults off");
+                foreach (bool enabled in new[] { true, false })
+                {
+                    externalMacro.IsChecked = enabled;
+                    externalMacro.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                    Assert(ReadDisk(output).AcceptExternalMacroInput == enabled && AcceptsExternalInput() == enabled,
+                        "External macro checkbox saves and applies immediately");
+                }
+                report.Add("PASS: external macro opt-in defaults off, saves/applies on and off, and rolls back after save failure");
                 Apply(SettingsOption.KeyboardPlacement, 0);
                 Apply(SettingsOption.MousePlacement, -1);
                 Apply(SettingsOption.MousePlacement, 0);

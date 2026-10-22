@@ -14,7 +14,7 @@ internal enum SettingsOption
     SlotLayout, SlotSize, HideEmptySlotNames, AlwaysOnTop, Theme,
     KeyboardPlacement, MousePlacement, SearchPlacement,
     EmacsNavigation, ViNavigation, LayerCount, StartupBehavior,
-    StartupRegistration, MacroConcurrency, Language
+    StartupRegistration, MacroConcurrency, Language, AcceptExternalMacroInput
 }
 
 internal enum SettingsAction
@@ -129,6 +129,16 @@ public partial class SettingsWindow : Window
             c => Text("現在：", "Current: ") + (c.ShortcutPrefixDisabled ? Text("無効", "Disabled") : c.ShortcutPrefix));
         AddAction(SettingsAction.SearchHotkey, Text("検索ホットキー…", "Search hotkey…"),
             c => Text("現在：", "Current: ") + (c.SearchHotkeyEnabled ? c.SearchHotkey : Text("無効", "Disabled")));
+        AddCheck(SettingsOption.AcceptExternalMacroInput,
+            Text("外部マクロのキー入力を受け付ける", "Accept external macro keyboard input"),
+            c => c.AcceptExternalMacroInput);
+        _page.Children.Add(new TextBlock
+        {
+            Text = Text("既定はOFF。左手キーボード等の合成入力をショートカットとして扱います。他の自動入力も対象になります。",
+                "Off by default. Treat synthetic input from macro keypads as shortcuts. Other automated input is also included."),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 18)
+        });
         AddCheck(SettingsOption.EmacsNavigation, Text("Emacs ライク操作", "Emacs-like navigation"),
             c => c.EnableEmacsNavigation);
         AddCheck(SettingsOption.ViNavigation, Text("vi ライク操作", "vi-like navigation"), c => c.EnableViNavigation);

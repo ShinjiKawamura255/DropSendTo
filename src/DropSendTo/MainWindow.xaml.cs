@@ -1187,6 +1187,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             _shortcutService.Initialize(_config.ShortcutPrefix, _config.ShortcutPrefixDisabled);
             _shortcutService.SetPrefixDropCaptureEnabled(_config.EnablePrefixDropCapture);
             _shortcutService.SetRemoteSessionPreference(_config.PreferRemoteSessions);
+            _shortcutService.SetAcceptExternalMacroInput(_config.AcceptExternalMacroInput);
             _shortcutService.UpdateSearchHotkey(_config.SearchHotkey, _config.SearchHotkeyEnabled);
             _macroService.SetPrefixStateAccessors(
                 () => _shortcutService.CurrentPrefixChord,
@@ -4111,6 +4112,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
     void IConfigRuntimeApplyTarget.ApplyShortcuts(AppConfig config)
     {
         _shortcutService.SetRemoteSessionPreference(config.PreferRemoteSessions);
+        _shortcutService.SetAcceptExternalMacroInput(config.AcceptExternalMacroInput);
         _shortcutService.UpdatePrefix(config.ShortcutPrefix, config.ShortcutPrefixDisabled);
         _shortcutService.UpdateSearchHotkey(config.SearchHotkey, config.SearchHotkeyEnabled);
         _shortcutService.SetPrefixDropCaptureEnabled(config.EnablePrefixDropCapture);

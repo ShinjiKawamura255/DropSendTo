@@ -12,6 +12,49 @@ public class ConfigServiceTests
 {
     private static int CurrentConfigVersion => new AppConfig().Version;
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Save_ShouldPreserveExternalMacroOptIn_InPrimaryAndBackup(bool enabled)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var service = new ConfigService(temp);
+        try
+        {
+            var config = new AppConfig { AcceptExternalMacroInput = enabled };
+            service.Save(config);
+            service.Save(config);
+            service.LoadOrCreate().AcceptExternalMacroInput.Should().Be(enabled);
+            var backup = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(service.GetConfigPath() + ".bak"))!;
+            backup.AcceptExternalMacroInput.Should().Be(enabled);
+        }
+        finally
+        {
+            if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(36)]
+    [InlineData(37)]
+    public void LoadOrCreate_ShouldDefaultExternalMacroInputToOff_WhenPropertyIsMissing(int version)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "DropSendToTests", Guid.NewGuid().ToString("N"));
+        var service = new ConfigService(temp);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(service.GetConfigPath())!);
+            File.WriteAllText(service.GetConfigPath(), "{\"Version\":" + version + ",\"ShortcutPrefix\":\"CTRL+Q\"}");
+            var config = service.LoadOrCreate();
+            config.AcceptExternalMacroInput.Should().BeFalse();
+            config.ShortcutPrefix.Should().Be("CTRL+Q");
+        }
+        finally
+        {
+            if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true);
+        }
+    }
+
     [Fact]
     public void Save_ShouldPreserveAppLayerRulesInPrimaryAndBackup()
     {
@@ -70,6 +113,7 @@ public class ConfigServiceTests
         cfg.LastWindowVisibility.Should().Be(WindowVisibilityState.Visible);
         cfg.MacroConcurrencyMode.Should().Be(MacroConcurrencyMode.Exclusive);
         cfg.EnablePrefixDropCapture.Should().BeTrue();
+        cfg.AcceptExternalMacroInput.Should().BeFalse();
         cfg.EnableEmacsNavigation.Should().BeFalse();
         cfg.EnableViNavigation.Should().BeFalse();
         cfg.EnableMouseGestures.Should().BeTrue();
