@@ -861,27 +861,62 @@ public class KeyboardMacroServiceExpansionCommandTests : IDisposable
         return path;
     }
 
+    [Fact]
+    public async Task WaitForPidFile_ShouldWaitUntilWriterReleasesTheFile()
+    {
+        var path = WriteFile("locked.pid", Environment.ProcessId.ToString());
+        Task ready;
+        using (var writer = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            ready = WaitForPidFileAsync(path);
+            await Task.Delay(100);
+            ready.IsCompleted.Should().BeFalse("a fixture is not ready while its PID marker is locked");
+        }
+
+        await ready.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task WaitForPidFile_ShouldWaitUntilMarkerContainsAValidPid()
+    {
+        var path = WriteFile("incomplete.pid", "starting");
+        var ready = WaitForPidFileAsync(path);
+        await Task.Delay(100);
+        ready.IsCompleted.Should().BeFalse("partial or invalid marker contents do not identify a process");
+        File.WriteAllText(path, Environment.ProcessId.ToString());
+
+        await ready.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
     private static async Task WaitForPidFileAsync(string path)
     {
         var stopwatch = Stopwatch.StartNew();
-        while (!File.Exists(path) || string.IsNullOrWhiteSpace(File.ReadAllText(path)))
+        // This is fixture startup allowance, not the production timeout/cancellation assertion.
+        while (stopwatch.Elapsed < TimeSpan.FromSeconds(8))
         {
-            if (stopwatch.Elapsed > TimeSpan.FromSeconds(5))
+            try
             {
-                throw new TimeoutException("The owned process fixture did not start.");
+                if (int.TryParse(File.ReadAllText(path), out var pid) && pid > 0) return;
+            }
+            catch (IOException)
+            {
+                // A marker may not exist yet or may still be exclusively held by its writer.
             }
             await Task.Delay(20);
         }
+        throw new TimeoutException("The owned process fixture did not start.");
     }
 
     private (string Script, string ParentPidFile, string ChildPidFile) CreateInheritedPipeFixture()
     {
         var childPidFile = Path.Combine(_tempRoot, "descendant.pid");
         var childScript = WriteFile("descendant.ps1",
-            $"[IO.File]::WriteAllText('{childPidFile}', $PID.ToString()); Start-Sleep -Seconds 8");
+            $"[IO.File]::WriteAllText('{childPidFile}.tmp', $PID.ToString()); " +
+            $"[IO.File]::Move('{childPidFile}.tmp', '{childPidFile}'); Start-Sleep -Seconds 8");
         var parentPidFile = Path.Combine(_tempRoot, "parent.pid");
         var parentScript = WriteFile("parent.ps1", string.Join(Environment.NewLine,
-            $"[IO.File]::WriteAllText('{parentPidFile}', $PID.ToString())",
+            $"[IO.File]::WriteAllText('{parentPidFile}.tmp', $PID.ToString())",
+            $"[IO.File]::Move('{parentPidFile}.tmp', '{parentPidFile}')",
             "$start = New-Object Diagnostics.ProcessStartInfo",
             "$start.FileName = 'powershell.exe'",
             $"$start.Arguments = '-NoProfile -File \"{childScript}\"'",
