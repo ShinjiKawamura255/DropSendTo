@@ -80,7 +80,7 @@
 - TC-108 LanguageSettings: 設定 → 一般・データ管理で Japanese/English を切り替えるとメニューと検索ラベルの文言が即時更新され、config に保存されることを確認する。既定は日本語で、再起動後も選択した言語が復元される。
 - TC-109 DragDropCapture: ドラッグ中にホイールクリックでドロップ専用ウィンドウが表示され、ドロップ後に左上の Dropped インジケーターが表示されること、スロットのクリック/キーボード選択/検索起動で `{args}` に展開されることを確認する。
 - TC-110 StartupWindowBehavior: 設定 → 起動・実行で「常に表示」「前回の状態を復元」「常にタスクトレイで起動」を切り替えられ、選択が保存・復元されることを確認する。`常にタスクトレイで起動` 選択時は再起動後にウィンドウがタスクトレイへ格納された状態で開始し、`前回の状態を復元` は最後に Tray だった場合のみ最小化で開始することを確認する。
-- TC-125 StartupRegistration: メニューの「スタートアップに登録」を ON/OFF して HKCU の Run 値が作成/削除され、設定画面の再表示時に実状態がチェックへ反映されることを確認する。標準ユーザー権限で登録でき、登録値が引用符付きの現在の起動コマンドになることを確認する。サービスの登録/解除/Windows パス引用は `StartupRegistrationServiceTests` で検証する。
+- TC-125 StartupRegistration: メニューの「スタートアップに登録」を ON/OFF して HKCU の Run 値が作成/削除され、設定画面の再表示時に実状態がチェックへ反映されることを確認する。標準ユーザー権限で登録でき、登録値が引用符付きの現在の起動コマンドになることを確認する。`StartupRegistrationServiceTests` は登録/解除、exe直接起動、dotnet経由、DLL改名・相対名、空白・日本語パス、パス取得失敗のエラーを検証する。`scripts/Test-SettingsWindow.ps1` は実プロセスを apphost／dotnet＋絶対DLL／相対DLL／改名DLLで起動し、作業ディレクトリを変えても登録コマンドが同じ起動先を指すことを、レジストリ変更なしで確認する。単一ファイルpublishでは `IL3000` をエラーにするプロジェクト設定で `Assembly.Location` の再導入を防ぐ。
 - TC-087 ClipboardArgs: `{clipboard}` と `{clipboard_args}` / `{clipboard_args:n}` がクリップボード文字列/パスを期待通り展開し、直近の指定行数のみが引用付きで渡される。
 - TC-090 MenuAccess: 設定・一時固定・ショートカット一覧・最小化・終了が機能する。設定画面から設定ファイル/ログフォルダーを開き、Prefix/行列/最前面を変更できる。
 - TC-095 LoggingRetention: current log は 1MB ちょうどでは維持し、1MB を超えた後の書込でローテーションする。同秒の反復 rotation と既存 archive 衝突では一意名を使い、rotation 失敗時も current log が書込可能なら今回のメッセージを失わない。UTC 最終更新が7日ちょうどの `app*.log` は保持し、7日を超えたものだけ削除することを `LoggerServiceTests` で確認する。

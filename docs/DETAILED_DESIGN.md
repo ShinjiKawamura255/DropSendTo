@@ -268,7 +268,7 @@ stateDiagram-v2
 - Responsibility: 現在ユーザーの Windows サインイン時に DropSendTo を起動する Run キーの登録状態を管理する。
 - Public Interface: `StartupRegistrationService.IsRegistered()`, `Register()`, `Unregister()`。
 - Inputs / Outputs: 入力はメニュー操作。出力は `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` の `DropSendTo` 文字列値。配布 exe は引用符付きで保存し、開発時の `dotnet` ホストではエントリ DLL を引数に含める。
-- Internal Logic: `CurrentUserStartupRegistrationStore` が `Registry.CurrentUser` のみを操作する。UI のチェック状態は設定画面の再表示・再アクティブ化時にレジストリから再読込し、`AppConfig` や暗号化エクスポートには含めない。
+- Internal Logic: `CurrentUserStartupRegistrationStore` が `Registry.CurrentUser` のみを操作する。`StartupCommandBuilder` は exe ではプロセスパス、`dotnet` ホストではコマンドライン先頭の DLL パスを引用する。DLL の相対名はエントリポイントの基準ディレクトリで解決し、改名や作業ディレクトリ変更後も起動先を保持する。`Assembly.Location` は使用しない。UI のチェック状態は設定画面の再表示・再アクティブ化時にレジストリから再読込し、`AppConfig` や暗号化エクスポートには含めない。
 - Failure Modes: Run キーの読み書き失敗や起動パス取得失敗は MainWindow がログへ記録し、ユーザー向けエラーダイアログを表示する。既存の登録値を削除する解除操作は値が存在しなくても成功扱いとする。
 
 [[↑ Back to Top]](#top)

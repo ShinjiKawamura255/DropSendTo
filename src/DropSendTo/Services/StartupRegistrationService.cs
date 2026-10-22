@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Reflection;
 using Microsoft.Win32;
 
 namespace DropSendTo.Services;
@@ -74,7 +73,11 @@ public static class StartupCommandBuilder
 {
     public static string BuildCurrentProcessCommand()
     {
-        var processPath = Environment.ProcessPath;
+        return BuildLaunchCommand(Environment.ProcessPath, Environment.GetCommandLineArgs()[0], AppContext.BaseDirectory);
+    }
+
+    internal static string BuildLaunchCommand(string? processPath, string? entryPointPath, string baseDirectory)
+    {
         if (string.IsNullOrWhiteSpace(processPath))
         {
             throw new InvalidOperationException("実行ファイルのパスを取得できませんでした。");
@@ -83,12 +86,16 @@ public static class StartupCommandBuilder
         var fileName = Path.GetFileNameWithoutExtension(processPath);
         if (string.Equals(fileName, "dotnet", StringComparison.OrdinalIgnoreCase))
         {
-            var entryAssemblyPath = Assembly.GetEntryAssembly()?.Location;
-            if (string.IsNullOrWhiteSpace(entryAssemblyPath))
+            if (string.IsNullOrWhiteSpace(entryPointPath))
             {
                 throw new InvalidOperationException("アプリケーションの起動パスを取得できませんでした。");
             }
 
+            // argv[0] identifies the actual DLL, including renamed DLLs. Resolve a relative name
+            // against the entry point directory, not a working directory the app may have changed.
+            var entryAssemblyPath = Path.IsPathFullyQualified(entryPointPath)
+                ? entryPointPath
+                : Path.Combine(baseDirectory, Path.GetFileName(entryPointPath));
             return $"{Quote(processPath)} {Quote(entryAssemblyPath)}";
         }
 

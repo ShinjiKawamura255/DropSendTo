@@ -23,6 +23,14 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--startup-command")
+        {
+            // This mode reads process metadata only; it never registers a Windows startup entry.
+            var resultPath = Path.GetFullPath(args[1]);
+            Environment.CurrentDirectory = Path.GetDirectoryName(resultPath)!;
+            File.WriteAllText(resultPath, StartupCommandBuilder.BuildCurrentProcessCommand());
+            return 0;
+        }
         if (args.Length == 3 && args[0] == "--startup-diagnostics")
         {
             try { return VerifyStartupDiagnostics(args[1], args[2]); }
@@ -53,6 +61,8 @@ internal static partial class Program
                 File.WriteAllLines(Path.Combine(output, "report.txt"), report);
                 return 0;
             }
+            VerifyStartupCommands(output, args[1]);
+            report.Add("PASS: startup commands preserve apphost and dotnet DLL launches, relative paths, renamed DLLs and changed working directories without registry writes");
             var app = new Application();
             SynchronizationContext.SetSynchronizationContext(
                 new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));

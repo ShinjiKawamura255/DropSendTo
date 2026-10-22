@@ -21,7 +21,7 @@ if ($LASTEXITCODE -ne 0) {
 $probePath = Join-Path $repoRoot "tests/DropSendTo.SettingsProbe/bin/$Configuration/net10.0-windows/DropSendTo.SettingsProbe.exe"
 $reportPath = Join-Path $OutputDirectory 'report.txt'
 if (Test-Path $reportPath) { Remove-Item -LiteralPath $reportPath }
-$probeProcess = Start-Process -FilePath $probePath -ArgumentList ('"' + $OutputDirectory + '"') -WindowStyle Hidden -PassThru `
+$probeProcess = Start-Process -FilePath $probePath -ArgumentList ('"' + $OutputDirectory + '" "' + $dotnetPath + '"') -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $OutputDirectory 'stdout.log') -RedirectStandardError (Join-Path $OutputDirectory 'stderr.log')
 if (-not $probeProcess.WaitForExit(60000)) {
     $probeProcess.Kill()
