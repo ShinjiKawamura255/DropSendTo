@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -83,6 +84,83 @@ public class ShortcutServiceExternalMacroTests
             Assert.False(fixture.Key(Q));
             Assert.False(fixture.Service.IsPrefixArmed);
         });
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void Hook_ShouldPassExplicitPrefixThroughWithoutChangingState_WhenPrefixIsArmedOrIdle(bool enabled, bool armed)
+    {
+        RunSta(() =>
+        {
+            using var fixture = new HookFixture();
+            fixture.SetEnabled(enabled);
+            int passthroughs = 0;
+            fixture.Service.PrefixPassthroughRequested += (_, _) => passthroughs++;
+            if (armed)
+            {
+                fixture.Key(Control, flags: 0);
+                Assert.True(fixture.Key(Q, flags: 0));
+                // Keep the physical release pending while the macro sends the same key.
+                fixture.Key(Control, keyUp: true, flags: 0);
+            }
+
+            foreach (var input in BuildPrefixInputs(passthrough: true))
+                Assert.False(fixture.Key(input.Key, input.KeyUp, extraInfo: input.ExtraInfo));
+
+            Assert.Equal(armed, fixture.Service.IsPrefixArmed);
+            Assert.Empty(fixture.Modifiers);
+            fixture.Drain();
+            Assert.Equal(0, passthroughs);
+            if (armed)
+            {
+                Assert.True(fixture.Key(Q, keyUp: true, flags: 0));
+                Assert.True(fixture.Key(Enter, extraInfo: InputExtraInfo.MacroPassthroughTag));
+                Assert.False(fixture.Service.IsPrefixArmed);
+            }
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Hook_ShouldArmAndAcceptOwnShortcut_WhenPrefixCommandIsNotPassthrough(bool enabled)
+    {
+        RunSta(() =>
+        {
+            using var fixture = new HookFixture();
+            fixture.SetEnabled(enabled);
+            foreach (var input in BuildPrefixInputs(passthrough: false))
+                Assert.Equal(input.Key == Q, fixture.Key(input.Key, input.KeyUp, extraInfo: input.ExtraInfo));
+
+            Assert.True(fixture.Service.IsPrefixArmed);
+            Assert.True(fixture.Key(Enter, extraInfo: InputExtraInfo.MacroPassthroughTag));
+            Assert.False(fixture.Service.IsPrefixArmed);
+        });
+    }
+
+    private static IEnumerable<(ushort Key, bool KeyUp, uint ExtraInfo)> BuildPrefixInputs(bool passthrough)
+    {
+        using var macro = new KeyboardMacroService();
+        Assert.True(KeyChordParser.TryParse("CTRL+Q", out var chord, out _));
+        macro.SetPrefixStateAccessors(() => chord, () => false, () => { });
+        var inputType = typeof(KeyboardMacroService).GetNestedType("INPUT", BindingFlags.NonPublic)!;
+        var buffer = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(inputType))!;
+        var method = typeof(KeyboardMacroService).GetMethod("TryAppendPrefixSequence", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var args = new object?[] { buffer, passthrough, false, null };
+        Assert.True((bool)method.Invoke(macro, args)!);
+        Assert.Null(args[3]);
+        Assert.Equal(4, buffer.Count);
+        ushort[] keys = { Control, Q, Q, Control };
+        for (int i = 0; i < buffer.Count; i++)
+        {
+            var union = inputType.GetField("u")!.GetValue(buffer[i])!;
+            var keyboard = union.GetType().GetField("ki")!.GetValue(union)!;
+            var extraInfo = (IntPtr)keyboard.GetType().GetField("dwExtraInfo")!.GetValue(keyboard)!;
+            yield return (keys[i], i >= 2, checked((uint)extraInfo.ToInt64()));
+        }
     }
 
     [Fact]

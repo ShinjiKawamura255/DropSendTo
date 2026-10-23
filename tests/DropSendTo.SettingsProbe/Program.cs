@@ -265,12 +265,18 @@ internal static partial class Program
                             Descendants<ScrollViewer>(tips).First().ScrollToHorizontalOffset(0);
                             Pump();
                             Capture(tips, Path.Combine(output, $"{language}-{theme}-macro-process-tips.png"));
+                            Descendants<TextBox>(tips).Single(box => box.Text.StartsWith("PREFIX [SEND|ARM]", StringComparison.Ordinal))
+                                .BringIntoView();
+                            Descendants<ScrollViewer>(tips).First().ScrollToHorizontalOffset(0);
+                            Pump();
+                            Capture(tips, Path.Combine(output, $"{language}-{theme}-macro-prefix-tips.png"));
                         }
                         finally { tips.Close(); }
                     }
                 }
                 report.Add("PASS: 40 WPF renders (5 categories × 2 languages × 2 themes × 2 sizes)");
                 report.Add("PASS: 4 WPF renders of bilingual process deadline tips (2 languages × 2 themes)");
+                report.Add("PASS: 4 WPF renders of Prefix passthrough tips (2 languages × 2 themes)");
 
                 Apply(SettingsOption.Language, AppLanguage.Japanese);
                 Apply(SettingsOption.Theme, AppTheme.Dark);

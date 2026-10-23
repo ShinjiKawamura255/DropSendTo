@@ -34,6 +34,7 @@
 - MUST: `Macro Script 拡張` モードでの `COMMAND` 命令は、引数省略時にスロットの引数テンプレートを `{args}` 等のプレースホルダを含めて展開し、引数を指定した場合は変数展開後の文字列をそのままコマンドへ渡す。
 - MUST: マクロは直前にアクティブだった外部ウィンドウへのフォーカス取得を試みた上でキーストロークを送る。ターゲットの特定やフォーカス取得に失敗した場合でもエラーにせず警告ログを残し、現在のフォーカス状態で実行を継続する。
 - MUST: マクロは `KEY`/`KEYDOWN`/`KEYUP`/`TEXT`/`WAIT`/`WAIT_UNTIL`/`REPEAT`/`ENDREPEAT`/`FOREACH_DROP`/`ENDFOREACH` 命令をサポートし、REPEAT 回数は変数展開後の整数で 0〜1000 に制限する。また `PREFIX`/`PREFIX SEND`/`PREFIX ARM`/`PREFIX PASSTHROUGH` で Prefix 待機や前面アプリ送出を制御できる。
+- MUST: `PREFIX PASSTHROUGH` の入力は Prefix 待機状態・外部マクロ入力受付設定にかかわらず、本ツールのキーボードフックで抑制せずに前面アプリへ渡し、Prefix 待機状態・修飾キー追跡・保留中のキー解放抑制を変更しない。`PREFIX`/`PREFIX SEND`/`PREFIX ARM` と後続の通常 `KEY` による本ツール操作は維持する。
 - MUST: Macro Script モードの編集画面は「記録開始」「記録停止」ボタンを提供し、記録開始〜停止の間に受けたキーボード・マウス操作を Macro Script 欄へ順次追記する。記録対象は前景ウィンドウが登録ダイアログ以外のときに限定し、記録終了後は追加行数を明示する。
 - MUST: マクロはマウス操作命令 `MOUSEMOVEABS`/`MOUSEMOVEREL`/`MOUSELEFTDOWN`/`MOUSELEFTUP`/`MOUSERIGHTDOWN`/`MOUSERIGHTUP`/`MOUSEMIDDLEDOWN`/`MOUSEMIDDLEUP`/`MOUSELEFTCLICK`/`MOUSERIGHTCLICK`/`MOUSEMIDDLECLICK`/`MOUSELEFTDOUBLECLICK`/`MOUSESCROLLUP`/`MOUSESCROLLDOWN`/`MOUSESCROLLLEFT`/`MOUSESCROLLRIGHT` をサポートする。
 - MUST: Slot 編集ダイアログにはマクロスクリプトの書式と例を確認できるヘルプボタン（?）を配置し、押下で Tips ウィンドウをモードレス表示しながら編集を継続できる。

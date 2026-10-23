@@ -361,6 +361,11 @@ internal sealed class ShortcutService : IDisposable
 
         var msg = (int)wParam;
         var info = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
+        // Explicit PREFIX PASSTHROUGH must bypass shortcuts and leave all tracked state untouched.
+        if (InputExtraInfo.IsMacroExplicitPassthrough(info.dwExtraInfo))
+        {
+            return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+        }
         bool isInjected = (info.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED)) != 0;
         bool isMacroInjection = InputExtraInfo.IsMacroInjection(info.dwExtraInfo);
         bool isMacroPassthrough = InputExtraInfo.IsMacroPassthrough(info.dwExtraInfo);

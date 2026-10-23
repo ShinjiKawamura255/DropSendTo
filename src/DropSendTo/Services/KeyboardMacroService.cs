@@ -6100,7 +6100,7 @@ public sealed class KeyboardMacroService : IDisposable, IMacroConcurrencyRuntime
             return false;
         }
 
-        var extraInfo = passthrough ? InputExtraInfo.MacroPassthroughPointer : InputExtraInfo.MacroInjectionPointer;
+        var extraInfo = passthrough ? InputExtraInfo.MacroExplicitPassthroughPointer : InputExtraInfo.MacroInjectionPointer;
         var modifierKeys = new List<ushort>(chord.Modifiers.Count);
         foreach (var modifier in chord.Modifiers)
         {

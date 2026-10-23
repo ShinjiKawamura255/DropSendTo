@@ -108,6 +108,7 @@
 ### 2.3 マクロと引数テンプレート
 - `Macro Script` では `KEY`, `TEXT`, `WAIT`, `REPEAT`, 各種 `MOUSE*`、変数 (`SET/ADD/...`) など多数のコマンドを利用可能。  
 - `PREFIX ARM` / `PREFIX SEND` / `PREFIX PASSTHROUGH` を使えばマクロの中から Prefix 操作も再現できます。  
+- `PREFIX PASSTHROUGH` は Prefix 待機中でも本ツールのショートカット判定を通さず、Prefix キーを前面アプリへ送出します。待機状態は変更しません。`PREFIX ARM` / `PREFIX SEND` は従来どおり本ツールの Prefix 操作として扱われ、後続の `KEY` でショートカットを操作できます。
 - 引数テンプレートで使えるプレースホルダ  
   - `{args}` / `{drop_args}`: ドロップ/CLI のパス  
   - `{drop_count}`: ドロップ件数  
