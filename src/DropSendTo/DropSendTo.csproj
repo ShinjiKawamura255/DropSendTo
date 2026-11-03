@@ -4,6 +4,9 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- WPF App.Main does not call WinForms ApplicationConfiguration.Initialize;
+         per-monitor awareness must be declared in the executable manifest. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>DropSendTo</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>

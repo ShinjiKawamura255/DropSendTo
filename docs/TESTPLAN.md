@@ -59,6 +59,7 @@
 - TC-060 WindowPos: 再起動で位置復元し、画面外に移動しても可視範囲へ補正される。
 - TC-061 WindowPosTransient: ドラッグ中のホイールクリックでドロップ専用ウィンドウを表示し、ドロップ後にウィンドウを表示しても固定位置の保存値が更新されないことを確認する。
 - TC-062 CursorPlacementCoordinates: `ScreenBoundsResolverTests` と `CursorWindowPlacementServiceTests` で 100/125/150/200% の倍率、負の座標、5 画面の列挙順反転、画面境界での補正、作業領域中央、ドラッグ時の上下選択を検証する。実機では倍率の異なる 4〜5 画面を左右・上下に配置し、各画面の中央・境界・タスクバー上で Prefix+Enter、検索、ドラッグ時の表示を確認する。表示中とトレイ格納中を往復し、カーソルの画面から別画面へ飛ばないこと、画面移動後も中央/16 DIP の余白が合うこと、固定位置の保存値が変わらないことを確認する。
+- TC-063 MouseGestureRegression: `MouseGestureDetectorTests` で 125/500/1000 点/周の表示・非表示、再起動なしの9回交互操作、直線移動からの円運動、静止時の微小移動、負座標と遅い円の中心を確認する。`MouseHookThreadTests` で UI 非処理中の応答、正常・異常・起動失敗・起動 timeout 後の解放、同時停止を確認し、`ShortcutServiceMouseGestureDispatchTests` で UI 停滞中の1件集約と停止後の要求無効化を確認する。Windows では `scripts/Test-MouseGestures.ps1` を実行し、実際に接続された各画面で per-monitor awareness、物理座標での中心配置、表示→非表示→再表示、固定位置の保存値維持を確認する（設定は隔離し、物理マウス入力は送信しない）。DPI/画面数と画像は `TestResults/MouseGestures/report.txt` と PNG に記録する。マニフェスト・フック・表示配置を変更したときは単体テストとこの probe を再実行し、物理マウスでの円運動、ドラッグ中ホイールクリック、Prefix、検索、設定ダイアログも実機確認する。
 - TC-065 LayoutMenu: 設定 → 表示・レイアウトで行/列（2〜8）を選択して適用すると即時 UI が再構成され、再起動後も構成が保持される。上限超過・下限未満を選択できないことを確認する。
 - TC-066 SlotSize: 設定 → 表示・レイアウトのスロットサイズで 小/中/大/カスタム を切り替えるとウィンドウ寸法とスロット表示が即時更新される。Small/Medium/Large ではタイトル行数が 1/2/3 行に制限され、Small 時はステータスを同一行にオーバーレイ表示。Custom では高さ/フォント/余白/行列ステップを指定して保存し、再起動しても保持されることを確認する。
 - TC-069 PrefixArrowSelect: Prefix+Enter でウィンドウを前面に復帰した後、矢印キーでスロットが順次選択され Enter で実行されること、矢印を押すまで選択枠が表示されず、Esc/マウス操作でキーボード選択モードが解除されることを確認する。

@@ -23,6 +23,10 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--mouse-gestures")
+        {
+            return VerifyMouseGestures(args[1]);
+        }
         if (args.Length == 2 && args[0] == "--startup-command")
         {
             // This mode reads process metadata only; it never registers a Windows startup entry.

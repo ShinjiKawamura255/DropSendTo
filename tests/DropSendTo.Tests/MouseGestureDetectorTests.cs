@@ -137,6 +137,115 @@ public class MouseGestureDetectorTests
         counts.CounterClockwise.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(125, true)]
+    [InlineData(500, true)]
+    [InlineData(1000, true)]
+    [InlineData(1000, false)]
+    public void HandleMove_ShouldDetectRepeatedGestures_WhenMovesAreSmallerThanJitterThreshold(
+        int samplesPerTurn, bool clockwise)
+    {
+        var clock = new FakeClock(new DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc));
+        var detector = new MouseGestureDetector(clock.UtcNow);
+        var expected = clockwise ? MouseGestureAction.ShowWindow : MouseGestureAction.HideWindow;
+        for (int repeat = 0; repeat < 3; repeat++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(1));
+            detector.HandleIdleTimeout();
+            var actions = new List<MouseGestureAction>();
+            for (int i = 0; i <= 4 * samplesPerTurn; i++)
+            {
+                double angle = (clockwise ? 1 : -1) * 2 * Math.PI * i / samplesPerTurn;
+                var point = new Point(-2400 + (int)(120 * Math.Cos(angle)),
+                    -600 + (int)(120 * Math.Sin(angle)));
+                clock.Advance(TimeSpan.FromSeconds(1.0 / samplesPerTurn));
+                var action = detector.HandleMove(point, false, false);
+                if (action != MouseGestureAction.None) actions.Add(action);
+            }
+            actions.Should().Contain(expected, $"repeat={repeat}, samples={samplesPerTurn}");
+            actions.Should().OnlyContain(action => action == expected);
+        }
+    }
+
+    [Fact]
+    public void HandleMove_ShouldNotComplete_WhenInputIsStationaryJitter()
+    {
+        var detector = new MouseGestureDetector();
+        for (int i = 0; i < 4000; i++)
+        {
+            detector.HandleMove(new Point(i % 3, i % 2), false, false)
+                .Should().Be(MouseGestureAction.None);
+        }
+    }
+
+    [Theory]
+    [InlineData(-2400, -600, 18, 0.7)]
+    [InlineData(4000, 900, 1000, 0.7)]
+    [InlineData(4000, 900, 1000, 2.0)]
+    public void HandleMove_ShouldReturnGestureCenter_InPhysicalDesktopCoordinates(int x, int y, int samples, double secondsPerTurn)
+    {
+        var clock = new FakeClock(new DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc));
+        var detector = new MouseGestureDetector(clock.UtcNow);
+        MouseGestureAction action = MouseGestureAction.None;
+        Point center = default;
+        Point cursor = default;
+        for (int i = 0; i <= 4 * samples && action == MouseGestureAction.None; i++)
+        {
+            double angle = 2 * Math.PI * i / samples;
+            cursor = new Point(x + (int)(100 * Math.Cos(angle)), y + (int)(100 * Math.Sin(angle)));
+            clock.Advance(TimeSpan.FromSeconds(secondsPerTurn / samples));
+            action = detector.HandleMove(cursor, false, false, out center);
+        }
+        action.Should().Be(MouseGestureAction.ShowWindow);
+        center.X.Should().BeInRange(x - 3, x + 3);
+        center.Y.Should().BeInRange(y - 3, y + 3);
+        center.Should().NotBe(cursor, "the display anchor is the circle center, not the final cursor");
+    }
+
+    [Fact]
+    public void HandleMove_ShouldShowHideAndShowAtAnotherCenter_WithoutRestartOrOptionReset()
+    {
+        var clock = new FakeClock(new DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc));
+        var detector = new MouseGestureDetector(clock.UtcNow);
+        for (int gesture = 0; gesture < 9; gesture++)
+        {
+            bool clockwise = gesture % 2 == 0;
+            var expected = clockwise ? MouseGestureAction.ShowWindow : MouseGestureAction.HideWindow;
+            int x = gesture % 3 == 0 ? -2400 : 4000;
+            clock.Advance(TimeSpan.FromMilliseconds(400));
+            MouseGestureAction action = MouseGestureAction.None;
+            for (int i = 0; i <= 4000 && action == MouseGestureAction.None; i++)
+            {
+                double angle = (clockwise ? 1 : -1) * 2 * Math.PI * i / 1000;
+                clock.Advance(TimeSpan.FromMilliseconds(1));
+                action = detector.HandleMove(new Point(x + (int)(120 * Math.Cos(angle)),
+                    600 + (int)(120 * Math.Sin(angle))), false, false);
+            }
+            action.Should().Be(expected, $"gesture={gesture}");
+        }
+    }
+
+    [Fact]
+    public void HandleMove_ShouldDetectConfiguredTurns_WhenStraightApproachPrecedesTheCircle()
+    {
+        var clock = new FakeClock(new DateTime(2026, 11, 3, 0, 0, 0, DateTimeKind.Utc));
+        var detector = new MouseGestureDetector(clock.UtcNow);
+        for (int x = -2000; x <= 0; x += 10)
+        {
+            clock.Advance(TimeSpan.FromMilliseconds(1));
+            detector.HandleMove(new Point(x, 0), false, false).Should().Be(MouseGestureAction.None);
+        }
+        MouseGestureAction action = MouseGestureAction.None;
+        for (int i = 0; i <= 3000 && action == MouseGestureAction.None; i++)
+        {
+            double angle = 2 * Math.PI * i / 1000;
+            clock.Advance(TimeSpan.FromMilliseconds(1));
+            action = detector.HandleMove(new Point((int)(120 * Math.Cos(angle)),
+                (int)(120 * Math.Sin(angle))), false, false);
+        }
+        action.Should().Be(MouseGestureAction.ShowWindow);
+    }
+
     private static MouseGestureAction Run(
         MouseGestureDetector detector,
         MouseGestureOptions options,

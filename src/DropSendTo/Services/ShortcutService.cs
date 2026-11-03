@@ -42,6 +42,12 @@ internal sealed class PrefixStateChangedEventArgs : EventArgs
     public bool IsArmed { get; }
 }
 
+internal sealed class MouseGestureEventArgs(Point center) : EventArgs
+{
+    // Physical desktop pixels, captured before the UI request is queued.
+    public Point Center { get; } = center;
+}
+
 internal sealed class ShortcutService : IDisposable
 {
     private const int PrefixTimeoutMilliseconds = 4_000;
@@ -54,12 +60,14 @@ internal sealed class ShortcutService : IDisposable
     private readonly Dispatcher _dispatcher;
     private LowLevelKeyboardProc? _hookCallback;
     private IntPtr _hookHandle = IntPtr.Zero;
-    private LowLevelMouseProc? _mouseHookCallback;
-    private IntPtr _mouseHookHandle = IntPtr.Zero;
+    private MouseHookThread? _mouseHook;
+    private sealed record MouseGestureRequest(MouseGestureAction Action, Point Center);
+    private MouseGestureRequest? _pendingMouseGesture;
+    private int _mouseGestureDispatchPending;
     private readonly MouseGestureDetector _mouseGestureDetector = new();
-    private MouseGestureOptions _mouseGestureOptions = MouseGestureOptions.Default;
+    private volatile MouseGestureOptions _mouseGestureOptions = MouseGestureOptions.Default;
     private bool _suppressDragMiddleClickRelease;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     private KeyChord? _prefixChord;
     private string _prefixText = string.Empty;
@@ -107,7 +115,7 @@ internal sealed class ShortcutService : IDisposable
     public event EventHandler? PrefixPositionToggleRequested;
     public event EventHandler? PrefixSearchRequested;
     public event EventHandler? PrefixDropCaptureRequested;
-    public event EventHandler? MouseGestureShowRequested;
+    public event EventHandler<MouseGestureEventArgs>? MouseGestureShowRequested;
     public event EventHandler? DragMiddleClickShowRequested;
     public event EventHandler? MouseGestureHideRequested;
     public event EventHandler? SearchHotkeyRequested;
@@ -152,14 +160,15 @@ internal sealed class ShortcutService : IDisposable
             throw new InvalidOperationException($"Failed to install keyboard hook. Error={err}");
         }
 
-        _mouseHookCallback = MouseHookProc;
-        _mouseHookHandle = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookCallback, IntPtr.Zero, 0);
-        if (_mouseHookHandle == IntPtr.Zero)
+        try
         {
-            int err = Marshal.GetLastWin32Error();
+            _mouseHook = new MouseHookThread(MouseHookProc);
+        }
+        catch
+        {
             UnhookWindowsHookEx(_hookHandle);
             _hookHandle = IntPtr.Zero;
-            throw new InvalidOperationException($"Failed to install mouse hook. Error={err}");
+            throw;
         }
     }
 
@@ -727,42 +736,39 @@ internal sealed class ShortcutService : IDisposable
         }
     }
 
-    private MouseGestureAction HandleMouseGesture(MSLLHOOKSTRUCT data)
+    private void HandleMouseGesture(MSLLHOOKSTRUCT data)
     {
-        var options = _mouseGestureOptions;
-        if (!options.Enabled)
-        {
-            return MouseGestureAction.None;
-        }
-
-        bool ctrlPressed = IsCtrlPressed();
-        bool presentationBlocked = options.SuppressDuringPresentation && IsPresentationModeLikelyActive();
-        var point = new Point(data.pt.x, data.pt.y);
+        if (!_mouseGestureOptions.Enabled) return;
         TrackMouseGestureMovement();
-        // Allow hide gestures even during presentation suppression; ignore show if blocked.
-        var action = _mouseGestureDetector.HandleMove(point, ctrlPressed, false);
-        if (presentationBlocked && action == MouseGestureAction.ShowWindow)
-        {
-            return MouseGestureAction.None;
-        }
-        return action;
+        var action = _mouseGestureDetector.HandleMove(new Point(data.pt.x, data.pt.y),
+            IsCtrlPressed(), false, out var center);
+        if (action == MouseGestureAction.None) return;
+        Interlocked.Exchange(ref _pendingMouseGesture, new MouseGestureRequest(action, center));
+        QueueMouseGestureDispatch();
     }
 
-    private void DispatchMouseGestureAction(MouseGestureAction action)
+    private void QueueMouseGestureDispatch()
     {
-        if (action == MouseGestureAction.None)
-        {
-            return;
-        }
+        // Keep at most one UI work item and the latest request while the UI is busy.
+        if (Interlocked.CompareExchange(ref _mouseGestureDispatchPending, 1, 0) == 0)
+            _dispatcher.BeginInvoke(new Action(DispatchMouseGestureAction));
+    }
 
-        switch (action)
+    private void DispatchMouseGestureAction()
+    {
+        var request = Interlocked.Exchange(ref _pendingMouseGesture, null);
+        Interlocked.Exchange(ref _mouseGestureDispatchPending, 0);
+        if (_disposed) return;
+        if (Volatile.Read(ref _pendingMouseGesture) != null) QueueMouseGestureDispatch();
+        if (request == null) return;
+        if (request.Action == MouseGestureAction.HideWindow)
         {
-            case MouseGestureAction.ShowWindow:
-                _dispatcher.BeginInvoke(() => MouseGestureShowRequested?.Invoke(this, EventArgs.Empty));
-                break;
-            case MouseGestureAction.HideWindow:
-                _dispatcher.BeginInvoke(() => MouseGestureHideRequested?.Invoke(this, EventArgs.Empty));
-                break;
+            MouseGestureHideRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else if (!_mouseGestureOptions.SuppressDuringPresentation || !IsPresentationModeLikelyActive())
+        {
+            // Shell/fullscreen queries can block; never run them for every hook sample.
+            MouseGestureShowRequested?.Invoke(this, new MouseGestureEventArgs(request.Center));
         }
     }
 
@@ -800,7 +806,7 @@ internal sealed class ShortcutService : IDisposable
     {
         if (nCode < 0)
         {
-            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+            return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
         }
 
         var msg = (int)wParam;
@@ -809,10 +815,9 @@ internal sealed class ShortcutService : IDisposable
             var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
             if ((data.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED)) == 0)
             {
-                var action = HandleMouseGesture(data);
-                DispatchMouseGestureAction(action);
+                if (!_disposed) HandleMouseGesture(data);
             }
-            return CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+            return CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
         }
 
         bool suppressMiddleClick = false;
@@ -851,7 +856,7 @@ internal sealed class ShortcutService : IDisposable
             _mouseGestureDetector.Reset();
         }
 
-        return suppressMiddleClick ? new IntPtr(1) : CallNextHookEx(_mouseHookHandle, nCode, wParam, lParam);
+        return suppressMiddleClick ? new IntPtr(1) : CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
     }
 
     public void Dispose()
@@ -859,6 +864,9 @@ internal sealed class ShortcutService : IDisposable
         if (_disposed) return;
         _disposed = true;
         _prefixTimeoutTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        _mouseHook?.Dispose();
+        _mouseHook = null;
+        Interlocked.Exchange(ref _pendingMouseGesture, null);
         _mouseGestureIdleTimer.Change(Timeout.Infinite, Timeout.Infinite);
         SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
         SystemEvents.SessionSwitch -= OnSystemSessionSwitch;
@@ -866,11 +874,6 @@ internal sealed class ShortcutService : IDisposable
         {
             UnhookWindowsHookEx(_hookHandle);
             _hookHandle = IntPtr.Zero;
-        }
-        if (_mouseHookHandle != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_mouseHookHandle);
-            _mouseHookHandle = IntPtr.Zero;
         }
         _prefixTimeoutTimer.Dispose();
         _mouseGestureIdleTimer.Dispose();
@@ -1205,7 +1208,6 @@ internal sealed class ShortcutService : IDisposable
     }
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
-    private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_SYSKEYDOWN = 0x0104;
@@ -1230,7 +1232,6 @@ internal sealed class ShortcutService : IDisposable
     private const int WM_NCMOUSEMOVE = 0x00A0;
     private const int WM_NCLBUTTONDOWN = 0x00A1;
     private const int WM_NCRBUTTONDOWN = 0x00A4;
-    private const int WH_MOUSE_LL = 14;
 
     private const ushort VK_CONTROL = 0x11;
     private const ushort VK_SHIFT = 0x10;
@@ -1269,9 +1270,6 @@ internal sealed class ShortcutService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
-
-    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern bool UnhookWindowsHookEx(IntPtr hhk);

@@ -65,16 +65,15 @@ internal sealed class MouseGestureDetector
     private double _minRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MinRadiusPixels);
     private double _maxRadiusSquared = CalculateMaxRadiusSquared(MouseGestureOptions.Default.MaxRadiusPixels);
     private bool _enforceRadiusLimit = MouseGestureOptions.Default.EnforceRadiusLimit;
-    private readonly List<(double X, double Y, DateTime Timestamp)> _recentPoints = new();
+    private readonly List<Point> _recentPoints = new();
 
+    private const double StraightAngleTolerance = 0.02;
     private const double FullTurn = Math.PI * 2;
     private const double TurnThreshold = FullTurn * 0.9;
     private const int IdleResetMilliseconds = 330;
     private const double MaxRadiusSlackFactor = 1.2; // allow slight overshoot before resetting
-    private const double CenterWindowSeconds = 1.0;
     private const double MinAxisSpreadPixels = 32;
     private const double MinAspectRatio = 0.35;
-    private const int MinSamplesForAspectCheck = 12;
 
     public MouseGestureDetector()
         : this(() => DateTime.UtcNow)
@@ -99,8 +98,13 @@ internal sealed class MouseGestureDetector
         }
     }
 
-    public MouseGestureAction HandleMove(Point point, bool isCtrlPressed, bool isPresentationBlocked)
+    public MouseGestureAction HandleMove(Point point, bool isCtrlPressed, bool isPresentationBlocked) =>
+        HandleMove(point, isCtrlPressed, isPresentationBlocked, out _);
+
+    public MouseGestureAction HandleMove(Point point, bool isCtrlPressed, bool isPresentationBlocked,
+        out Point centerPoint)
     {
+        centerPoint = point;
         lock (_lock)
         {
             if (!_options.Enabled)
@@ -123,50 +127,22 @@ internal sealed class MouseGestureDetector
                 _lastPoint = point;
                 _hasLastPoint = true;
                 _hasLastVector = false;
-                AddRecentPoint(point, nowUtc);
+                AddRecentPoint(point);
                 return MouseGestureAction.None;
             }
 
             var deltaX = point.X - _lastPoint.X;
             var deltaY = point.Y - _lastPoint.Y;
             var distanceSquared = (deltaX * deltaX) + (deltaY * deltaY);
-            _lastPoint = point;
             if (distanceSquared < _minMovementSquared)
             {
-                AddRecentPoint(point, nowUtc);
                 return MouseGestureAction.None;
             }
 
-            AddRecentPoint(point, nowUtc);
+            // Measure from the last accepted sample so sub-threshold moves accumulate.
+            _lastPoint = point;
+            AddRecentPoint(point);
             var center = GetRecentCenter();
-
-            if (center.HasValue)
-            {
-                if (IsDegenerate(center.Value))
-                {
-                    ResetState();
-                    _lastPoint = point;
-                    _hasLastPoint = true;
-                    AddRecentPoint(point, nowUtc);
-                    return MouseGestureAction.None;
-                }
-
-                if (_enforceRadiusLimit)
-                {
-                    var anchorDx = point.X - center.Value.X;
-                    var anchorDy = point.Y - center.Value.Y;
-                    var anchorDistanceSquared = (anchorDx * anchorDx) + (anchorDy * anchorDy);
-                    var softMaxSquared = _maxRadiusSquared * (MaxRadiusSlackFactor * MaxRadiusSlackFactor);
-                    if (anchorDistanceSquared > softMaxSquared)
-                    {
-                        ResetState();
-                        _lastPoint = point;
-                        _hasLastPoint = true;
-                        AddRecentPoint(point, nowUtc);
-                        return MouseGestureAction.None;
-                    }
-                }
-            }
 
             // Invert Y to use mathematical CCW sign convention.
             var adjustedDelta = (X: (double)deltaX, Y: -(double)deltaY);
@@ -183,6 +159,14 @@ internal sealed class MouseGestureDetector
             var angle = Math.Atan2(cross, dot);
             _lastVector = adjustedDelta;
 
+            // Leading straight travel is not part of the circle's bounds. Keep its
+            // latest point while direction is unchanged, without discarding rotation.
+            if (_clockwiseTurns == 0 && _counterClockwiseTurns == 0 &&
+                Math.Abs(_accumulatedAngle) < StraightAngleTolerance && Math.Abs(angle) < StraightAngleTolerance)
+            {
+                _recentPoints.Clear();
+                AddRecentPoint(point);
+            }
             _accumulatedAngle += angle;
             while (_accumulatedAngle >= TurnThreshold)
             {
@@ -195,6 +179,20 @@ internal sealed class MouseGestureDetector
                 _accumulatedAngle += FullTurn;
             }
 
+            // A short arc can look like a line. Validate shape/radius only once a turn
+            // is complete, rather than resetting high-rate input after twelve samples.
+            if ((_clockwiseTurns > 0 || _counterClockwiseTurns > 0) && center.HasValue)
+            {
+                var dx = point.X - center.Value.X;
+                var dy = point.Y - center.Value.Y;
+                if (IsDegenerate(center.Value) || (_enforceRadiusLimit &&
+                    dx * dx + dy * dy > _maxRadiusSquared * MaxRadiusSlackFactor * MaxRadiusSlackFactor))
+                {
+                    ResetState();
+                    return MouseGestureAction.None;
+                }
+                centerPoint = new Point((int)Math.Round(center.Value.X), (int)Math.Round(center.Value.Y));
+            }
             return EvaluateCompletion(isCtrlPressed);
         }
     }
@@ -304,48 +302,36 @@ internal sealed class MouseGestureDetector
         return Math.Max(1, radiusPixels) * (double)Math.Max(1, radiusPixels);
     }
 
-    private void AddRecentPoint(Point point, DateTime nowUtc)
+    private void AddRecentPoint(Point point)
     {
-        _recentPoints.Add((point.X, point.Y, nowUtc));
-        PruneRecent(nowUtc);
-    }
-
-    private void PruneRecent(DateTime nowUtc)
-    {
-        if (_recentPoints.Count == 0) return;
-        var cutoff = nowUtc.AddSeconds(-CenterWindowSeconds);
-        int idx = 0;
-        while (idx < _recentPoints.Count && _recentPoints[idx].Timestamp < cutoff)
+        // Keep complete spatial history for slow circles too. Decimate at the bound
+        // instead of discarding all samples older than one second (a partial arc).
+        if (_recentPoints.Count == 512)
         {
-            idx++;
+            for (int i = 1; i < _recentPoints.Count; i += 2) _recentPoints[i / 2] = _recentPoints[i];
+            _recentPoints.RemoveRange(256, 256);
         }
-        if (idx > 0)
-        {
-            _recentPoints.RemoveRange(0, idx);
-        }
+        _recentPoints.Add(point);
     }
 
     private (double X, double Y)? GetRecentCenter()
     {
         if (_recentPoints.Count == 0) return null;
-        double sumX = 0;
-        double sumY = 0;
+        double minX = double.MaxValue, minY = double.MaxValue;
+        double maxX = double.MinValue, maxY = double.MinValue;
         foreach (var sample in _recentPoints)
         {
-            sumX += sample.X;
-            sumY += sample.Y;
+            minX = Math.Min(minX, sample.X);
+            minY = Math.Min(minY, sample.Y);
+            maxX = Math.Max(maxX, sample.X);
+            maxY = Math.Max(maxY, sample.Y);
         }
-        double count = _recentPoints.Count;
-        return (sumX / count, sumY / count);
+        // The bounding-box center is independent of speed and sample density.
+        return ((minX + maxX) / 2, (minY + maxY) / 2);
     }
 
     private bool IsDegenerate((double X, double Y) center)
     {
-        if (_recentPoints.Count < MinSamplesForAspectCheck)
-        {
-            return false;
-        }
-
         double maxDx = 0;
         double maxDy = 0;
         foreach (var sample in _recentPoints)

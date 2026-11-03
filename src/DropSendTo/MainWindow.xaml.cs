@@ -5474,9 +5474,9 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         MinimizeWindowToTray();
     }
 
-    private void OnMouseGestureShowRequested(object? sender, EventArgs e)
+    private void OnMouseGestureShowRequested(object? sender, MouseGestureEventArgs e)
     {
-        ShowWindowFromMouseGesture(useTransientPosition: false);
+        ShowWindowFromMouseGesture(useTransientPosition: false, e.Center);
     }
 
     private void OnDragMiddleClickShowRequested(object? sender, EventArgs e)
@@ -5619,7 +5619,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         RefreshDragHoverIfMouseButtonDown();
     }
 
-    private void ShowWindowFromMouseGesture(bool useTransientPosition)
+    private void ShowWindowFromMouseGesture(bool useTransientPosition, System.Drawing.Point center)
     {
         HideLayerNameOverlayImmediate();
         bool wasHidden = IsWindowHiddenForShow();
@@ -5641,10 +5641,10 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             switch (placement)
             {
                 case WindowPlacementMode.MouseFollow:
-                    PositionWindowAtMouse();
+                    PositionWindowAtMouse(center);
                     break;
                 case WindowPlacementMode.CursorScreenCenter:
-                    PositionWindowAtCursorScreenCenter();
+                    PositionWindowAtCursorScreenCenter(center);
                     break;
                 case WindowPlacementMode.Fixed:
                 default:
@@ -5654,6 +5654,10 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
             }
         }
         BringWindowToForeground();
+        // Showing a hidden window can finish its DPI/layout update. Re-anchor to the
+        // captured gesture center, even if the mouse moved while the UI was busy.
+        if (!isDrag && placement == WindowPlacementMode.MouseFollow) PositionWindowAtMouse(center);
+        if (!isDrag && placement == WindowPlacementMode.CursorScreenCenter) PositionWindowAtCursorScreenCenter(center);
         RearmDragDropTargets();
         ActivateKeyboardNavigation();
         ShowLayerNameOverlay();
@@ -6184,11 +6188,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         _config.WindowTop = this.Top;
     }
 
-    private void PositionWindowAtMouse()
+    private void PositionWindowAtMouse(System.Drawing.Point? anchor = null)
     {
         try
         {
-            var cursorPosition = Forms.Control.MousePosition;
+            var cursorPosition = anchor ?? Forms.Control.MousePosition;
             CursorWindowPlacementService.Place(this, new System.Windows.Point(cursorPosition.X, cursorPosition.Y),
                 CursorWindowPlacement.MouseFollow);
         }
@@ -6198,11 +6202,11 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         }
     }
 
-    private void PositionWindowAtCursorScreenCenter()
+    private void PositionWindowAtCursorScreenCenter(System.Drawing.Point? anchor = null)
     {
         try
         {
-            var cursor = Forms.Control.MousePosition;
+            var cursor = anchor ?? Forms.Control.MousePosition;
             CursorWindowPlacementService.Place(this, new System.Windows.Point(cursor.X, cursor.Y),
                 CursorWindowPlacement.ScreenCenter);
         }
