@@ -1262,23 +1262,26 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
     protected override void OnLocationChanged(EventArgs e)
     {
         base.OnLocationChanged(e);
-        if (_layerNameOverlayWindow?.IsVisible == true)
-        {
-            PositionLayerNameOverlay(_layerNameOverlayWindow);
-        }
-        if (_searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
+        RepositionVisibleOverlays();
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
-        if (_searchOverlayWindow?.IsVisible == true)
-        {
-            PositionSearchOverlay();
-        }
+        RepositionVisibleOverlays();
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        // Native position and WPF layout can finish updating after WM_DPICHANGED.
+        Dispatcher.BeginInvoke(new Action(RepositionVisibleOverlays), DispatcherPriority.Loaded);
+    }
+
+    private void RepositionVisibleOverlays()
+    {
+        if (_layerNameOverlayWindow?.IsVisible == true) PositionLayerNameOverlay(_layerNameOverlayWindow);
+        if (_searchOverlayWindow?.IsVisible == true) PositionSearchOverlay();
     }
 
     protected override void OnDeactivated(EventArgs e)
@@ -1376,63 +1379,6 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
     }
 
-    private Rect GetWindowRect()
-    {
-        double width = Width;
-        if (double.IsNaN(width) || width <= 0)
-        {
-            width = ActualWidth;
-        }
-        if (width <= 0)
-        {
-            width = Math.Max(MinWidth, 1);
-        }
-
-        double height = Height;
-        if (double.IsNaN(height) || height <= 0)
-        {
-            height = ActualHeight;
-        }
-        if (height <= 0)
-        {
-            height = Math.Max(MinHeight, 1);
-        }
-
-        return new Rect(Left, Top, width, height);
-    }
-
-    private (double left, double top, bool placedBelow) CalculateOverlayPosition(Window overlay)
-    {
-        overlay.InvalidateMeasure();
-        overlay.Measure(new System.Windows.Size(overlay.MaxWidth, double.PositiveInfinity));
-        overlay.Width = overlay.DesiredSize.Width;
-        overlay.Height = overlay.DesiredSize.Height;
-        overlay.UpdateLayout();
-
-        var anchorRect = GetWindowRect();
-        var bounds = ScreenBoundsResolver.ForRect(this, anchorRect);
-        const double offset = 10;
-
-        double targetLeft = anchorRect.Left + (anchorRect.Width - overlay.Width) / 2;
-        double targetTop = anchorRect.Top - overlay.Height - offset;
-        bool placedBelow = false;
-        if (targetTop < bounds.Top)
-        {
-            targetTop = anchorRect.Bottom + offset;
-            placedBelow = true;
-        }
-
-        var (clampedLeft, clampedTop) = _placement.Clamp(targetLeft, targetTop, bounds, overlay.Width, overlay.Height);
-        return (clampedLeft, clampedTop, placedBelow);
-    }
-
-    private void PositionOverlayWindow(Window overlay)
-    {
-        var (left, top, _) = CalculateOverlayPosition(overlay);
-        overlay.Left = left;
-        overlay.Top = top;
-    }
-
     private LayerNameOverlayWindow EnsureLayerNameOverlay()
     {
         if (_layerNameOverlayWindow == null)
@@ -1459,7 +1405,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
 
     private void PositionLayerNameOverlay(LayerNameOverlayWindow overlay)
     {
-        PositionOverlayWindow(overlay);
+        OwnedWindowPlacementService.Place(this, overlay);
     }
 
     private void UpdateOverlayTopmost()
@@ -1582,9 +1528,7 @@ public partial class MainWindow : Window, IConfigRuntimeApplyTarget
         {
             return;
         }
-        var (left, top, placedBelow) = CalculateOverlayPosition(_searchOverlayWindow);
-        _searchOverlayWindow.Left = left;
-        _searchOverlayWindow.Top = top;
+        bool placedBelow = OwnedWindowPlacementService.Place(this, _searchOverlayWindow);
         _isSearchOverlayBelowMain = placedBelow;
         _searchOverlayWindow.NavigationDirectionToSlots = placedBelow ? NavigationDirection.Up : NavigationDirection.Down;
     }

@@ -27,6 +27,7 @@ internal static partial class Program
         {
             report.Add($"App module={typeof(MainWindow).Assembly.ManifestModule.ModuleVersionId}; runtime={Environment.Version}");
             app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
             XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
             var source = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "AppResources.xaml"));
             var resources = source.Root!.Element(presentation + "Application.Resources")!
@@ -41,6 +42,8 @@ internal static partial class Program
                 MousePlacementFollowsKeyboard = false,
                 MouseGestureSuppressDuringPresentation = false
             };
+            config.Layers[0].Name = "タブ名の表示テスト";
+            config.Layers[1].Name = "長いタブ名の表示位置を確認します。折り返しで高さが変わってもウィンドウに追従します。";
             new ConfigService().Save(config);
             main = new MainWindow();
             var handle = new WindowInteropHelper(main).EnsureHandle();
@@ -121,6 +124,66 @@ internal static partial class Program
                             $"Physical position matches center: actual=({rect.Left},{rect.Top}), expected={expected}");
                         report.Add($"PASS monitor=({screen.Left},{screen.Top}) dpi={dpi.DpiScaleX * 100}% step={step} center=({x},{y}) window=({rect.Left},{rect.Top})");
                         Capture(main, Path.Combine(output, $"gesture-{image++}.png"));
+                        var tab = (Window)typeof(MainWindow).GetField("_layerNameOverlayWindow", PrivateInstance)!
+                            .GetValue(main)!;
+                        Assert(tab.IsVisible && GetWindowRect(new WindowInteropHelper(tab).Handle, out _),
+                            "Named tab has a visible native overlay");
+                        GetWindowRect(new WindowInteropHelper(tab).Handle, out var tabRect);
+                        Assert(Math.Abs((tabRect.Left + tabRect.Right) / 2.0 - (rect.Left + rect.Right) / 2.0) <= 3,
+                            $"Tab overlay center must follow owner: owner=({rect.Left},{rect.Top},{rect.Right},{rect.Bottom}), tab=({tabRect.Left},{tabRect.Top},{tabRect.Right},{tabRect.Bottom})");
+                        Assert(Math.Abs(rect.Top - tabRect.Bottom - 10 * dpi.DpiScaleY) <= 3,
+                            "Tab overlay must be 10 owner DIPs above the main window");
+                        report.Add($"PASS tab overlay dpi={VisualTreeHelper.GetDpi(tab).DpiScaleX * 100}% centered above main");
+                        Capture(tab, Path.Combine(output, $"tab-{image}.png"));
+                        if (step == 0)
+                        {
+                            foreach (var destination in screens)
+                            {
+                                Assert(SetWindowPos(handle, IntPtr.Zero, destination.Left + 400, destination.Top + 300,
+                                    0, 0, 0x0001 | 0x0004 | 0x0010), "Move visible owner across actual monitors");
+                                Pump();
+                                AssertOverlayFollowsOwner(main, tab, "visible monitor transition");
+                                report.Add($"PASS visible tab transition owner/overlay dpi={VisualTreeHelper.GetDpi(main).DpiScaleX * 100}%/{VisualTreeHelper.GetDpi(tab).DpiScaleX * 100}%");
+                                typeof(MainWindow).GetMethod("SetLayer", PrivateInstance)!.Invoke(main, new object[] { 1, false });
+                                Pump();
+                                AssertOverlayFollowsOwner(main, tab, "long tab name");
+                                Assert(SetWindowPos(handle, IntPtr.Zero, destination.Left + 4, destination.Top + 4,
+                                    0, 0, 0x0001 | 0x0004 | 0x0010), "Move owner to top/left working-area edge");
+                                Pump();
+                                AssertOverlayFollowsOwner(main, tab, "top/left edge and long label");
+                                report.Add("PASS long tab name, horizontal clamp and below-owner fallback at working-area top");
+                                Capture(tab, Path.Combine(output, $"tab-long-{image}-{destination.Left}.png"));
+                                typeof(MainWindow).GetMethod("SetLayer", PrivateInstance)!.Invoke(main, new object[] { 0, false });
+                                Pump();
+                                typeof(MainWindow).GetMethod("HideLayerNameOverlayImmediate", PrivateInstance)!.Invoke(main, null);
+                                typeof(MainWindow).GetMethod("OpenSearchLayer", PrivateInstance)!.Invoke(main, null);
+                                Pump();
+                                var search = (SearchOverlayWindow)typeof(MainWindow).GetField("_searchOverlayWindow", PrivateInstance)!.GetValue(main)!;
+                                Assert(search.IsVisible, "Search overlay is shown");
+                                AssertOverlayFollowsOwner(main, search, "search overlay at working-area top");
+                                Assert(search.NavigationDirectionToSlots == NavigationDirection.Up,
+                                    "Below-owner search navigation points up to slots");
+                                Assert(SetWindowPos(handle, IntPtr.Zero, destination.Left + 400, destination.Top + 300,
+                                    0, 0, 0x0001 | 0x0004 | 0x0010), "Move owner with visible search");
+                                Pump();
+                                AssertOverlayFollowsOwner(main, search, "visible search movement");
+                                Assert(search.NavigationDirectionToSlots == NavigationDirection.Down,
+                                    "Above-owner search navigation points down to slots");
+                                report.Add("PASS search overlay movement and above/below keyboard navigation");
+                                typeof(MainWindow).GetMethod("CloseSearchLayer", PrivateInstance)!.Invoke(main, null);
+                                typeof(MainWindow).GetMethod("ShowLayerNameOverlay", PrivateInstance)!.Invoke(main, null);
+                                Pump();
+                            }
+                            double previousWidth = main.Width;
+                            main.Width += 80;
+                            main.UpdateLayout();
+                            Pump();
+                            AssertOverlayFollowsOwner(main, tab, "owner size change");
+                            report.Add("PASS visible tab follows main-window size change");
+                            main.Width = previousWidth;
+                            main.UpdateLayout();
+                            Pump();
+                        }
                     }
                 }
             }
@@ -143,6 +206,31 @@ internal static partial class Program
             app?.Shutdown();
         }
     }
+
+    private static void AssertOverlayFollowsOwner(Window owner, Window overlay, string scenario)
+    {
+        Assert(overlay.IsVisible, $"Overlay is visible during {scenario}");
+        var ownerHandle = new WindowInteropHelper(owner).Handle;
+        Assert(GetWindowRect(ownerHandle, out var ownerRect), "Read owner bounds");
+        Assert(GetWindowRect(new WindowInteropHelper(overlay).Handle, out var overlayRect), "Read overlay bounds");
+        var monitor = new GestureMonitorInfo { Size = Marshal.SizeOf<GestureMonitorInfo>() };
+        Assert(GetMonitorInfo(MonitorFromWindow(ownerHandle, 2), ref monitor), "Read native owner working area");
+        double width = overlayRect.Right - overlayRect.Left, height = overlayRect.Bottom - overlayRect.Top;
+        double gap = 10 * VisualTreeHelper.GetDpi(owner).DpiScaleY;
+        double left = Math.Clamp((ownerRect.Left + ownerRect.Right - width) / 2,
+            monitor.Work.Left, Math.Max(monitor.Work.Left, monitor.Work.Right - width));
+        double top = ownerRect.Top - height - gap;
+        if (top < monitor.Work.Top) top = ownerRect.Bottom + gap;
+        top = Math.Clamp(top, monitor.Work.Top, Math.Max(monitor.Work.Top, monitor.Work.Bottom - height));
+        Assert(Math.Abs(overlayRect.Left - left) <= 3 && Math.Abs(overlayRect.Top - top) <= 3,
+            $"Overlay follows owner after {scenario}: owner=({ownerRect.Left},{ownerRect.Top},{ownerRect.Right},{ownerRect.Bottom}), overlay=({overlayRect.Left},{overlayRect.Top},{overlayRect.Right},{overlayRect.Bottom}), expected=({left},{top})");
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct GestureRect { public int Left, Top, Right, Bottom; }

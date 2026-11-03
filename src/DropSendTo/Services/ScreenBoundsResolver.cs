@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Interop;
 using Forms = System.Windows.Forms;
 
 namespace DropSendTo.Services;
@@ -16,6 +17,10 @@ internal static class ScreenBoundsResolver
             (int)NormalizeCoordinate(x), (int)NormalizeCoordinate(y)));
         return ToBounds(screen);
     }
+
+    // Unlike ForWindow, this returns the working area in physical desktop pixels.
+    internal static ScreenBounds ForWindowPixels(Window window) =>
+        ToBounds(Forms.Screen.FromHandle(new WindowInteropHelper(window).EnsureHandle()));
 
     public static ScreenBounds ForWindow(Window window)
     {
